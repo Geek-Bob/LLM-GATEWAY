@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest'
 import { mapFinishReason } from '../converter'
+import { convertRequest } from '../converter'
 
 describe('mapFinishReason', () => {
   describe('toOpenAI direction', () => {
@@ -49,5 +50,234 @@ describe('mapFinishReason', () => {
     it('should pass through unknown reasons unchanged', () => {
       expect(mapFinishReason('unknown_reason', 'toAnthropic')).toBe('unknown_reason')
     })
+  })
+})
+
+describe('convertRequest O→A', () => {
+  const minimalOpenaiBody = {
+    model: 'gpt-4',
+    messages: [
+      { role: 'system', content: 'You are helpful.' },
+      { role: 'user', content: 'Hello' },
+    ],
+  }
+
+  it('should convert path from /v1/chat/completions to /v1/messages', () => {
+    const result = convertRequest(minimalOpenaiBody, 'openai', 'anthropic')
+    expect(result.path).toBe('/v1/messages')
+  })
+
+  it('should extract system message to top-level system field', () => {
+    const result = convertRequest(minimalOpenaiBody, 'openai', 'anthropic')
+    expect(result.body.system).toEqual([
+      { type: 'text', text: 'You are helpful.' },
+    ])
+  })
+
+  it('should NOT include system role in messages array', () => {
+    const result = convertRequest(minimalOpenaiBody, 'openai', 'anthropic')
+    const hasSystem = result.body.messages.some(
+      (m: any) => m.role === 'system'
+    )
+    expect(hasSystem).toBe(false)
+  })
+
+  it('should preserve user messages', () => {
+    const result = convertRequest(minimalOpenaiBody, 'openai', 'anthropic')
+    expect(result.body.messages).toHaveLength(1)
+    expect(result.body.messages[0]).toEqual({
+      role: 'user',
+      content: 'Hello',
+    })
+  })
+
+  it('should passthrough basic fields', () => {
+    const body = {
+      ...minimalOpenaiBody,
+      model: 'gpt-4-turbo',
+      temperature: 0.7,
+      max_tokens: 1000,
+      top_p: 0.9,
+      stream: true,
+    }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.model).toBe('gpt-4-turbo')
+    expect(result.body.temperature).toBe(0.7)
+    expect(result.body.max_tokens).toBe(1000)
+    expect(result.body.top_p).toBe(0.9)
+    expect(result.body.stream).toBe(true)
+  })
+
+  it('should passthrough top_k if present', () => {
+    const body = { ...minimalOpenaiBody, top_k: 50 }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.top_k).toBe(50)
+  })
+
+  it('should convert stop string to stop_sequences array', () => {
+    const body = { ...minimalOpenaiBody, stop: '\n\n' }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.stop_sequences).toEqual(['\n\n'])
+  })
+
+  it('should convert stop array to stop_sequences array', () => {
+    const body = { ...minimalOpenaiBody, stop: ['\n', 'END'] }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.stop_sequences).toEqual(['\n', 'END'])
+  })
+
+  it('should merge consecutive same-role messages', () => {
+    const body = {
+      model: 'gpt-4',
+      messages: [
+        { role: 'user', content: 'Part 1' },
+        { role: 'user', content: 'Part 2' },
+      ],
+    }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.messages).toHaveLength(1)
+    expect(result.body.messages[0].content).toBe('Part 1 Part 2')
+  })
+
+  it('should replace empty content with "..."', () => {
+    const body = {
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: '' }],
+    }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.messages[0].content).toBe('...')
+  })
+
+  it('should insert user placeholder if first message is assistant', () => {
+    const body = {
+      model: 'gpt-4',
+      messages: [{ role: 'assistant', content: 'I already started.' }],
+    }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.messages[0]).toEqual({
+      role: 'user',
+      content: '...',
+    })
+    expect(result.body.messages[1].role).toBe('assistant')
+  })
+
+  it('should convert OpenAI tools to Claude Tool format', () => {
+    const body = {
+      ...minimalOpenaiBody,
+      tools: [
+        {
+          type: 'function',
+          function: {
+            name: 'get_weather',
+            description: 'Get current weather',
+            parameters: {
+              type: 'object',
+              properties: { city: { type: 'string' } },
+              required: ['city'],
+            },
+          },
+        },
+      ],
+    }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.tools).toHaveLength(1)
+    expect(result.body.tools[0]).toEqual({
+      name: 'get_weather',
+      description: 'Get current weather',
+      input_schema: {
+        type: 'object',
+        properties: { city: { type: 'string' } },
+        required: ['city'],
+      },
+    })
+  })
+
+  it('should map tool_choice auto', () => {
+    const body = { ...minimalOpenaiBody, tool_choice: 'auto' }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.tool_choice).toEqual({ type: 'auto' })
+  })
+
+  it('should map tool_choice required to any', () => {
+    const body = { ...minimalOpenaiBody, tool_choice: 'required' }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.tool_choice).toEqual({ type: 'any' })
+  })
+
+  it('should map tool_choice none', () => {
+    const body = { ...minimalOpenaiBody, tool_choice: 'none' }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.tool_choice).toEqual({ type: 'none' })
+  })
+
+  it('should map reasoning_effort to thinking budget_tokens', () => {
+    const body = { ...minimalOpenaiBody, reasoning_effort: 'medium' }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.thinking).toEqual({
+      type: 'enabled',
+      budget_tokens: 2048,
+    })
+  })
+
+  it('should map response_format json_object to system prompt', () => {
+    const body = {
+      ...minimalOpenaiBody,
+      response_format: { type: 'json_object' },
+    }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.system).toBeDefined()
+    const lastSystem = result.body.system[result.body.system.length - 1]
+    expect(lastSystem.text).toContain('valid JSON')
+  })
+
+  it('should convert response_format json_schema to tool + tool_choice', () => {
+    const schema = {
+      type: 'object',
+      properties: { name: { type: 'string' } },
+    }
+    const body = {
+      ...minimalOpenaiBody,
+      response_format: {
+        type: 'json_schema',
+        json_schema: { name: 'MySchema', strict: true, schema },
+      },
+    }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.tools).toBeDefined()
+    expect(result.body.tools[0].name).toBe('MySchema')
+    expect(result.body.tools[0].input_schema).toEqual(schema)
+    expect(result.body.tool_choice).toEqual({
+      type: 'tool',
+      name: 'MySchema',
+    })
+  })
+
+  it('should remove incompatible OpenAI fields', () => {
+    const body = {
+      ...minimalOpenaiBody,
+      n: 3,
+      frequency_penalty: 0.5,
+      presence_penalty: 0.3,
+      seed: 42,
+      logprobs: true,
+      top_logprobs: 3,
+      logit_bias: { '1234': 5 },
+      stream_options: { include_usage: true },
+    }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.n).toBeUndefined()
+    expect(result.body.frequency_penalty).toBeUndefined()
+    expect(result.body.presence_penalty).toBeUndefined()
+    expect(result.body.seed).toBeUndefined()
+    expect(result.body.logprobs).toBeUndefined()
+    expect(result.body.top_logprobs).toBeUndefined()
+    expect(result.body.logit_bias).toBeUndefined()
+    expect(result.body.stream_options).toBeUndefined()
+  })
+
+  it('should add default max_tokens if missing', () => {
+    const result = convertRequest(minimalOpenaiBody, 'openai', 'anthropic')
+    expect(result.body.max_tokens).toBeDefined()
+    expect(result.body.max_tokens).toBeGreaterThan(0)
   })
 })
