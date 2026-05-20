@@ -431,3 +431,137 @@ describe('convertRequest A→O', () => {
     expect(result.body.web_search_options.search_context_size).toBe('medium')
   })
 })
+
+import { convertResponse } from '../converter'
+
+describe('convertResponse C→O', () => {
+  it('should convert Claude text response to OpenAI format', () => {
+    const claudeResp = {
+      id: 'msg_123',
+      model: 'claude-sonnet-4-5',
+      type: 'message',
+      role: 'assistant',
+      content: [{ type: 'text', text: 'Hello! How can I help?' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 10, output_tokens: 5 },
+    }
+    const result = convertResponse(claudeResp, 'anthropic', 'openai')
+    expect(result.id).toBe('msg_123')
+    expect(result.object).toBe('chat.completion')
+    expect(result.choices).toHaveLength(1)
+    expect(result.choices[0].message.content).toBe('Hello! How can I help?')
+    expect(result.choices[0].finish_reason).toBe('stop')
+    expect(result.usage.prompt_tokens).toBe(10)
+    expect(result.usage.completion_tokens).toBe(5)
+  })
+
+  it('should convert Claude tool_use to OpenAI tool_calls', () => {
+    const claudeResp = {
+      id: 'msg_456',
+      model: 'claude-sonnet-4-5',
+      type: 'message',
+      role: 'assistant',
+      content: [{
+        type: 'tool_use',
+        id: 'toolu_01',
+        name: 'get_weather',
+        input: { city: 'NYC' },
+      }],
+      stop_reason: 'tool_use',
+      usage: { input_tokens: 20, output_tokens: 15 },
+    }
+    const result = convertResponse(claudeResp, 'anthropic', 'openai')
+    expect(result.choices[0].message.tool_calls).toBeDefined()
+    expect(result.choices[0].message.tool_calls[0].id).toBe('toolu_01')
+    expect(result.choices[0].message.tool_calls[0].function.name).toBe('get_weather')
+    expect(result.choices[0].finish_reason).toBe('tool_calls')
+  })
+
+  it('should convert Claude thinking to OpenAI reasoning_content', () => {
+    const claudeResp = {
+      id: 'msg_789',
+      model: 'claude-sonnet-4-5',
+      type: 'message',
+      role: 'assistant',
+      content: [{ type: 'thinking', thinking: 'Let me think about this...' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 5, output_tokens: 10 },
+    }
+    const result = convertResponse(claudeResp, 'anthropic', 'openai')
+    expect(result.choices[0].message.reasoning_content).toBe('Let me think about this...')
+  })
+})
+
+describe('convertResponse O→C', () => {
+  it('should convert OpenAI text response to Claude format', () => {
+    const openaiResp = {
+      id: 'chatcmpl-abc',
+      object: 'chat.completion',
+      model: 'gpt-4',
+      choices: [{
+        index: 0,
+        message: { role: 'assistant', content: 'Hello!' },
+        finish_reason: 'stop',
+      }],
+      usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+    }
+    const result = convertResponse(openaiResp, 'openai', 'anthropic')
+    expect(result.id).toBe('chatcmpl-abc')
+    expect(result.type).toBe('message')
+    expect(result.role).toBe('assistant')
+    expect(result.content[0].type).toBe('text')
+    expect(result.content[0].text).toBe('Hello!')
+    expect(result.stop_reason).toBe('end_turn')
+    expect(result.usage.input_tokens).toBe(10)
+    expect(result.usage.output_tokens).toBe(5)
+  })
+
+  it('should convert OpenAI tool_calls to Claude tool_use', () => {
+    const openaiResp = {
+      id: 'chatcmpl-def',
+      object: 'chat.completion',
+      model: 'gpt-4',
+      choices: [{
+        index: 0,
+        message: {
+          role: 'assistant',
+          tool_calls: [{
+            id: 'call_123',
+            type: 'function',
+            function: { name: 'get_weather', arguments: '{"city":"NYC"}' },
+          }],
+        },
+        finish_reason: 'tool_calls',
+      }],
+      usage: { prompt_tokens: 20, completion_tokens: 15, total_tokens: 35 },
+    }
+    const result = convertResponse(openaiResp, 'openai', 'anthropic')
+    expect(result.content[0].type).toBe('tool_use')
+    expect(result.content[0].id).toBe('call_123')
+    expect(result.content[0].name).toBe('get_weather')
+    expect(result.content[0].input).toEqual({ city: 'NYC' })
+  })
+})
+
+describe('convertResponse error conversion', () => {
+  it('should convert Anthropic error to OpenAI error format', () => {
+    const claudeErr = {
+      type: 'error',
+      error: { type: 'invalid_request_error', message: 'Model not found' },
+    }
+    const result = convertResponse(claudeErr, 'anthropic', 'openai')
+    expect(result.error).toBeDefined()
+    expect(result.error.type).toBe('invalid_request_error')
+    expect(result.error.message).toBe('Model not found')
+  })
+
+  it('should convert OpenAI error to Anthropic error format', () => {
+    const openaiErr = {
+      error: { type: 'invalid_request_error', message: 'Model not found' },
+    }
+    const result = convertResponse(openaiErr, 'openai', 'anthropic')
+    expect(result.type).toBe('error')
+    expect(result.error.type).toBe('invalid_request_error')
+    expect(result.error.message).toBe('Model not found')
+  })
+})
