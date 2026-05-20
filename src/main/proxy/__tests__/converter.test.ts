@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest'
 import { mapFinishReason } from '../converter'
 import { convertRequest } from '../converter'
+import { convertSSEEvent } from '../converter'
 
 describe('mapFinishReason', () => {
   describe('toOpenAI direction', () => {
@@ -563,5 +564,110 @@ describe('convertResponse error conversion', () => {
     expect(result.type).toBe('error')
     expect(result.error.type).toBe('invalid_request_error')
     expect(result.error.message).toBe('Model not found')
+  })
+})
+
+describe('convertSSEEvent C→O', () => {
+  it('should convert message_start to role delta', () => {
+    const data = {
+      type: 'message_start',
+      message: { id: 'msg_001', model: 'claude-sonnet-4-5', role: 'assistant' },
+    }
+    const result = convertSSEEvent('message_start', data, 'anthropic', 'openai')
+    expect(result).not.toBeNull()
+    expect(result!.event).toBe('')
+    expect(result!.data.object).toBe('chat.completion.chunk')
+    expect(result!.data.choices[0].delta.role).toBe('assistant')
+    expect(result!.data.id).toBe('msg_001')
+    expect(result!.data.model).toBe('claude-sonnet-4-5')
+  })
+
+  it('should convert content_block_start text to first content delta', () => {
+    const data = {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'text', text: 'Hello' },
+    }
+    const result = convertSSEEvent('content_block_start', data, 'anthropic', 'openai')
+    expect(result).not.toBeNull()
+    expect(result!.data.choices[0].delta.content).toBe('Hello')
+  })
+
+  it('should convert content_block_start tool_use to ToolCallResponse', () => {
+    const data = {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'tool_use', id: 'toolu_01', name: 'get_weather' },
+    }
+    const result = convertSSEEvent('content_block_start', data, 'anthropic', 'openai')
+    expect(result).not.toBeNull()
+    expect(result!.data.choices[0].delta.tool_calls[0].id).toBe('toolu_01')
+    expect(result!.data.choices[0].delta.tool_calls[0].function.name).toBe('get_weather')
+  })
+
+  it('should convert content_block_start thinking to reasoning delta', () => {
+    const data = {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'thinking', thinking: '' },
+    }
+    const result = convertSSEEvent('content_block_start', data, 'anthropic', 'openai')
+    expect(result).not.toBeNull()
+    expect(result!.data.choices[0].delta.reasoning_content).toBe('')
+  })
+
+  it('should convert content_block_delta text_delta to content delta', () => {
+    const data = {
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'text_delta', text: ' world' },
+    }
+    const result = convertSSEEvent('content_block_delta', data, 'anthropic', 'openai')
+    expect(result).not.toBeNull()
+    expect(result!.data.choices[0].delta.content).toBe(' world')
+  })
+
+  it('should convert content_block_delta input_json_delta to tool call arguments', () => {
+    const data = {
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'input_json_delta', partial_json: '{"city"' },
+    }
+    const result = convertSSEEvent('content_block_delta', data, 'anthropic', 'openai')
+    expect(result).not.toBeNull()
+    expect(result!.data.choices[0].delta.tool_calls[0].function.arguments).toBe('{"city"')
+  })
+
+  it('should convert content_block_delta thinking_delta to reasoning delta', () => {
+    const data = {
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'thinking_delta', thinking: 'Let me think...' },
+    }
+    const result = convertSSEEvent('content_block_delta', data, 'anthropic', 'openai')
+    expect(result).not.toBeNull()
+    expect(result!.data.choices[0].delta.reasoning_content).toBe('Let me think...')
+  })
+
+  it('should convert message_delta to finish_reason', () => {
+    const data = {
+      type: 'message_delta',
+      delta: { stop_reason: 'end_turn' },
+      usage: { output_tokens: 25 },
+    }
+    const result = convertSSEEvent('message_delta', data, 'anthropic', 'openai')
+    expect(result).not.toBeNull()
+    expect(result!.data.choices[0].finish_reason).toBe('stop')
+  })
+
+  it('should return null for message_stop', () => {
+    const data = { type: 'message_stop' }
+    const result = convertSSEEvent('message_stop', data, 'anthropic', 'openai')
+    expect(result).toBeNull()
+  })
+
+  it('should return null for unknown event types', () => {
+    const result = convertSSEEvent('ping', {}, 'anthropic', 'openai')
+    expect(result).toBeNull()
   })
 })
