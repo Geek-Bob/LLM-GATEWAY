@@ -80,7 +80,13 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git init *)",
-      "Bash(git commit *)"
+      "Bash(git commit *)",
+      "Bash(git rm *)",
+      "Bash(git remote *)",
+      "Bash(git push *)",
+      "Bash(python3 -c \"from PIL import Image; print\\('Pillow available'\\)\")",
+      "Bash(python -c \"from PIL import Image; print\\('Pillow available'\\)\")",
+      "Bash(git tag *)"
     ]
   }
 }
