@@ -281,3 +281,153 @@ describe('convertRequest O→A', () => {
     expect(result.body.max_tokens).toBeGreaterThan(0)
   })
 })
+
+describe('convertRequest A→O', () => {
+  const minimalClaudeBody = {
+    model: 'claude-sonnet-4-5',
+    messages: [
+      { role: 'user', content: 'Hello' },
+    ],
+    max_tokens: 1024,
+  }
+
+  it('should convert path from /v1/messages to /v1/chat/completions', () => {
+    const result = convertRequest(minimalClaudeBody, 'anthropic', 'openai')
+    expect(result.path).toBe('/v1/chat/completions')
+  })
+
+  it('should convert system field to system role message', () => {
+    const body = {
+      ...minimalClaudeBody,
+      system: [{ type: 'text', text: 'You are helpful.' }],
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    expect(result.body.messages[0]).toEqual({
+      role: 'system',
+      content: 'You are helpful.',
+    })
+  })
+
+  it('should convert string system field', () => {
+    const body = {
+      ...minimalClaudeBody,
+      system: 'You are helpful.',
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    expect(result.body.messages[0]).toEqual({
+      role: 'system',
+      content: 'You are helpful.',
+    })
+  })
+
+  it('should passthrough basic fields', () => {
+    const body = {
+      ...minimalClaudeBody,
+      temperature: 0.7,
+      top_p: 0.9,
+      top_k: 50,
+      stream: true,
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    expect(result.body.model).toBe('claude-sonnet-4-5')
+    expect(result.body.temperature).toBeCloseTo(0.7)
+    expect(result.body.top_p).toBeCloseTo(0.9)
+    expect(result.body.top_k).toBe(50)
+    expect(result.body.stream).toBe(true)
+  })
+
+  it('should convert stop_sequences to stop string for single item', () => {
+    const body = { ...minimalClaudeBody, stop_sequences: ['END'] }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    expect(result.body.stop).toBe('END')
+  })
+
+  it('should convert stop_sequences to stop array for multiple items', () => {
+    const body = { ...minimalClaudeBody, stop_sequences: ['END', 'STOP'] }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    expect(result.body.stop).toEqual(['END', 'STOP'])
+  })
+
+  it('should convert Claude tools to OpenAI function tools', () => {
+    const body = {
+      ...minimalClaudeBody,
+      tools: [{
+        name: 'get_weather',
+        description: 'Get weather',
+        input_schema: {
+          type: 'object',
+          properties: { city: { type: 'string' } },
+          required: ['city'],
+        },
+      }],
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    expect(result.body.tools).toHaveLength(1)
+    expect(result.body.tools[0].type).toBe('function')
+    expect(result.body.tools[0].function.name).toBe('get_weather')
+  })
+
+  it('should convert thinking enabled to reasoning_effort', () => {
+    const body = {
+      ...minimalClaudeBody,
+      thinking: { type: 'enabled', budget_tokens: 2048 },
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    expect(result.body.reasoning_effort).toBe('medium')
+  })
+
+  it('should convert tool_use in message to tool_calls', () => {
+    const body = {
+      ...minimalClaudeBody,
+      messages: [
+        { role: 'user', content: 'What is the weather?' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'toolu_01', name: 'get_weather', input: { city: 'NYC' } },
+          ],
+        },
+      ],
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    const assistantMsg = result.body.messages[1]
+    expect(assistantMsg.tool_calls).toBeDefined()
+    expect(assistantMsg.tool_calls[0].id).toBe('toolu_01')
+    expect(assistantMsg.tool_calls[0].function.name).toBe('get_weather')
+  })
+
+  it('should convert tool_result to tool role message', () => {
+    const body = {
+      ...minimalClaudeBody,
+      messages: [
+        { role: 'user', content: 'Hi' },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'What is the weather?' },
+            { type: 'tool_result', tool_use_id: 'toolu_01', content: 'Sunny, 72F' },
+          ],
+        },
+      ],
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    const toolMsg = result.body.messages.find((m: any) => m.role === 'tool')
+    expect(toolMsg).toBeDefined()
+    expect(toolMsg.tool_call_id).toBe('toolu_01')
+  })
+
+  it('should handle web_search tool conversion', () => {
+    const body = {
+      ...minimalClaudeBody,
+      tools: [{
+        type: 'web_search_20250305',
+        name: 'web_search',
+        max_uses: 5,
+        user_location: { type: 'approximate', country: 'US' },
+      }],
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    expect(result.body.web_search_options).toBeDefined()
+    expect(result.body.web_search_options.search_context_size).toBe('medium')
+  })
+})
