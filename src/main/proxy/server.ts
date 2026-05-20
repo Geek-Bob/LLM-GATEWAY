@@ -4,6 +4,7 @@ import { authMiddleware } from './middleware'
 import { RateLimiter } from './rate-limiter'
 import { resolveProvider, getAllModels } from './router'
 import { buildProxyUrl, buildProxyHeaders } from './forwarder'
+import { convertRequest, convertResponse, convertSSEEvent, resetStreamState } from './converter'
 import { verifyApiKey } from '../db/api-keys'
 import * as fs from 'fs'
 import * as os from 'os'
@@ -114,12 +115,34 @@ export function createServer() {
 
       const route = resolveProvider(model)
       const decryptedKey = route.provider.apiKey
-      const url = buildProxyUrl(route.provider, path)
+
+      // --- Protocol auto-conversion ---
+      const needsConversion = apiFormat !== route.provider.providerType
+      let proxyPath = path
+      let proxyBody: any = { ...body, model: route.modelName }
+
+      if (needsConversion) {
+        try {
+          const converted = convertRequest(proxyBody, apiFormat, route.provider.providerType as 'openai' | 'anthropic')
+          proxyBody = converted.body
+          proxyPath = converted.path
+        } catch (convErr: any) {
+          return c.json({ error: `protocol_conversion_failed: ${convErr.message}` }, 502)
+        }
+      }
+      // --- End protocol auto-conversion ---
+
+      const url = buildProxyUrl(route.provider, proxyPath)
 
       const originalHeaders: Record<string, string> = {}
       const contentType = c.req.header('content-type')
       if (contentType) {
         originalHeaders['content-type'] = contentType
+      }
+      // Pass through anthropic-beta header if client sent it and provider is anthropic
+      const anthropicBeta = c.req.header('anthropic-beta')
+      if (anthropicBeta && route.provider.providerType === 'anthropic') {
+        originalHeaders['anthropic-beta'] = anthropicBeta
       }
 
       const proxyHeaders = buildProxyHeaders(
@@ -127,7 +150,6 @@ export function createServer() {
         decryptedKey,
         originalHeaders
       )
-      const proxyBody = { ...body, model: route.modelName }
 
       const response = await fetch(url, {
         method: 'POST',
@@ -144,9 +166,34 @@ export function createServer() {
         durationMs: Date.now() - startTime
       }
 
-      // Handle streaming — tee the body so we stream to client AND log usage
-      if (body.stream && response.body) {
+      // Handle error responses — convert error format
+      if (!response.ok && !proxyBody.stream) {
+        const errorBody = await response.json()
+        const convertedError = needsConversion
+          ? convertResponse(errorBody, route.provider.providerType as 'openai' | 'anthropic', apiFormat)
+          : errorBody
+        return c.json(convertedError, response.status as any)
+      }
+
+      // Handle streaming
+      if (proxyBody.stream && response.body) {
         const [forClient, forLogging] = response.body.tee()
+
+        if (needsConversion) {
+          resetStreamState()
+          const convertedStream = convertSSEStream(
+            forClient,
+            route.provider.providerType as 'openai' | 'anthropic',
+            apiFormat
+          )
+          extractAndLogSSE(forLogging, logBase, apiFormat).catch(() => {})
+          return new Response(convertedStream, {
+            status: response.status,
+            headers: response.headers
+          })
+        }
+
+        // No conversion needed — existing behavior
         extractAndLogSSE(forLogging, logBase, apiFormat).catch(() => {})
         return new Response(forClient, {
           status: response.status,
@@ -156,17 +203,21 @@ export function createServer() {
 
       // Handle non-streaming
       const responseBody = await response.json()
+      const convertedBody = needsConversion
+        ? convertResponse(responseBody, route.provider.providerType as 'openai' | 'anthropic', apiFormat)
+        : responseBody
+
       let tokensIn = 0
       let tokensOut = 0
-      if (apiFormat === 'openai' && responseBody.usage) {
-        tokensIn = responseBody.usage.prompt_tokens ?? 0
-        tokensOut = responseBody.usage.completion_tokens ?? 0
-      } else if (apiFormat === 'anthropic' && responseBody.usage) {
-        tokensIn = responseBody.usage.input_tokens ?? 0
-        tokensOut = responseBody.usage.output_tokens ?? 0
+      if (apiFormat === 'openai' && convertedBody.usage) {
+        tokensIn = convertedBody.usage.prompt_tokens ?? 0
+        tokensOut = convertedBody.usage.completion_tokens ?? 0
+      } else if (apiFormat === 'anthropic' && convertedBody.usage) {
+        tokensIn = convertedBody.usage.input_tokens ?? 0
+        tokensOut = convertedBody.usage.output_tokens ?? 0
       }
       tryLogEntry(c, { ...logBase, tokensIn, tokensOut })
-      return c.json(responseBody, response.status as any)
+      return c.json(convertedBody, response.status as any)
     } catch (err) {
       return handleProxyError(c, err, startTime, apiFormat)
     }
@@ -191,6 +242,110 @@ export function createServer() {
     } catch {
       // Silent — logging is best-effort
     }
+  }
+
+  // SSE stream converter: reads upstream SSE events, converts format, writes to client
+  function convertSSEStream(
+    upstreamStream: ReadableStream<Uint8Array>,
+    from: 'openai' | 'anthropic',
+    to: 'openai' | 'anthropic'
+  ): ReadableStream<Uint8Array> {
+    const encoder = new TextEncoder()
+    let buffer = ''
+    let streamDone = false
+
+    return new ReadableStream({
+      async start(controller) {
+        const reader = upstreamStream.getReader()
+        const decoder = new TextDecoder()
+        let currentEvent = ''
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buffer += decoder.decode(value, { stream: true })
+
+            const lines = buffer.split('\n')
+            buffer = lines.pop() ?? ''
+
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i]
+              if (line.startsWith('event: ')) {
+                currentEvent = line.slice(7)
+              } else if (line.startsWith('data: ')) {
+                const dataStr = line.slice(6)
+
+                if (from === 'openai' && dataStr === '[DONE]') {
+                  const results = convertSSEEvent('done' as any, null as any, 'openai', 'anthropic')
+                  if (results) {
+                    const arr = Array.isArray(results) ? results : [results]
+                    for (const r of arr) {
+                      if (!r) continue
+                      const evt = r.event
+                      const evtStr = evt ? `event: ${evt}\n` : ''
+                      const dataJson = JSON.stringify(r.data)
+                      controller.enqueue(encoder.encode(`${evtStr}data: ${dataJson}\n\n`))
+                    }
+                  }
+                  streamDone = true
+                  continue
+                }
+
+                if (streamDone) continue
+
+                let parsedData: any
+                try {
+                  parsedData = JSON.parse(dataStr)
+                } catch {
+                  continue
+                }
+
+                const results = convertSSEEvent(currentEvent, parsedData, from, to)
+                if (!results) continue
+
+                const arr = Array.isArray(results) ? results : [results]
+                for (const r of arr) {
+                  if (!r) continue
+                  const evt = r.event && r.event !== '' ? `event: ${r.event}\n` : ''
+                  const dataJson = JSON.stringify(r.data)
+                  controller.enqueue(encoder.encode(`${evt}data: ${dataJson}\n\n`))
+                }
+
+                currentEvent = ''
+              }
+              if (line === '') {
+                currentEvent = ''
+              }
+            }
+          }
+
+          // Flush remaining buffer
+          if (buffer && !streamDone) {
+            for (const line of buffer.split('\n')) {
+              if (line.startsWith('data: ')) {
+                const dataStr = line.slice(6)
+                if (from === 'openai' && dataStr === '[DONE]') break
+                let parsedData: any
+                try { parsedData = JSON.parse(dataStr) } catch { continue }
+                const results = convertSSEEvent(currentEvent, parsedData, from, to)
+                if (!results) continue
+                const arr = Array.isArray(results) ? results : [results]
+                for (const r of arr) {
+                  if (!r) continue
+                  const evt = r.event && r.event !== '' ? `event: ${r.event}\n` : ''
+                  controller.enqueue(encoder.encode(`${evt}data: ${JSON.stringify(r.data)}\n\n`))
+                }
+              }
+            }
+          }
+
+          controller.close()
+        } catch (err) {
+          controller.error(err)
+        }
+      }
+    })
   }
 
   function handleProxyError(
