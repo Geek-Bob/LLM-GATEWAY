@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <rect width="256" height="256" rx="32" fill="#1e1b4b"/>
+  <g transform="translate(48, 48)">
+    <!-- Gateway icon: shield with network arrows -->
+    <path d="M80 8L152 32v72c0 40-32 72-72 80-40-8-72-40-72-80V32L80 8z" fill="none" stroke="#818cf8" stroke-width="6"/>
+    <path d="M80 48v64M56 80h48M68 64l12-16 12 16M68 96l12 16 12-16" stroke="#a5b4fc" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <circle cx="80" cy="80" r="8" fill="#6366f1"/>
+  </g>
+</svg>

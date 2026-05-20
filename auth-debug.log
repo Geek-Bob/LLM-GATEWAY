@@ -1,0 +1,37 @@
+
+[2026-05-16T07:15:11.479Z] REQUEST {"path":"/v1/messages","method":"POST","allHeaders":{"accept":"*/*","accept-encoding":"gzip, deflate, br, zstd","accept-language":"zh-CN","anthropic-version":"2023-06-01","connection":"keep-alive","content-length":"154","content-type":"application/json","host":"localhost:8080","http-referer":"https://cherry-ai.com","sec-ch-ua":"\"Not-A.Brand\";v=\"24\", \"Chromium\";v=\"146\"","sec-ch-ua-mobile":"?0","sec-ch-ua-platform":"\"Windows\"","sec-fetch-dest":"empty","sec-fetch-mode":"cors","sec-fetch-site":"cross-site","user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) CherryStudio/1.9.5 Chrome/146.0.7680.188 Electron/41.2.1 Safari/537.36","x-api-key":"sk-WnVAkMvLUW1yYjAnNnyt97RxYZ4uzQUaa_mB9QD99pViI4oT","x-title":"Cherry Studio"}}
+[2026-05-16T07:15:11.481Z] AUTH OK {"keyId":1,"keyName":"token1"}
+[2026-05-16T07:15:23.469Z] REQUEST {"path":"/v1/messages","method":"POST","allHeaders":{"accept":"*/*","accept-encoding":"gzip, deflate, br, zstd","accept-language":"zh-CN","anthropic-version":"2023-06-01","connection":"keep-alive","content-length":"409","content-type":"application/json","host":"localhost:8080","http-referer":"https://cherry-ai.com","sec-ch-ua":"\"Not-A.Brand\";v=\"24\", \"Chromium\";v=\"146\"","sec-ch-ua-mobile":"?0","sec-ch-ua-platform":"\"Windows\"","sec-fetch-dest":"empty","sec-fetch-mode":"cors","sec-fetch-site":"cross-site","user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) CherryStudio/1.9.5 Chrome/146.0.7680.188 Electron/41.2.1 Safari/537.36","x-api-key":"sk-WnVAkMvLUW1yYjAnNnyt97RxYZ4uzQUaa_mB9QD99pViI4oT","x-title":"Cherry Studio"}}
+[2026-05-16T07:15:23.470Z] AUTH OK {"keyId":1,"keyName":"token1"}
+[2026-05-16T07:20:26.359Z] REQUEST {"path":"/v1/chat/completions","method":"POST","allHeaders":{"content-type":"application/json"}}
+[2026-05-16T07:20:26.366Z] AUTH FAIL body {"model":"test-provider/gpt-4"}
+[2026-05-16T07:20:26.368Z] AUTH FAIL body unparseable {"textLen":45}
+[2026-05-16T07:20:26.373Z] REQUEST {"path":"/v1/chat/completions","method":"POST","allHeaders":{"authorization":"Bearer sk-invalid-ke...","content-type":"application/json"}}
+[2026-05-16T07:20:26.377Z] AUTH FAIL: invalid key {"tokenPrefix":"sk-invalid..."}
+[2026-05-16T07:20:26.379Z] AUTH FAIL body {"model":"test-provider/gpt-4"}
+[2026-05-16T07:20:26.379Z] AUTH FAIL body unparseable {"textLen":45}
+[2026-05-16T07:20:26.380Z] REQUEST {"path":"/v1/models","method":"GET","allHeaders":{}}
+[2026-05-16T07:20:26.382Z] AUTH FAIL body unparseable {"textLen":0}
+[2026-05-16T07:20:26.384Z] REQUEST {"path":"/v1/models","method":"GET","allHeaders":{"authorization":"Bearer invalid-key..."}}
+[2026-05-16T07:20:26.385Z] AUTH FAIL: invalid key {"tokenPrefix":"invalid-ke..."}
+[2026-05-16T07:20:26.387Z] AUTH FAIL body unparseable {"textLen":0}
+[2026-05-16T07:20:26.392Z] REQUEST {"path":"/v1/models","method":"GET","allHeaders":{"authorization":"Bearer sk--wM46xLbbI..."}}
+[2026-05-16T07:20:26.394Z] AUTH OK {"keyId":1,"keyName":"Test Key"}
+[2026-05-16T07:20:26.400Z] REQUEST {"path":"/v1/models","method":"GET","allHeaders":{"authorization":"Bearer sk--wM46xLbbI..."}}
+[2026-05-16T07:20:26.402Z] AUTH OK {"keyId":1,"keyName":"Test Key"}
+[2026-05-16T07:20:26.407Z] REQUEST {"path":"/v1/chat/completions","method":"POST","allHeaders":{"authorization":"Bearer sk--wM46xLbbI...","content-type":"application/json"}}
+[2026-05-16T07:20:26.408Z] AUTH OK {"keyId":1,"keyName":"Test Key"}
+[2026-05-16T07:20:26.412Z] REQUEST {"path":"/v1/chat/completions","method":"POST","allHeaders":{"authorization":"Bearer sk--wM46xLbbI...","content-type":"application/json"}}
+[2026-05-16T07:20:26.413Z] AUTH OK {"keyId":1,"keyName":"Test Key"}
+[2026-05-16T07:20:26.419Z] REQUEST {"path":"/v1/chat/completions","method":"POST","allHeaders":{"authorization":"Bearer sk--wM46xLbbI...","content-type":"application/json"}}
+[2026-05-16T07:20:26.420Z] AUTH OK {"keyId":1,"keyName":"Test Key"}
+[2026-05-16T07:20:26.423Z] REQUEST {"path":"/v1/chat/completions","method":"POST","allHeaders":{"authorization":"Bearer sk--wM46xLbbI...","content-type":"application/json"}}
+[2026-05-16T07:20:26.423Z] AUTH OK {"keyId":1,"keyName":"Test Key"}
+[2026-05-16T07:20:26.425Z] REQUEST {"path":"/v1/chat/completions","method":"POST","allHeaders":{"authorization":"Bearer sk--wM46xLbbI...","content-type":"application/json"}}
+[2026-05-16T07:20:26.426Z] AUTH OK {"keyId":1,"keyName":"Test Key"}
+[2026-05-16T07:20:26.427Z] REQUEST {"path":"/v1/chat/completions","method":"POST","allHeaders":{"authorization":"Bearer sk--wM46xLbbI...","content-type":"application/json"}}
+[2026-05-16T07:20:26.427Z] AUTH OK {"keyId":1,"keyName":"Test Key"}
+[2026-05-16T07:20:26.431Z] REQUEST {"path":"/v1/messages","method":"POST","allHeaders":{"authorization":"Bearer sk--wM46xLbbI...","content-type":"application/json"}}
+[2026-05-16T07:20:26.432Z] AUTH OK {"keyId":1,"keyName":"Test Key"}
+[2026-05-16T07:20:26.436Z] REQUEST {"path":"/v1/messages","method":"POST","allHeaders":{"authorization":"Bearer sk--wM46xLbbI...","content-type":"application/json"}}
+[2026-05-16T07:20:26.437Z] AUTH OK {"keyId":1,"keyName":"Test Key"}
