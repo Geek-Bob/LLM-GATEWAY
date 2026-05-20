@@ -289,6 +289,174 @@ function mapToolChoice(
   return result
 }
 
+function anthropicToOpenAIRequest(
+  anthropicBody: Record<string, any>
+): { body: Record<string, any>; path: string } {
+  const result: Record<string, any> = {}
+
+  // Basic fields
+  for (const key of ['model', 'temperature', 'top_p', 'top_k', 'stream', 'service_tier']) {
+    if (anthropicBody[key] !== undefined) {
+      result[key] = anthropicBody[key]
+    }
+  }
+  if (anthropicBody.max_tokens !== undefined) {
+    result.max_tokens = anthropicBody.max_tokens
+  }
+
+  // Stop sequences → stop
+  if (anthropicBody.stop_sequences) {
+    const seqs = anthropicBody.stop_sequences as string[]
+    result.stop = seqs.length === 1 ? seqs[0] : seqs
+  }
+
+  // System → messages[0]
+  const openaiMessages: Array<Record<string, any>> = []
+  if (anthropicBody.system) {
+    if (typeof anthropicBody.system === 'string') {
+      if (anthropicBody.system) {
+        openaiMessages.push({ role: 'system', content: anthropicBody.system })
+      }
+    } else if (Array.isArray(anthropicBody.system)) {
+      const textParts = anthropicBody.system
+        .filter((b: any) => b.type === 'text' && b.text)
+        .map((b: any) => b.text)
+      if (textParts.length > 0) {
+        openaiMessages.push({ role: 'system', content: textParts.join('\n') })
+      }
+    }
+  }
+
+  // Convert messages
+  for (const msg of anthropicBody.messages ?? []) {
+    if (typeof msg.content === 'string') {
+      openaiMessages.push({ role: msg.role, content: msg.content || '...' })
+    } else if (Array.isArray(msg.content)) {
+      const texts: string[] = []
+      const toolCalls: Array<Record<string, any>> = []
+      const mediaContents: Array<Record<string, any>> = []
+
+      for (const block of msg.content) {
+        switch (block.type) {
+          case 'text':
+            texts.push(block.text ?? '')
+            break
+          case 'tool_use':
+            toolCalls.push({
+              id: block.id,
+              type: 'function',
+              function: {
+                name: block.name,
+                arguments: JSON.stringify(block.input ?? {}),
+              },
+            })
+            break
+          case 'tool_result':
+            openaiMessages.push({
+              role: 'tool',
+              tool_call_id: block.tool_use_id,
+              content: typeof block.content === 'string' ? block.content : JSON.stringify(block.content),
+            })
+            break
+          case 'image':
+            if (block.source) {
+              const mimeType = block.source.media_type ?? 'image/jpeg'
+              const data = block.source.data ?? ''
+              mediaContents.push({
+                type: 'image_url',
+                image_url: { url: `data:${mimeType};base64,${data}` },
+              })
+            }
+            break
+          case 'thinking':
+            // thinking blocks don't map to OpenAI — skip
+            break
+        }
+      }
+
+      if (toolCalls.length > 0) {
+        const assistantMsg: Record<string, any> = { role: msg.role, content: null }
+        if (texts.length > 0) {
+          assistantMsg.content = texts.join(' ')
+        }
+        assistantMsg.tool_calls = toolCalls
+        openaiMessages.push(assistantMsg)
+      } else if (mediaContents.length > 0) {
+        const allContent = [
+          ...texts.map((t: string) => ({ type: 'text', text: t })),
+          ...mediaContents,
+        ]
+        openaiMessages.push({ role: msg.role, content: allContent })
+      } else if (texts.length > 0) {
+        openaiMessages.push({ role: msg.role, content: texts.join(' ') })
+      }
+    }
+  }
+
+  result.messages = openaiMessages
+
+  // Tools
+  if (anthropicBody.tools) {
+    const webSearchTools: Array<Record<string, any>> = []
+    const regularTools = anthropicBody.tools.filter((t: any) => {
+      if (t.type === 'web_search_20250305') {
+        webSearchTools.push(t)
+        return false
+      }
+      return true
+    })
+    if (regularTools.length > 0) {
+      result.tools = regularTools.map((t: any) => ({
+        type: 'function',
+        function: {
+          name: t.name,
+          description: t.description ?? '',
+          parameters: t.input_schema ?? { type: 'object', properties: {} },
+        },
+      }))
+    }
+    // Web search
+    if (webSearchTools.length > 0) {
+      const ws = webSearchTools[0]
+      const contextMap: Record<number, string> = { 1: 'low', 5: 'medium', 10: 'high' }
+      result.web_search_options = {}
+      if (ws.max_uses) {
+        result.web_search_options.search_context_size = contextMap[ws.max_uses] ?? 'medium'
+      }
+      if (ws.user_location) {
+        result.web_search_options.user_location = { approximate: ws.user_location }
+      }
+    }
+  }
+
+  // Thinking → reasoning_effort
+  if (anthropicBody.thinking) {
+    const thinking = anthropicBody.thinking
+    if (thinking.type === 'enabled') {
+      const bt = thinking.budget_tokens ?? 2048
+      if (bt <= 1280) result.reasoning_effort = 'low'
+      else if (bt <= 2048) result.reasoning_effort = 'medium'
+      else result.reasoning_effort = 'high'
+    }
+  }
+
+  // Tool choice reverse mapping
+  if (anthropicBody.tool_choice) {
+    const tc = anthropicBody.tool_choice
+    const typeMap: Record<string, string> = { auto: 'auto', any: 'required', none: 'none' }
+    if (tc.type === 'tool') {
+      result.tool_choice = { type: 'function', function: { name: tc.name } }
+    } else if (typeMap[tc.type]) {
+      result.tool_choice = typeMap[tc.type]
+    }
+    if (tc.disable_parallel_tool_use !== undefined) {
+      result.parallel_tool_calls = !tc.disable_parallel_tool_use
+    }
+  }
+
+  return { body: result, path: '/v1/chat/completions' }
+}
+
 function convertRequest(
   body: Record<string, any>,
   from: ProtocolFormat,
@@ -297,7 +465,10 @@ function convertRequest(
   if (from === 'openai' && to === 'anthropic') {
     return openaiToAnthropicRequest(body)
   }
+  if (from === 'anthropic' && to === 'openai') {
+    return anthropicToOpenAIRequest(body)
+  }
   throw new Error(`Unsupported conversion: ${from} → ${to}`)
 }
 
-export { openaiToAnthropicRequest, mapToolChoice, convertRequest }
+export { openaiToAnthropicRequest, anthropicToOpenAIRequest, mapToolChoice, convertRequest }
