@@ -1,8 +1,6 @@
 // @vitest-environment node
-import { describe, it, expect } from 'vitest'
-import { mapFinishReason } from '../converter'
-import { convertRequest } from '../converter'
-import { convertSSEEvent } from '../converter'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { mapFinishReason, convertRequest, convertSSEEvent, convertResponse, createStreamContext, type StreamContext } from '../converter'
 
 describe('mapFinishReason', () => {
   describe('toOpenAI direction', () => {
@@ -433,8 +431,6 @@ describe('convertRequest A→O', () => {
   })
 })
 
-import { convertResponse } from '../converter'
-
 describe('convertResponse C→O', () => {
   it('should convert Claude text response to OpenAI format', () => {
     const claudeResp = {
@@ -673,6 +669,12 @@ describe('convertSSEEvent C→O', () => {
 })
 
 describe('convertSSEEvent O→C', () => {
+  let ctx: StreamContext
+
+  beforeEach(() => {
+    ctx = createStreamContext()
+  })
+
   it('should convert first chunk to message_start', () => {
     const data = {
       id: 'chatcmpl-abc',
@@ -680,12 +682,12 @@ describe('convertSSEEvent O→C', () => {
       model: 'gpt-4',
       choices: [{ index: 0, delta: { role: 'assistant', content: '' } }],
     }
-    const result = convertSSEEvent('', data, 'openai', 'anthropic')
+    const result = convertSSEEvent('', data, 'openai', 'anthropic', ctx)
     expect(result).not.toBeNull()
-    expect(result!.event).toBe('message_start')
-    const msg = result!.data.message
-    expect(msg.model).toBe('gpt-4')
-    expect(msg.role).toBe('assistant')
+    const single = result as { event: string; data: any }
+    expect(single.event).toBe('message_start')
+    expect(single.data.message.model).toBe('gpt-4')
+    expect(single.data.message.role).toBe('assistant')
   })
 
   it('should convert text delta to content_block_start + text_delta', () => {
@@ -696,7 +698,7 @@ describe('convertSSEEvent O→C', () => {
       model: 'gpt-4',
       choices: [{ index: 0, delta: { role: 'assistant', content: '' } }],
     }
-    convertSSEEvent('', startData, 'openai', 'anthropic')
+    convertSSEEvent('', startData, 'openai', 'anthropic', ctx)
 
     // Then text content
     const data = {
@@ -704,14 +706,12 @@ describe('convertSSEEvent O→C', () => {
       model: 'gpt-4',
       choices: [{ index: 0, delta: { content: 'Hello' } }],
     }
-    const result = convertSSEEvent('', data, 'openai', 'anthropic')
-    // Should return an array: content_block_start + content_block_delta
+    const result = convertSSEEvent('', data, 'openai', 'anthropic', ctx)
     expect(Array.isArray(result)).toBe(true)
-    if (Array.isArray(result)) {
-      expect(result[0].event).toBe('content_block_start')
-      expect(result[1].event).toBe('content_block_delta')
-      expect(result[1].data.delta.text).toBe('Hello')
-    }
+    const arr = result as Array<{ event: string; data: any }>
+    expect(arr[0].event).toBe('content_block_start')
+    expect(arr[1].event).toBe('content_block_delta')
+    expect(arr[1].data.delta.text).toBe('Hello')
   })
 
   it('should return null for empty content chunks after message_start', () => {
@@ -719,7 +719,7 @@ describe('convertSSEEvent O→C', () => {
       object: 'chat.completion.chunk',
       choices: [{ index: 0, delta: {} }],
     }
-    const result = convertSSEEvent('', data, 'openai', 'anthropic')
+    const result = convertSSEEvent('', data, 'openai', 'anthropic', ctx)
     expect(result).toBeNull()
   })
 
@@ -730,33 +730,30 @@ describe('convertSSEEvent O→C', () => {
       choices: [{ index: 0, finish_reason: 'stop', delta: {} }],
       usage: { prompt_tokens: 10, completion_tokens: 5 },
     }
-    const result = convertSSEEvent('', data, 'openai', 'anthropic')
+    const result = convertSSEEvent('', data, 'openai', 'anthropic', ctx)
     expect(Array.isArray(result)).toBe(true)
-    if (Array.isArray(result)) {
-      const messageDelta = result.find((r: any) => r.event === 'message_delta')
-      expect(messageDelta).toBeDefined()
-      expect(messageDelta.data.delta.stop_reason).toBe('end_turn')
-      const messageStop = result.find((r: any) => r.event === 'message_stop')
-      expect(messageStop).toBeDefined()
-    }
+    const arr = result as Array<{ event: string; data: any }>
+    const messageDelta = arr.find((r: any) => r.event === 'message_delta')
+    expect(messageDelta).toBeDefined()
+    expect(messageDelta!.data.delta.stop_reason).toBe('end_turn')
+    const messageStop = arr.find((r: any) => r.event === 'message_stop')
+    expect(messageStop).toBeDefined()
   })
 
   it('should reuse cached model name from message_start', () => {
-    // Model should come from the state machine's cache, not the current chunk
     const startData = {
       id: 'chatcmpl-abc',
       object: 'chat.completion.chunk',
       model: 'gpt-4',
       choices: [{ index: 0, delta: { role: 'assistant', content: '' } }],
     }
-    convertSSEEvent('', startData, 'openai', 'anthropic')
+    convertSSEEvent('', startData, 'openai', 'anthropic', ctx)
 
     const data = {
       object: 'chat.completion.chunk',
       choices: [{ index: 0, delta: { content: 'Testing' } }],
     }
-    // model field should be pulled from cache, not require it in data
-    const result = convertSSEEvent('', data, 'openai', 'anthropic')
+    const result = convertSSEEvent('', data, 'openai', 'anthropic', ctx)
     expect(result).not.toBeNull()
   })
 })

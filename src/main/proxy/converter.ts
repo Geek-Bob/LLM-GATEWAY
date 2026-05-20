@@ -540,7 +540,8 @@ function openAIToAnthropicResponse(
         input,
       })
     }
-  } else if (choice.message?.content) {
+  }
+  if (choice.message?.content) {
     content.push({ type: 'text', text: choice.message.content })
   }
 
@@ -730,35 +731,33 @@ interface StreamState {
   id: string
 }
 
-const _streamState: StreamState = {
-  lastMessagesType: 'none',
-  index: 0,
-  toolCallBaseIndex: 0,
-  toolCallMaxIndexOffset: 0,
-  done: false,
-  finishReason: '',
-  model: '',
-  id: '',
+export interface StreamContext {
+  state: StreamState
+  sentMessageStart: { current: boolean }
 }
 
-function resetStreamState(): void {
-  _streamState.lastMessagesType = 'none'
-  _streamState.index = 0
-  _streamState.toolCallBaseIndex = 0
-  _streamState.toolCallMaxIndexOffset = 0
-  _streamState.done = false
-  _streamState.finishReason = ''
-  _streamState.model = ''
-  _streamState.id = ''
+export function createStreamContext(): StreamContext {
+  return {
+    state: {
+      lastMessagesType: 'none',
+      index: 0,
+      toolCallBaseIndex: 0,
+      toolCallMaxIndexOffset: 0,
+      done: false,
+      finishReason: '',
+      model: '',
+      id: '',
+    },
+    sentMessageStart: { current: false },
+  }
 }
 
 function contentBlockStop(index: number) {
   return { event: 'content_block_stop', data: { type: 'content_block_stop', index } }
 }
 
-function stopOpenBlocks(): Array<{ event: string; data: any }> {
+function stopOpenBlocks(s: StreamState): Array<{ event: string; data: any }> {
   const result: Array<{ event: string; data: any }> = []
-  const s = _streamState
   switch (s.lastMessagesType) {
     case 'text':
     case 'thinking':
@@ -773,10 +772,9 @@ function stopOpenBlocks(): Array<{ event: string; data: any }> {
   return result
 }
 
-function stopOpenBlocksAndAdvance(): Array<{ event: string; data: any }> {
-  const s = _streamState
+function stopOpenBlocksAndAdvance(s: StreamState): Array<{ event: string; data: any }> {
   if (s.lastMessagesType === 'none') return []
-  const result = stopOpenBlocks()
+  const result = stopOpenBlocks(s)
   switch (s.lastMessagesType) {
     case 'tools':
       s.index = s.toolCallBaseIndex + s.toolCallMaxIndexOffset + 1
@@ -790,12 +788,11 @@ function stopOpenBlocksAndAdvance(): Array<{ event: string; data: any }> {
   return result
 }
 
-const _sentMessageStart = { current: false }
-
 function openAISSEToAnthropic(
-  data: Record<string, any>
+  data: Record<string, any>,
+  ctx: StreamContext
 ): { event: string; data: any } | Array<{ event: string; data: any }> | null {
-  const s = _streamState
+  const s = ctx.state
   if (s.done) return null
 
   const choice = data.choices?.[0]
@@ -804,7 +801,7 @@ function openAISSEToAnthropic(
     if (s.finishReason && data.usage) {
       s.done = true
       const result: Array<{ event: string; data: any }> = [
-        ...stopOpenBlocks(),
+        ...stopOpenBlocks(s),
         {
           event: 'message_delta',
           data: {
@@ -826,8 +823,8 @@ function openAISSEToAnthropic(
   const delta = choice.delta ?? {}
 
   // First chunk → message_start
-  if (!_sentMessageStart.current && (data.id || s.id)) {
-    _sentMessageStart.current = true
+  if (!ctx.sentMessageStart.current && (data.id || s.id)) {
+    ctx.sentMessageStart.current = true
     if (data.id) s.id = data.id
     if (data.model) s.model = data.model
     return {
@@ -853,7 +850,7 @@ function openAISSEToAnthropic(
   if (reasoning) {
     const result: Array<{ event: string; data: any }> = []
     if (s.lastMessagesType !== 'thinking') {
-      result.push(...stopOpenBlocksAndAdvance())
+      result.push(...stopOpenBlocksAndAdvance(s))
       result.push({
         event: 'content_block_start',
         data: {
@@ -878,7 +875,7 @@ function openAISSEToAnthropic(
   if (textContent) {
     const result: Array<{ event: string; data: any }> = []
     if (s.lastMessagesType !== 'text') {
-      result.push(...stopOpenBlocksAndAdvance())
+      result.push(...stopOpenBlocksAndAdvance(s))
       result.push({
         event: 'content_block_start',
         data: {
@@ -903,7 +900,7 @@ function openAISSEToAnthropic(
   if (toolCalls.length > 0) {
     const result: Array<{ event: string; data: any }> = []
     if (s.lastMessagesType !== 'tools') {
-      result.push(...stopOpenBlocksAndAdvance())
+      result.push(...stopOpenBlocksAndAdvance(s))
       s.toolCallBaseIndex = s.index
       s.toolCallMaxIndexOffset = 0
     }
@@ -955,9 +952,9 @@ function openAISSEToAnthropic(
     // Don't close yet if usage is still coming
     if (data.usage) {
       s.done = true
-      _sentMessageStart.current = false
+      ctx.sentMessageStart.current = false
       const result: Array<{ event: string; data: any }> = [
-        ...stopOpenBlocks(),
+        ...stopOpenBlocks(s),
         {
           event: 'message_delta',
           data: {
@@ -978,13 +975,12 @@ function openAISSEToAnthropic(
   return null
 }
 
-export { resetStreamState }
-
 export function convertSSEEvent(
   event: string,
   data: any,
   from: ProtocolFormat,
-  to: ProtocolFormat
+  to: ProtocolFormat,
+  ctx?: StreamContext
 ): { event: string; data: any } | Array<{ event: string; data: any }> | null {
   if (from === to) return { event, data }
   if (from === 'anthropic' && to === 'openai') {
@@ -992,18 +988,12 @@ export function convertSSEEvent(
     return result ? { event: result.event || '', data: result.data } : null
   }
   if (from === 'openai' && to === 'anthropic') {
-    // Reset state on [DONE] signal or new stream
+    if (!ctx) return null // require StreamContext for O→C streaming
+    // Reset state on [DONE] signal
     if (event === 'done' || (event === '' && data === null)) {
-      resetStreamState()
       return null
     }
-    // Auto-reset if new stream detected and previous stream state exists
-    const s = _streamState
-    if (data?.id && (s.done || _sentMessageStart.current)) {
-      resetStreamState()
-      _sentMessageStart.current = false
-    }
-    return openAISSEToAnthropic(data) as any
+    return openAISSEToAnthropic(data, ctx)
   }
   return null
 }
