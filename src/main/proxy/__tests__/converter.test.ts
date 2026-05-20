@@ -671,3 +671,92 @@ describe('convertSSEEvent C→O', () => {
     expect(result).toBeNull()
   })
 })
+
+describe('convertSSEEvent O→C', () => {
+  it('should convert first chunk to message_start', () => {
+    const data = {
+      id: 'chatcmpl-abc',
+      object: 'chat.completion.chunk',
+      model: 'gpt-4',
+      choices: [{ index: 0, delta: { role: 'assistant', content: '' } }],
+    }
+    const result = convertSSEEvent('', data, 'openai', 'anthropic')
+    expect(result).not.toBeNull()
+    expect(result!.event).toBe('message_start')
+    const msg = result!.data.message
+    expect(msg.model).toBe('gpt-4')
+    expect(msg.role).toBe('assistant')
+  })
+
+  it('should convert text delta to content_block_start + text_delta', () => {
+    // First send message_start
+    const startData = {
+      id: 'chatcmpl-abc',
+      object: 'chat.completion.chunk',
+      model: 'gpt-4',
+      choices: [{ index: 0, delta: { role: 'assistant', content: '' } }],
+    }
+    convertSSEEvent('', startData, 'openai', 'anthropic')
+
+    // Then text content
+    const data = {
+      object: 'chat.completion.chunk',
+      model: 'gpt-4',
+      choices: [{ index: 0, delta: { content: 'Hello' } }],
+    }
+    const result = convertSSEEvent('', data, 'openai', 'anthropic')
+    // Should return an array: content_block_start + content_block_delta
+    expect(Array.isArray(result)).toBe(true)
+    if (Array.isArray(result)) {
+      expect(result[0].event).toBe('content_block_start')
+      expect(result[1].event).toBe('content_block_delta')
+      expect(result[1].data.delta.text).toBe('Hello')
+    }
+  })
+
+  it('should return null for empty content chunks after message_start', () => {
+    const data = {
+      object: 'chat.completion.chunk',
+      choices: [{ index: 0, delta: {} }],
+    }
+    const result = convertSSEEvent('', data, 'openai', 'anthropic')
+    expect(result).toBeNull()
+  })
+
+  it('should convert finish_reason to message_delta + message_stop', () => {
+    const data = {
+      object: 'chat.completion.chunk',
+      model: 'gpt-4',
+      choices: [{ index: 0, finish_reason: 'stop', delta: {} }],
+      usage: { prompt_tokens: 10, completion_tokens: 5 },
+    }
+    const result = convertSSEEvent('', data, 'openai', 'anthropic')
+    expect(Array.isArray(result)).toBe(true)
+    if (Array.isArray(result)) {
+      const messageDelta = result.find((r: any) => r.event === 'message_delta')
+      expect(messageDelta).toBeDefined()
+      expect(messageDelta.data.delta.stop_reason).toBe('end_turn')
+      const messageStop = result.find((r: any) => r.event === 'message_stop')
+      expect(messageStop).toBeDefined()
+    }
+  })
+
+  it('should reuse cached model name from message_start', () => {
+    // Model should come from the state machine's cache, not the current chunk
+    const startData = {
+      id: 'chatcmpl-abc',
+      object: 'chat.completion.chunk',
+      model: 'gpt-4',
+      choices: [{ index: 0, delta: { role: 'assistant', content: '' } }],
+    }
+    convertSSEEvent('', startData, 'openai', 'anthropic')
+
+    const data = {
+      object: 'chat.completion.chunk',
+      choices: [{ index: 0, delta: { content: 'Testing' } }],
+    }
+    // model field should be pulled from cache, not require it in data
+    const result = convertSSEEvent('', data, 'openai', 'anthropic')
+    expect(result).not.toBeNull()
+  })
+})

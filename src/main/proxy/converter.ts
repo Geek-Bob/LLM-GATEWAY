@@ -585,7 +585,7 @@ export function convertResponse(
 }
 
 function anthropicSSEToOpenAI(
-  event: string,
+  _event: string,
   data: Record<string, any>
 ): { event: string; data: any } | null {
   switch (data.type) {
@@ -718,21 +718,292 @@ function anthropicSSEToOpenAI(
   }
 }
 
-// Placeholder — Task 6 will implement the reverse direction and replace this
+// StreamState for OpenAI→Anthropic SSC conversion
+interface StreamState {
+  lastMessagesType: 'none' | 'text' | 'thinking' | 'tools'
+  index: number
+  toolCallBaseIndex: number
+  toolCallMaxIndexOffset: number
+  done: boolean
+  finishReason: string
+  model: string
+  id: string
+}
+
+const _streamState: StreamState = {
+  lastMessagesType: 'none',
+  index: 0,
+  toolCallBaseIndex: 0,
+  toolCallMaxIndexOffset: 0,
+  done: false,
+  finishReason: '',
+  model: '',
+  id: '',
+}
+
+function resetStreamState(): void {
+  _streamState.lastMessagesType = 'none'
+  _streamState.index = 0
+  _streamState.toolCallBaseIndex = 0
+  _streamState.toolCallMaxIndexOffset = 0
+  _streamState.done = false
+  _streamState.finishReason = ''
+  _streamState.model = ''
+  _streamState.id = ''
+}
+
+function contentBlockStop(index: number) {
+  return { event: 'content_block_stop', data: { type: 'content_block_stop', index } }
+}
+
+function stopOpenBlocks(): Array<{ event: string; data: any }> {
+  const result: Array<{ event: string; data: any }> = []
+  const s = _streamState
+  switch (s.lastMessagesType) {
+    case 'text':
+    case 'thinking':
+      result.push(contentBlockStop(s.index))
+      break
+    case 'tools':
+      for (let offset = 0; offset <= s.toolCallMaxIndexOffset; offset++) {
+        result.push(contentBlockStop(s.toolCallBaseIndex + offset))
+      }
+      break
+  }
+  return result
+}
+
+function stopOpenBlocksAndAdvance(): Array<{ event: string; data: any }> {
+  const s = _streamState
+  if (s.lastMessagesType === 'none') return []
+  const result = stopOpenBlocks()
+  switch (s.lastMessagesType) {
+    case 'tools':
+      s.index = s.toolCallBaseIndex + s.toolCallMaxIndexOffset + 1
+      s.toolCallBaseIndex = 0
+      s.toolCallMaxIndexOffset = 0
+      break
+    default:
+      s.index++
+  }
+  s.lastMessagesType = 'none'
+  return result
+}
+
+const _sentMessageStart = { current: false }
+
 function openAISSEToAnthropic(
-  _data: Record<string, any>
-): { event: string; data: any } | null {
+  data: Record<string, any>
+): { event: string; data: any } | Array<{ event: string; data: any }> | null {
+  const s = _streamState
+  if (s.done) return null
+
+  const choice = data.choices?.[0]
+  if (!choice) {
+    // Usage-only chunk (no choices) — close stream if finish reason was set
+    if (s.finishReason && data.usage) {
+      s.done = true
+      const result: Array<{ event: string; data: any }> = [
+        ...stopOpenBlocks(),
+        {
+          event: 'message_delta',
+          data: {
+            type: 'message_delta',
+            delta: { stop_reason: mapFinishReason(s.finishReason, 'toAnthropic') },
+            usage: {
+              input_tokens: data.usage.prompt_tokens ?? 0,
+              output_tokens: data.usage.completion_tokens ?? 0,
+            },
+          },
+        },
+        { event: 'message_stop', data: { type: 'message_stop' } },
+      ]
+      return result
+    }
+    return null
+  }
+
+  const delta = choice.delta ?? {}
+
+  // First chunk → message_start
+  if (!_sentMessageStart.current && (data.id || s.id)) {
+    _sentMessageStart.current = true
+    if (data.id) s.id = data.id
+    if (data.model) s.model = data.model
+    return {
+      event: 'message_start',
+      data: {
+        type: 'message_start',
+        message: {
+          id: s.id,
+          model: s.model,
+          type: 'message',
+          role: 'assistant',
+          usage: { input_tokens: 0, output_tokens: 0 },
+          content: [],
+        },
+      },
+    }
+  }
+
+  const reasoning = delta.reasoning_content ?? ''
+  const textContent = delta.content ?? ''
+  const toolCalls: Array<Record<string, any>> = delta.tool_calls ?? []
+
+  if (reasoning) {
+    const result: Array<{ event: string; data: any }> = []
+    if (s.lastMessagesType !== 'thinking') {
+      result.push(...stopOpenBlocksAndAdvance())
+      result.push({
+        event: 'content_block_start',
+        data: {
+          type: 'content_block_start',
+          index: s.index,
+          content_block: { type: 'thinking', thinking: '' },
+        },
+      })
+    }
+    s.lastMessagesType = 'thinking'
+    result.push({
+      event: 'content_block_delta',
+      data: {
+        type: 'content_block_delta',
+        index: s.index,
+        delta: { type: 'thinking_delta', thinking: reasoning },
+      },
+    })
+    return result
+  }
+
+  if (textContent) {
+    const result: Array<{ event: string; data: any }> = []
+    if (s.lastMessagesType !== 'text') {
+      result.push(...stopOpenBlocksAndAdvance())
+      result.push({
+        event: 'content_block_start',
+        data: {
+          type: 'content_block_start',
+          index: s.index,
+          content_block: { type: 'text', text: '' },
+        },
+      })
+    }
+    s.lastMessagesType = 'text'
+    result.push({
+      event: 'content_block_delta',
+      data: {
+        type: 'content_block_delta',
+        index: s.index,
+        delta: { type: 'text_delta', text: textContent },
+      },
+    })
+    return result
+  }
+
+  if (toolCalls.length > 0) {
+    const result: Array<{ event: string; data: any }> = []
+    if (s.lastMessagesType !== 'tools') {
+      result.push(...stopOpenBlocksAndAdvance())
+      s.toolCallBaseIndex = s.index
+      s.toolCallMaxIndexOffset = 0
+    }
+    s.lastMessagesType = 'tools'
+    const base = s.toolCallBaseIndex
+    let maxOffset = s.toolCallMaxIndexOffset
+
+    for (let i = 0; i < toolCalls.length; i++) {
+      const tc = toolCalls[i]
+      const offset = tc.index ?? i
+      if (offset > maxOffset) maxOffset = offset
+      const blockIndex = base + offset
+
+      if (tc.function?.name) {
+        result.push({
+          event: 'content_block_start',
+          data: {
+            type: 'content_block_start',
+            index: blockIndex,
+            content_block: {
+              type: 'tool_use',
+              id: tc.id,
+              name: tc.function.name,
+              input: {},
+            },
+          },
+        })
+      }
+      if (tc.function?.arguments) {
+        result.push({
+          event: 'content_block_delta',
+          data: {
+            type: 'content_block_delta',
+            index: blockIndex,
+            delta: { type: 'input_json_delta', partial_json: tc.function.arguments },
+          },
+        })
+      }
+    }
+    s.toolCallMaxIndexOffset = maxOffset
+    s.index = base + maxOffset
+    return result
+  }
+
+  // Check for finish_reason
+  const finishReason = choice.finish_reason
+  if (finishReason && !s.done) {
+    s.finishReason = finishReason
+    // Don't close yet if usage is still coming
+    if (data.usage) {
+      s.done = true
+      _sentMessageStart.current = false
+      const result: Array<{ event: string; data: any }> = [
+        ...stopOpenBlocks(),
+        {
+          event: 'message_delta',
+          data: {
+            type: 'message_delta',
+            delta: { stop_reason: mapFinishReason(finishReason, 'toAnthropic') },
+            usage: {
+              input_tokens: data.usage.prompt_tokens ?? 0,
+              output_tokens: data.usage.completion_tokens ?? 0,
+            },
+          },
+        },
+        { event: 'message_stop', data: { type: 'message_stop' } },
+      ]
+      return result
+    }
+  }
+
   return null
 }
+
+export { resetStreamState }
 
 export function convertSSEEvent(
   event: string,
   data: any,
   from: ProtocolFormat,
   to: ProtocolFormat
-): { event: string; data: any } | null {
+): { event: string; data: any } | Array<{ event: string; data: any }> | null {
   if (from === to) return { event, data }
-  if (from === 'anthropic' && to === 'openai') return anthropicSSEToOpenAI(event, data)
-  if (from === 'openai' && to === 'anthropic') return openAISSEToAnthropic(data)
+  if (from === 'anthropic' && to === 'openai') {
+    const result = anthropicSSEToOpenAI(event, data)
+    return result ? { event: result.event || '', data: result.data } : null
+  }
+  if (from === 'openai' && to === 'anthropic') {
+    // Reset state on [DONE] signal or new stream
+    if (event === 'done' || (event === '' && data === null)) {
+      resetStreamState()
+      return null
+    }
+    // Auto-reset if new stream detected and previous stream state exists
+    const s = _streamState
+    if (data?.id && (s.done || _sentMessageStart.current)) {
+      resetStreamState()
+      _sentMessageStart.current = false
+    }
+    return openAISSEToAnthropic(data) as any
+  }
   return null
 }
