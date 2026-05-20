@@ -1,0 +1,32 @@
+appId: com.llm-gateway.app
+productName: LLM Gateway
+directories:
+  buildResources: resources
+  output: dist
+files:
+  - out/**/*
+  - package.json
+extraResources:
+  - from: resources/
+    to: resources/
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: resources/icon.png
+mac:
+  target:
+    - target: dmg
+      arch: [x64, arm64]
+  icon: resources/icon.icns
+  category: public.app-category.developer-tools
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  icon: resources/
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
