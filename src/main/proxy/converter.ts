@@ -583,3 +583,156 @@ export function convertResponse(
   if (from === 'openai' && to === 'anthropic') return openAIToAnthropicResponse(body)
   throw new Error(`Unsupported conversion: ${from} → ${to}`)
 }
+
+function anthropicSSEToOpenAI(
+  event: string,
+  data: Record<string, any>
+): { event: string; data: any } | null {
+  switch (data.type) {
+    case 'message_start': {
+      const msg = data.message ?? {}
+      return {
+        event: '',
+        data: {
+          id: msg.id,
+          object: 'chat.completion.chunk',
+          model: msg.model,
+          choices: [{ index: 0, delta: { role: 'assistant', content: '' } }],
+        },
+      }
+    }
+
+    case 'content_block_start': {
+      const block = data.content_block ?? {}
+      const index = data.index ?? 0
+      if (block.type === 'text') {
+        return {
+          event: '',
+          data: {
+            object: 'chat.completion.chunk',
+            choices: [{ index, delta: { content: block.text ?? '' } }],
+          },
+        }
+      } else if (block.type === 'tool_use') {
+        return {
+          event: '',
+          data: {
+            object: 'chat.completion.chunk',
+            choices: [{
+              index,
+              delta: {
+                tool_calls: [{
+                  index,
+                  id: block.id,
+                  type: 'function',
+                  function: { name: block.name, arguments: '' },
+                }],
+              },
+            }],
+          },
+        }
+      } else if (block.type === 'thinking') {
+        return {
+          event: '',
+          data: {
+            object: 'chat.completion.chunk',
+            choices: [{ index, delta: { reasoning_content: block.thinking ?? '' } }],
+          },
+        }
+      }
+      return null
+    }
+
+    case 'content_block_delta': {
+      const delta = data.delta ?? {}
+      const index = data.index ?? 0
+      if (delta.type === 'text_delta') {
+        return {
+          event: '',
+          data: {
+            object: 'chat.completion.chunk',
+            choices: [{ index, delta: { content: delta.text ?? '' } }],
+          },
+        }
+      } else if (delta.type === 'input_json_delta') {
+        return {
+          event: '',
+          data: {
+            object: 'chat.completion.chunk',
+            choices: [{
+              index,
+              delta: {
+                tool_calls: [{
+                  index,
+                  function: { arguments: delta.partial_json ?? '' },
+                }],
+              },
+            }],
+          },
+        }
+      } else if (delta.type === 'thinking_delta') {
+        return {
+          event: '',
+          data: {
+            object: 'chat.completion.chunk',
+            choices: [{ index, delta: { reasoning_content: delta.thinking ?? '' } }],
+          },
+        }
+      } else if (delta.type === 'signature_delta') {
+        return {
+          event: '',
+          data: {
+            object: 'chat.completion.chunk',
+            choices: [{ index, delta: { reasoning_content: '\n' } }],
+          },
+        }
+      }
+      return null
+    }
+
+    case 'message_delta': {
+      const delta = data.delta ?? {}
+      const stopReason = delta.stop_reason
+      const finishReason = stopReason ? mapFinishReason(stopReason, 'toOpenAI') : null
+      return {
+        event: '',
+        data: {
+          object: 'chat.completion.chunk',
+          choices: [{ index: 0, finish_reason: finishReason, delta: {} }],
+          ...(data.usage ? {
+            usage: {
+              prompt_tokens: data.usage.input_tokens ?? 0,
+              completion_tokens: data.usage.output_tokens ?? 0,
+              total_tokens: (data.usage.input_tokens ?? 0) + (data.usage.output_tokens ?? 0),
+            },
+          } : {}),
+        },
+      }
+    }
+
+    case 'message_stop':
+      return null
+
+    default:
+      return null
+  }
+}
+
+// Placeholder — Task 6 will implement the reverse direction and replace this
+function openAISSEToAnthropic(
+  _data: Record<string, any>
+): { event: string; data: any } | null {
+  return null
+}
+
+export function convertSSEEvent(
+  event: string,
+  data: any,
+  from: ProtocolFormat,
+  to: ProtocolFormat
+): { event: string; data: any } | null {
+  if (from === to) return { event, data }
+  if (from === 'anthropic' && to === 'openai') return anthropicSSEToOpenAI(event, data)
+  if (from === 'openai' && to === 'anthropic') return openAISSEToAnthropic(data)
+  return null
+}
