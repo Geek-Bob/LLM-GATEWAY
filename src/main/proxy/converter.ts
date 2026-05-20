@@ -457,18 +457,129 @@ function anthropicToOpenAIRequest(
   return { body: result, path: '/v1/chat/completions' }
 }
 
-function convertRequest(
-  body: Record<string, any>,
+function anthropicToOpenAIResponse(
+  anthropicBody: Record<string, any>
+): Record<string, any> {
+  if (anthropicBody.type === 'error') {
+    const err = anthropicBody.error ?? {}
+    return { error: { type: err.type ?? '', message: err.message ?? '', code: null } }
+  }
+
+  const response: Record<string, any> = {
+    id: anthropicBody.id,
+    object: 'chat.completion',
+    model: anthropicBody.model,
+    created: Math.floor(Date.now() / 1000),
+    choices: [{
+      index: 0,
+      message: { role: 'assistant', content: '' },
+      finish_reason: mapFinishReason(anthropicBody.stop_reason ?? '', 'toOpenAI'),
+    }],
+    usage: {
+      prompt_tokens: anthropicBody.usage?.input_tokens ?? 0,
+      completion_tokens: anthropicBody.usage?.output_tokens ?? 0,
+      total_tokens: (anthropicBody.usage?.input_tokens ?? 0) + (anthropicBody.usage?.output_tokens ?? 0),
+    },
+  }
+
+  const choice = response.choices[0]
+  const toolCalls: Array<Record<string, any>> = []
+
+  for (const block of anthropicBody.content ?? []) {
+    switch (block.type) {
+      case 'text':
+        choice.message.content = block.text ?? ''
+        break
+      case 'tool_use':
+        toolCalls.push({
+          id: block.id,
+          type: 'function',
+          function: {
+            name: block.name,
+            arguments: JSON.stringify(block.input ?? {}),
+          },
+        })
+        break
+      case 'thinking':
+        if (block.thinking) {
+          choice.message.reasoning_content = block.thinking
+        }
+        break
+    }
+  }
+
+  if (toolCalls.length > 0) {
+    choice.message.tool_calls = toolCalls
+    if (!choice.message.content) choice.message.content = null
+  }
+
+  return response
+}
+
+function openAIToAnthropicResponse(
+  openaiBody: Record<string, any>
+): Record<string, any> {
+  if (openaiBody.error && !openaiBody.choices) {
+    const err = openaiBody.error
+    return { type: 'error', error: { type: err.type ?? '', message: err.message ?? '' } }
+  }
+
+  const choice = openaiBody.choices?.[0] ?? {}
+  const content: Array<Record<string, any>> = []
+
+  if (choice.message?.tool_calls) {
+    for (const tc of choice.message.tool_calls) {
+      let input: any = {}
+      try {
+        input = JSON.parse(tc.function?.arguments || '{}')
+      } catch { input = tc.function?.arguments ?? {} }
+      content.push({
+        type: 'tool_use',
+        id: tc.id,
+        name: tc.function?.name ?? '',
+        input,
+      })
+    }
+  } else if (choice.message?.content) {
+    content.push({ type: 'text', text: choice.message.content })
+  }
+
+  if (choice.message?.reasoning_content) {
+    content.push({ type: 'thinking', thinking: choice.message.reasoning_content })
+  }
+
+  return {
+    id: openaiBody.id,
+    type: 'message',
+    role: 'assistant',
+    model: openaiBody.model,
+    content,
+    stop_reason: mapFinishReason(choice.finish_reason ?? '', 'toAnthropic'),
+    usage: {
+      input_tokens: openaiBody.usage?.prompt_tokens ?? 0,
+      output_tokens: openaiBody.usage?.completion_tokens ?? 0,
+    },
+  }
+}
+
+export function convertRequest(
+  body: any,
   from: ProtocolFormat,
   to: ProtocolFormat
-): { body: Record<string, any>; path: string } {
-  if (from === 'openai' && to === 'anthropic') {
-    return openaiToAnthropicRequest(body)
-  }
-  if (from === 'anthropic' && to === 'openai') {
-    return anthropicToOpenAIRequest(body)
-  }
+): { body: any; path: string } {
+  if (from === to) return { body, path: from === 'openai' ? '/v1/chat/completions' : '/v1/messages' }
+  if (from === 'openai' && to === 'anthropic') return openaiToAnthropicRequest(body)
+  if (from === 'anthropic' && to === 'openai') return anthropicToOpenAIRequest(body)
   throw new Error(`Unsupported conversion: ${from} → ${to}`)
 }
 
-export { openaiToAnthropicRequest, anthropicToOpenAIRequest, mapToolChoice, convertRequest }
+export function convertResponse(
+  body: any,
+  from: ProtocolFormat,
+  to: ProtocolFormat
+): any {
+  if (from === to) return body
+  if (from === 'anthropic' && to === 'openai') return anthropicToOpenAIResponse(body)
+  if (from === 'openai' && to === 'anthropic') return openAIToAnthropicResponse(body)
+  throw new Error(`Unsupported conversion: ${from} → ${to}`)
+}
