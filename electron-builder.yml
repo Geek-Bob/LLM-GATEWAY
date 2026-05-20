@@ -14,17 +14,18 @@ win:
     - target: nsis
       arch: [x64]
   icon: resources/icon.png
+  signAndEditExecutable: false
 mac:
   target:
     - target: dmg
       arch: [x64, arm64]
-  icon: resources/icon.icns
+  icon: resources/icon.png
   category: public.app-category.developer-tools
 linux:
   target:
-    - target: AppImage
+    - target: tar.gz
       arch: [x64]
-  icon: resources/
+  icon: resources/icon.png
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
