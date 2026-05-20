@@ -4,7 +4,7 @@ import { authMiddleware } from './middleware'
 import { RateLimiter } from './rate-limiter'
 import { resolveProvider, getAllModels } from './router'
 import { buildProxyUrl, buildProxyHeaders } from './forwarder'
-import { convertRequest, convertResponse, convertSSEEvent, resetStreamState } from './converter'
+import { convertRequest, convertResponse, convertSSEEvent, createStreamContext, type StreamContext } from './converter'
 import { verifyApiKey } from '../db/api-keys'
 import * as fs from 'fs'
 import * as os from 'os'
@@ -180,13 +180,14 @@ export function createServer() {
         const [forClient, forLogging] = response.body.tee()
 
         if (needsConversion) {
-          resetStreamState()
+          const ctx = createStreamContext()
           const convertedStream = convertSSEStream(
             forClient,
             route.provider.providerType as 'openai' | 'anthropic',
-            apiFormat
+            apiFormat,
+            ctx
           )
-          extractAndLogSSE(forLogging, logBase, apiFormat).catch(() => {})
+          extractAndLogSSE(forLogging, logBase, route.provider.providerType as 'anthropic' | 'openai').catch(() => {})
           return new Response(convertedStream, {
             status: response.status,
             headers: response.headers
@@ -248,7 +249,8 @@ export function createServer() {
   function convertSSEStream(
     upstreamStream: ReadableStream<Uint8Array>,
     from: 'openai' | 'anthropic',
-    to: 'openai' | 'anthropic'
+    to: 'openai' | 'anthropic',
+    ctx: StreamContext
   ): ReadableStream<Uint8Array> {
     const encoder = new TextEncoder()
     let buffer = ''
@@ -277,7 +279,7 @@ export function createServer() {
                 const dataStr = line.slice(6)
 
                 if (from === 'openai' && dataStr === '[DONE]') {
-                  const results = convertSSEEvent('done' as any, null as any, 'openai', 'anthropic')
+                  const results = convertSSEEvent('done' as any, null as any, 'openai', 'anthropic', ctx)
                   if (results) {
                     const arr = Array.isArray(results) ? results : [results]
                     for (const r of arr) {
@@ -301,7 +303,7 @@ export function createServer() {
                   continue
                 }
 
-                const results = convertSSEEvent(currentEvent, parsedData, from, to)
+                const results = convertSSEEvent(currentEvent, parsedData, from, to, ctx)
                 if (!results) continue
 
                 const arr = Array.isArray(results) ? results : [results]
@@ -328,7 +330,7 @@ export function createServer() {
                 if (from === 'openai' && dataStr === '[DONE]') break
                 let parsedData: any
                 try { parsedData = JSON.parse(dataStr) } catch { continue }
-                const results = convertSSEEvent(currentEvent, parsedData, from, to)
+                const results = convertSSEEvent(currentEvent, parsedData, from, to, ctx)
                 if (!results) continue
                 const arr = Array.isArray(results) ? results : [results]
                 for (const r of arr) {
