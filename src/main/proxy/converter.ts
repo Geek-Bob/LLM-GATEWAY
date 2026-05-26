@@ -336,6 +336,7 @@ function anthropicToOpenAIRequest(
       const toolCalls: Array<Record<string, any>> = []
       const mediaContents: Array<Record<string, any>> = []
 
+      let thinkingText = ''
       for (const block of msg.content) {
         switch (block.type) {
           case 'text':
@@ -369,15 +370,23 @@ function anthropicToOpenAIRequest(
             }
             break
           case 'thinking':
-            // thinking blocks don't map to OpenAI — skip
+            if (block.thinking) {
+              thinkingText = thinkingText ? `${thinkingText}\n${block.thinking}` : block.thinking
+            }
             break
         }
       }
+
+      const hasContent = toolCalls.length > 0 || texts.length > 0 || mediaContents.length > 0
+      if (!hasContent && !thinkingText) continue
 
       if (toolCalls.length > 0) {
         const assistantMsg: Record<string, any> = { role: msg.role, content: null }
         if (texts.length > 0) {
           assistantMsg.content = texts.join(' ')
+        }
+        if (thinkingText) {
+          assistantMsg.reasoning_content = thinkingText
         }
         assistantMsg.tool_calls = toolCalls
         openaiMessages.push(assistantMsg)
@@ -386,9 +395,18 @@ function anthropicToOpenAIRequest(
           ...texts.map((t: string) => ({ type: 'text', text: t })),
           ...mediaContents,
         ]
-        openaiMessages.push({ role: msg.role, content: allContent })
-      } else if (texts.length > 0) {
-        openaiMessages.push({ role: msg.role, content: texts.join(' ') })
+        const mediaMsg: Record<string, any> = { role: msg.role, content: allContent }
+        if (thinkingText) {
+          mediaMsg.reasoning_content = thinkingText
+        }
+        openaiMessages.push(mediaMsg)
+      } else if (texts.length > 0 || thinkingText) {
+        const textMsg: Record<string, any> = { role: msg.role }
+        textMsg.content = texts.length > 0 ? texts.join(' ') : ''
+        if (thinkingText) {
+          textMsg.reasoning_content = thinkingText
+        }
+        openaiMessages.push(textMsg)
       }
     }
   }

@@ -429,6 +429,71 @@ describe('convertRequest A→O', () => {
     expect(result.body.web_search_options).toBeDefined()
     expect(result.body.web_search_options.search_context_size).toBe('medium')
   })
+
+  it('should preserve thinking blocks as reasoning_content in assistant messages', () => {
+    const body = {
+      ...minimalClaudeBody,
+      messages: [
+        { role: 'user', content: 'Hello' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'Let me think about this...' },
+            { type: 'text', text: 'The answer is 42.' },
+          ],
+        },
+        { role: 'user', content: 'Thanks' },
+      ],
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    const msgs = result.body.messages
+    expect(msgs).toHaveLength(3)
+    const assistantMsg = msgs[1]
+    expect(assistantMsg.role).toBe('assistant')
+    expect(assistantMsg.content).toBe('The answer is 42.')
+    expect(assistantMsg.reasoning_content).toBe('Let me think about this...')
+  })
+
+  it('should preserve reasoning_content for assistant message with only thinking', () => {
+    const body = {
+      ...minimalClaudeBody,
+      messages: [
+        { role: 'user', content: 'Hi' },
+        {
+          role: 'assistant',
+          content: [{ type: 'thinking', thinking: 'Hmm...' }],
+        },
+        { role: 'user', content: 'Go on' },
+      ],
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    const msgs = result.body.messages
+    const assistantMsg = msgs[1]
+    expect(assistantMsg.reasoning_content).toBe('Hmm...')
+    expect(assistantMsg.content).toBe('')
+  })
+
+  it('should preserve reasoning_content alongside tool_calls', () => {
+    const body = {
+      ...minimalClaudeBody,
+      messages: [
+        { role: 'user', content: 'Hi' },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'thinking', thinking: 'I should use a tool.' },
+            { type: 'tool_use', id: 'tool_1', name: 'search', input: { q: 'test' } },
+          ],
+        },
+      ],
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    const msgs = result.body.messages
+    const assistantMsg = msgs[1]
+    expect(assistantMsg.role).toBe('assistant')
+    expect(assistantMsg.tool_calls).toBeDefined()
+    expect(assistantMsg.reasoning_content).toBe('I should use a tool.')
+  })
 })
 
 describe('convertResponse C→O', () => {
