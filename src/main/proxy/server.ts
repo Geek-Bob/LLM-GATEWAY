@@ -129,6 +129,7 @@ export function createServer() {
   ): Promise<Response> {
     const startTime = Date.now()
     const debugEnabled = getDebugMode()
+    console.log(`[DEBUG MODE CHECK] getDebugMode() = ${debugEnabled}, request path = ${path}`)
     const debugInfo: LogDebugInfo | null = debugEnabled ? {
       client: { body: '', apiFormat },
       route: { providerName: '', providerType: '', baseUrl: '', modelName: '' },
