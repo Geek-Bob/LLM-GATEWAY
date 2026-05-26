@@ -69,6 +69,7 @@ export function LogsPage() {
 
   const fetchLogs = (pageNum: number) => {
     setLoading(true)
+    setSelectedLog(null)
     api.logs.query({ page: pageNum, limit: PAGE_SIZE })
       .then((result) => { setLogs(result.logs); setTotal(result.total) })
       .finally(() => setLoading(false))
@@ -141,11 +142,14 @@ export function LogsPage() {
                   const isSuccess = entry.status_code < 400
                   return (
                     <motion.tr
-                      key={idx}
+                      key={entry.id}
                       initial={{ opacity: 0, x: -8 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: idx * 0.02, duration: 0.25 }}
+                      tabIndex={0}
+                      role="button"
                       onClick={() => setSelectedLog(selectedLog?.id === entry.id ? null : entry)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedLog(selectedLog?.id === entry.id ? null : entry) } }}
                       style={{ cursor: 'pointer' }}
                       className={selectedLog?.id === entry.id ? 'bg-white/5' : ''}
                     >
