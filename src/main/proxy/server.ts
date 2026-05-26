@@ -11,6 +11,8 @@ import * as os from 'os'
 import * as path from 'path'
 
 import { createLogEntry, updateRequestStats, updateProviderStats } from '../db/logs'
+import { getDebugMode } from './manager'
+import type { LogDebugInfo } from '../../shared/types'
 
 const AUTH_LOG = path.join(os.tmpdir(), 'llm-gateway-auth-debug.log')
 function authDebugLog(...args: any[]): void {
@@ -18,6 +20,26 @@ function authDebugLog(...args: any[]): void {
     const ts = new Date().toISOString()
     const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')
     fs.appendFileSync(AUTH_LOG, `[${ts}] ${msg}\n`)
+  } catch {}
+}
+
+const PROXY_LOG = path.join(os.tmpdir(), 'llm-gateway-proxy-debug.log')
+function proxyDebugLog(section: string, data: Record<string, any>): void {
+  try {
+    const ts = new Date().toISOString()
+    const entry: Record<string, any> = { ts, section, ...data }
+    // Sanitize sensitive fields in any headers-like object
+    for (const key of ['headers', 'upstreamHeaders', 'clientHeaders']) {
+      if (entry[key]) {
+        const h: Record<string, string> = {}
+        for (const [k, v] of Object.entries(entry[key] as Record<string, string>)) {
+          h[k] = k === 'authorization' ? 'Bearer gtwy-...' : v
+        }
+        entry[key] = h
+      }
+    }
+    const line = JSON.stringify(entry)
+    fs.appendFileSync(PROXY_LOG, `${line}\n`)
   } catch {}
 }
 
@@ -106,15 +128,56 @@ export function createServer() {
     apiFormat: 'anthropic' | 'openai'
   ): Promise<Response> {
     const startTime = Date.now()
+    const debugEnabled = getDebugMode()
+    const debugInfo: LogDebugInfo | null = debugEnabled ? {
+      client: { body: '', apiFormat },
+      route: { providerName: '', providerType: '', baseUrl: '', modelName: '' },
+      upstream: { url: '', body: '', statusCode: 0, responseBody: '' }
+    } : null
     try {
       const body = await c.req.json()
       const model = body.model
+
+      proxyDebugLog('CLIENT_REQUEST', {
+        apiFormat,
+        path,
+        clientModel: model,
+        clientBody: JSON.stringify(body).slice(0, 4000),
+        clientHeaders: (() => {
+          const h: Record<string, string> = {}
+          c.req.raw.headers.forEach((v, k) => { h[k] = k === 'authorization' ? v.slice(0, 12) + '...' : v })
+          return h
+        })(),
+      })
+
       if (!model) {
         return c.json({ error: 'model is required' }, 400)
       }
 
+      if (debugInfo) {
+        debugInfo.client.body = JSON.stringify(body)
+        debugInfo.client.apiFormat = apiFormat
+      }
+
       const route = resolveProvider(model)
       const decryptedKey = route.provider.apiKey
+
+      proxyDebugLog('ROUTE_RESOLVED', {
+        providerName: route.provider.name,
+        providerType: route.provider.providerType,
+        providerBaseUrl: route.provider.baseUrl,
+        modelName: route.modelName,
+        needsConversion: apiFormat !== route.provider.providerType,
+      })
+
+      if (debugInfo) {
+        debugInfo.route = {
+          providerName: route.provider.name,
+          providerType: route.provider.providerType,
+          baseUrl: route.provider.baseUrl,
+          modelName: route.modelName
+        }
+      }
 
       // --- Protocol auto-conversion ---
       const needsConversion = apiFormat !== route.provider.providerType
@@ -124,15 +187,41 @@ export function createServer() {
       if (needsConversion) {
         try {
           const converted = convertRequest(proxyBody, apiFormat, route.provider.providerType as 'openai' | 'anthropic')
+          proxyDebugLog('CONVERSION', {
+            from: apiFormat,
+            to: route.provider.providerType,
+            originalPath: proxyPath,
+            convertedPath: converted.path,
+            originalModel: proxyBody.model,
+            convertedModel: converted.body.model,
+            convertedBody: JSON.stringify(converted.body).slice(0, 4000),
+          })
           proxyBody = converted.body
           proxyPath = converted.path
+
+          if (debugInfo) {
+            debugInfo.conversion = {
+              from: apiFormat,
+              to: route.provider.providerType as string,
+              originalPath: path,
+              convertedPath: proxyPath,
+              originalModel: body.model,
+              convertedModel: proxyBody.model
+            }
+          }
         } catch (convErr: any) {
+          proxyDebugLog('CONVERSION_ERROR', { error: convErr.message })
           return c.json({ error: `protocol_conversion_failed: ${convErr.message}` }, 502)
         }
       }
       // --- End protocol auto-conversion ---
 
       const url = buildProxyUrl(route.provider, proxyPath)
+
+      if (debugInfo) {
+        debugInfo.upstream.url = url
+        debugInfo.upstream.body = JSON.stringify(proxyBody)
+      }
 
       const originalHeaders: Record<string, string> = {}
       const contentType = c.req.header('content-type')
@@ -151,10 +240,24 @@ export function createServer() {
         originalHeaders
       )
 
+      proxyDebugLog('UPSTREAM_REQUEST', {
+        url,
+        method: 'POST',
+        headers: proxyHeaders,
+        body: JSON.stringify(proxyBody).slice(0, 4000),
+        stream: !!proxyBody.stream,
+      })
+
       const response = await fetch(url, {
         method: 'POST',
         headers: proxyHeaders,
         body: JSON.stringify(proxyBody)
+      })
+
+      proxyDebugLog('UPSTREAM_RESPONSE', {
+        status: response.status,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries()),
       })
 
       const logBase = {
@@ -169,9 +272,16 @@ export function createServer() {
       // Handle error responses — convert error format
       if (!response.ok && !proxyBody.stream) {
         const errorBody = await response.json()
+        proxyDebugLog('UPSTREAM_ERROR_BODY', { body: JSON.stringify(errorBody).slice(0, 4000) })
         const convertedError = needsConversion
           ? convertResponse(errorBody, route.provider.providerType as 'openai' | 'anthropic', apiFormat)
           : errorBody
+
+        if (debugInfo) {
+          debugInfo.upstream.statusCode = response.status
+          debugInfo.upstream.responseBody = JSON.stringify(errorBody)
+        }
+        tryLogEntry(c, { ...logBase, debug: debugInfo ?? undefined })
         return c.json(convertedError, response.status as any)
       }
 
@@ -188,6 +298,10 @@ export function createServer() {
             ctx
           )
           extractAndLogSSE(forLogging, logBase, route.provider.providerType as 'anthropic' | 'openai').catch(() => {})
+          if (debugInfo) {
+            debugInfo.upstream.statusCode = response.status
+            debugInfo.upstream.responseBody = '(streaming — body not captured)'
+          }
           return new Response(convertedStream, {
             status: response.status,
             headers: response.headers
@@ -196,6 +310,10 @@ export function createServer() {
 
         // No conversion needed — existing behavior
         extractAndLogSSE(forLogging, logBase, apiFormat).catch(() => {})
+        if (debugInfo) {
+          debugInfo.upstream.statusCode = response.status
+          debugInfo.upstream.responseBody = '(streaming — body not captured)'
+        }
         return new Response(forClient, {
           status: response.status,
           headers: response.headers
@@ -204,9 +322,15 @@ export function createServer() {
 
       // Handle non-streaming
       const responseBody = await response.json()
+      proxyDebugLog('UPSTREAM_SUCCESS_BODY', { body: JSON.stringify(responseBody).slice(0, 4000) })
       const convertedBody = needsConversion
         ? convertResponse(responseBody, route.provider.providerType as 'openai' | 'anthropic', apiFormat)
         : responseBody
+
+      if (debugInfo) {
+        debugInfo.upstream.statusCode = response.status
+        debugInfo.upstream.responseBody = JSON.stringify(convertedBody)
+      }
 
       let tokensIn = 0
       let tokensOut = 0
@@ -217,7 +341,7 @@ export function createServer() {
         tokensIn = convertedBody.usage.input_tokens ?? 0
         tokensOut = convertedBody.usage.output_tokens ?? 0
       }
-      tryLogEntry(c, { ...logBase, tokensIn, tokensOut })
+      tryLogEntry(c, { ...logBase, tokensIn, tokensOut, debug: debugInfo ?? undefined })
       return c.json(convertedBody, response.status as any)
     } catch (err) {
       return handleProxyError(c, err, startTime, apiFormat)
@@ -357,6 +481,7 @@ export function createServer() {
     apiFormat: 'anthropic' | 'openai'
   ): Response {
     const message = err instanceof Error ? err.message : String(err)
+    proxyDebugLog('PROXY_ERROR', { error: message, stack: err instanceof Error ? err.stack?.slice(0, 1000) : undefined })
     let status: number = 502
 
     if (
@@ -398,6 +523,7 @@ export function createServer() {
       tokensOut?: number
       durationMs?: number
       error?: string
+      debug?: LogDebugInfo
     }
   ): void {
     try {
