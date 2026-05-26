@@ -269,19 +269,54 @@ export function createServer() {
         durationMs: Date.now() - startTime
       }
 
-      // Handle error responses — convert error format
-      if (!response.ok && !proxyBody.stream) {
-        const errorBody = await response.json()
-        proxyDebugLog('UPSTREAM_ERROR_BODY', { body: JSON.stringify(errorBody).slice(0, 4000) })
+      // Handle error responses — regardless of streaming mode, read and pass through errors
+      if (!response.ok) {
+        let errorText = ''
+        try {
+          errorText = await response.text()
+        } catch {
+          errorText = `(failed to read error body: ${response.status})`
+        }
+
+        proxyDebugLog('UPSTREAM_ERROR_BODY', { status: response.status, body: errorText.slice(0, 4000) })
+
+        // Try to parse as JSON, but fall back to plain text
+        let errorBody: any
+        let isJson = false
+        try {
+          errorBody = JSON.parse(errorText)
+          isJson = true
+        } catch {
+          errorBody = { error: { message: errorText.slice(0, 500) } }
+        }
+
+        if (!needsConversion && !isJson) {
+          // Non-JSON, no conversion needed — return as plain text
+          if (debugInfo) {
+            debugInfo.upstream.statusCode = response.status
+            debugInfo.upstream.responseBody = errorText
+          }
+          tryLogEntry(c, {
+            ...logBase,
+            error: `Upstream ${response.status}: ${errorText.slice(0, 200)}`,
+            debug: debugInfo ?? undefined
+          })
+          return c.body(errorText, response.status as any)
+        }
+
         const convertedError = needsConversion
           ? convertResponse(errorBody, route.provider.providerType as 'openai' | 'anthropic', apiFormat)
           : errorBody
 
         if (debugInfo) {
           debugInfo.upstream.statusCode = response.status
-          debugInfo.upstream.responseBody = JSON.stringify(errorBody)
+          debugInfo.upstream.responseBody = errorText
         }
-        tryLogEntry(c, { ...logBase, debug: debugInfo ?? undefined })
+
+        const errMsg = errorBody?.error?.message || errorBody?.error || errorText.slice(0, 200)
+
+        // For streaming requests, return as regular JSON (not stream) to ensure client receives clear error
+        tryLogEntry(c, { ...logBase, error: typeof errMsg === 'string' ? errMsg : String(errMsg).slice(0, 200), debug: debugInfo ?? undefined })
         return c.json(convertedError, response.status as any)
       }
 

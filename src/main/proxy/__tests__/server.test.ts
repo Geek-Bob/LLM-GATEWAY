@@ -413,5 +413,70 @@ describe('Hono Proxy Server', () => {
 
       globalThis.fetch = originalFetch
     })
+
+    it('should return clear JSON error when upstream returns 400 for streaming request', async () => {
+      const errorBody = JSON.stringify({
+        error: { message: 'Model not supported', type: 'invalid_request_error', code: 'model_not_found' }
+      })
+
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        text: () => Promise.resolve(errorBody),
+        headers: new Headers({ 'content-type': 'application/json' })
+      })
+      globalThis.fetch = mockFetch
+
+      const res = await app.request('/v1/messages', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${validApiKey}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'anthropic-test/claude-3-opus-20240229',
+          messages: [{ role: 'user', content: 'Hi' }],
+          stream: true
+        })
+      })
+
+      // Should return proper JSON error, not garbled SSE
+      expect(res.status).toBe(400)
+      const data = await res.json()
+      expect(data).toHaveProperty('error')
+      expect(data.error.message).toBe('Model not supported')
+
+      globalThis.fetch = originalFetch
+    })
+
+    it('should return plain text error when upstream returns non-JSON error for streaming request', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 502,
+        text: () => Promise.resolve('Bad Gateway'),
+        headers: new Headers({ 'content-type': 'text/plain' })
+      })
+      globalThis.fetch = mockFetch
+
+      const res = await app.request('/v1/messages', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${validApiKey}`,
+          'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'anthropic-test/claude-3-opus-20240229',
+          messages: [{ role: 'user', content: 'Hi' }],
+          stream: true
+        })
+      })
+
+      // Should return the plain text error with correct status
+      expect(res.status).toBe(502)
+      const text = await res.text()
+      expect(text).toBe('Bad Gateway')
+
+      globalThis.fetch = originalFetch
+    })
   })
 })
