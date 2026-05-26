@@ -135,6 +135,7 @@ export function LogsPage() {
                   <th>状态</th>
                   <th>延迟</th>
                   <th>Tokens</th>
+                  <th>详情</th>
                 </tr>
               </thead>
               <tbody>
@@ -188,6 +189,23 @@ export function LogsPage() {
                         <span className="font-mono text-sm tabular-nums" style={{ color: '#94a3b8' }}>
                           {formatTokens(entry)}
                         </span>
+                      </td>
+                      <td>
+                        {entry.debug ? (
+                          <span
+                            className="cyber-badge text-xs"
+                            style={{
+                              background: 'rgba(34, 197, 94, 0.1)',
+                              color: '#22c55e',
+                              cursor: 'help'
+                            }}
+                            title="此请求包含完整调试详情"
+                          >
+                            ●
+                          </span>
+                        ) : (
+                          <span className="text-xs" style={{ color: '#334155' }}>—</span>
+                        )}
                       </td>
                     </motion.tr>
                   )
@@ -291,9 +309,12 @@ export function LogsPage() {
                   <DebugKV label="Tokens" value={`${selectedLog.tokens_in}↑ ${selectedLog.tokens_out}↓`} />
                   {selectedLog.error && <DebugKV label="错误" value={selectedLog.error} />}
                 </div>
-                <div className="mt-8 p-4 rounded-lg mx-auto max-w-xs" style={{ background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
-                  <p className="text-sm" style={{ color: '#93c5fd' }}>
-                    开启 <strong>Debug 模式</strong> 后可查看完整请求/响应体
+                <div className="mt-8 p-4 rounded-lg mx-auto max-w-xs" style={{ background: debugMode ? 'rgba(250, 204, 21, 0.06)' : 'rgba(59, 130, 246, 0.06)', border: debugMode ? '1px solid rgba(250, 204, 21, 0.2)' : '1px solid rgba(59, 130, 246, 0.15)' }}>
+                  <p className="text-sm" style={{ color: debugMode ? '#facc15' : '#93c5fd' }}>
+                    {debugMode
+                      ? '此请求记录于 Debug 模式开启前，不含调试详情。请发送新请求以查看完整链路。'
+                      : <>开启 <strong>Debug 模式</strong> 后可查看完整请求/响应体</>
+                    }
                   </p>
                 </div>
               </div>
