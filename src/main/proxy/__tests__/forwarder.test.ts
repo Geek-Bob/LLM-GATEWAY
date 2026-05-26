@@ -47,6 +47,30 @@ describe('buildProxyUrl', () => {
     const url = buildProxyUrl(provider, '/v1/messages')
     expect(url).toBe('https://api.anthropic.com/v1/messages')
   })
+
+  it('should deduplicate overlapping /v1 prefix in path when baseUrl already ends with /v1', () => {
+    const provider = makeProvider({ baseUrl: 'https://opencode.ai/zen/go/v1' })
+    const url = buildProxyUrl(provider, '/v1/chat/completions')
+    expect(url).toBe('https://opencode.ai/zen/go/v1/chat/completions')
+  })
+
+  it('should deduplicate overlapping /v1 prefix when baseUrl has trailing slash', () => {
+    const provider = makeProvider({ baseUrl: 'https://opencode.ai/zen/go/v1/' })
+    const url = buildProxyUrl(provider, '/v1/chat/completions')
+    expect(url).toBe('https://opencode.ai/zen/go/v1/chat/completions')
+  })
+
+  it('should only deduplicate overlapping segments (not partial matches)', () => {
+    const provider = makeProvider({ baseUrl: 'https://api.example.com/v12' })
+    const url = buildProxyUrl(provider, '/v1/chat/completions')
+    expect(url).toBe('https://api.example.com/v12/v1/chat/completions')
+  })
+
+  it('should deduplicate multi-segment overlap', () => {
+    const provider = makeProvider({ baseUrl: 'https://api.example.com/api/v1/openai' })
+    const url = buildProxyUrl(provider, '/api/v1/openai/chat/completions')
+    expect(url).toBe('https://api.example.com/api/v1/openai/chat/completions')
+  })
 })
 
 describe('buildProxyHeaders', () => {
