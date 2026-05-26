@@ -20,6 +20,12 @@ export interface LogEntryProps {
   tokensOut?: number
   durationMs?: number
   error?: string
+  debug?: {
+    client: { body: string; apiFormat: string }
+    route: { providerName: string; providerType: string; baseUrl: string; modelName: string }
+    conversion?: { from: string; to: string; originalPath: string; convertedPath: string; originalModel: string; convertedModel: string }
+    upstream: { url: string; body: string; statusCode: number; responseBody: string }
+  }
 }
 
 export interface LogQuery {
@@ -136,7 +142,8 @@ export function createLogEntry(entry: LogEntryProps): void {
       tokens_out: entry.tokensOut,
       duration_ms: entry.durationMs,
       error: entry.error,
-      created_at: new Date().toISOString()
+      created_at: new Date().toISOString(),
+      debug: entry.debug
     }) + '\n'
 
   fs.appendFileSync(fp, line, 'utf-8')
@@ -156,6 +163,7 @@ function normalizeEntry(raw: Record<string, unknown>): Record<string, unknown> {
     duration_ms: raw.durationMs ?? raw.duration_ms ?? 0,
     error: raw.error ?? null,
     created_at: raw.createdAt ?? raw.created_at ?? '',
+    debug: raw.debug ?? undefined,
   }
 }
 
