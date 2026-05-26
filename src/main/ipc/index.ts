@@ -1,6 +1,5 @@
 import { randomUUID } from 'crypto'
 import * as fs from 'fs'
-import * as os from 'os'
 import * as path from 'path'
 import { ipcMain, BrowserWindow } from 'electron'
 import {
@@ -27,7 +26,7 @@ import {
 } from '../db/conversations'
 import { getProxyConfig, startProxy, stopProxy, restartProxy, setProxyPort, getDebugMode, setDebugMode } from '../proxy/manager'
 
-const DEBUG_LOG = path.join(os.tmpdir(), 'llm-gateway-chat-debug.log')
+const DEBUG_LOG = path.join(process.cwd(), 'llm-gateway-chat-debug.log')
 
 function debugFileLog(...args: any[]): void {
   try {

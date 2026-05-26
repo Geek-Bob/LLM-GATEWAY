@@ -3,7 +3,7 @@ import { serve, type ServerType } from '@hono/node-server'
 
 let server: ServerType | null = null
 let currentPort = 8080
-let debugMode = false
+let debugMode = true
 
 export interface ProxyConfig {
   port: number
