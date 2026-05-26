@@ -100,6 +100,61 @@ describe('NDJSON Log Sharding', () => {
       // Optional fields should be undefined (not serialized)
       expect(entry.api_key_id).toBeUndefined()
     })
+
+    it('should store debug field when provided', () => {
+      createLogEntry({
+        model: 'gpt-4',
+        apiFormat: 'openai',
+        debug: {
+          client: { body: '{"model":"gpt-4"}', apiFormat: 'openai' },
+          route: { providerName: 'TestP', providerType: 'openai', baseUrl: 'https://api.test.com/v1', modelName: 'gpt-4' },
+          upstream: { url: 'https://api.test.com/v1/chat/completions', body: '{"model":"gpt-4"}', statusCode: 200, responseBody: '{"choices":[]}' }
+        }
+      })
+
+      const files = fs.readdirSync(logDir).filter((f) => f.endsWith('.ndjson'))
+      const content = fs.readFileSync(path.join(logDir, files[0]), 'utf-8')
+      const entry = JSON.parse(content.trim())
+
+      expect(entry.debug).toBeDefined()
+      expect(entry.debug.client.body).toBe('{"model":"gpt-4"}')
+      expect(entry.debug.client.apiFormat).toBe('openai')
+      expect(entry.debug.route.providerName).toBe('TestP')
+      expect(entry.debug.upstream.url).toBe('https://api.test.com/v1/chat/completions')
+      expect(entry.debug.upstream.statusCode).toBe(200)
+    })
+
+    it('should not include debug field when not provided', () => {
+      createLogEntry({ model: 'gpt-4', apiFormat: 'openai' })
+
+      const files = fs.readdirSync(logDir).filter((f) => f.endsWith('.ndjson'))
+      const content = fs.readFileSync(path.join(logDir, files[0]), 'utf-8')
+      const entry = JSON.parse(content.trim())
+
+      expect(entry.debug).toBeUndefined()
+    })
+
+    it('should store debug with conversion info', () => {
+      createLogEntry({
+        model: 'gpt-4',
+        apiFormat: 'openai',
+        debug: {
+          client: { body: '{}', apiFormat: 'openai' },
+          route: { providerName: 'Anth', providerType: 'anthropic', baseUrl: 'https://api.anth.ai', modelName: 'claude-3' },
+          conversion: { from: 'openai', to: 'anthropic', originalPath: '/v1/chat/completions', convertedPath: '/v1/messages', originalModel: 'gpt-4', convertedModel: 'claude-3' },
+          upstream: { url: 'https://api.anth.ai/v1/messages', body: '{}', statusCode: 200, responseBody: '{}' }
+        }
+      })
+
+      const files = fs.readdirSync(logDir).filter((f) => f.endsWith('.ndjson'))
+      const content = fs.readFileSync(path.join(logDir, files[0]), 'utf-8')
+      const entry = JSON.parse(content.trim())
+
+      expect(entry.debug.conversion).toBeDefined()
+      expect(entry.debug.conversion.from).toBe('openai')
+      expect(entry.debug.conversion.to).toBe('anthropic')
+      expect(entry.debug.conversion.convertedPath).toBe('/v1/messages')
+    })
   })
 
   describe('queryLogs', () => {
