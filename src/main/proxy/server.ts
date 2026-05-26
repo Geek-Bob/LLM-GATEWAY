@@ -297,11 +297,11 @@ export function createServer() {
             apiFormat,
             ctx
           )
-          extractAndLogSSE(forLogging, logBase, route.provider.providerType as 'anthropic' | 'openai').catch(() => {})
           if (debugInfo) {
             debugInfo.upstream.statusCode = response.status
             debugInfo.upstream.responseBody = '(streaming — body not captured)'
           }
+          extractAndLogSSE(forLogging, logBase, route.provider.providerType as 'anthropic' | 'openai', debugInfo ?? undefined).catch(() => {})
           return new Response(convertedStream, {
             status: response.status,
             headers: response.headers
@@ -309,11 +309,11 @@ export function createServer() {
         }
 
         // No conversion needed — existing behavior
-        extractAndLogSSE(forLogging, logBase, apiFormat).catch(() => {})
         if (debugInfo) {
           debugInfo.upstream.statusCode = response.status
           debugInfo.upstream.responseBody = '(streaming — body not captured)'
         }
+        extractAndLogSSE(forLogging, logBase, apiFormat, debugInfo ?? undefined).catch(() => {})
         return new Response(forClient, {
           status: response.status,
           headers: response.headers
@@ -351,7 +351,8 @@ export function createServer() {
   async function extractAndLogSSE(
     stream: ReadableStream<Uint8Array>,
     logBase: { apiKeyId: number; providerId?: number; model: string; apiFormat: 'anthropic' | 'openai'; statusCode: number; durationMs: number },
-    apiFormat: 'anthropic' | 'openai'
+    apiFormat: 'anthropic' | 'openai',
+    debug?: LogDebugInfo
   ): Promise<void> {
     try {
       const reader = stream.getReader()
@@ -363,7 +364,7 @@ export function createServer() {
         text += decoder.decode(value, { stream: true })
       }
       const usage = extractUsageFromSSE(text, apiFormat)
-      tryLogEntry(null as any, { ...logBase, ...usage })
+      tryLogEntry(null as any, { ...logBase, ...usage, debug })
     } catch {
       // Silent — logging is best-effort
     }
