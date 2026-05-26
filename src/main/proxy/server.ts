@@ -7,14 +7,15 @@ import { buildProxyUrl, buildProxyHeaders } from './forwarder'
 import { convertRequest, convertResponse, convertSSEEvent, createStreamContext, type StreamContext } from './converter'
 import { verifyApiKey } from '../db/api-keys'
 import * as fs from 'fs'
-import * as os from 'os'
 import * as path from 'path'
 
 import { createLogEntry, updateRequestStats, updateProviderStats } from '../db/logs'
 import { getDebugMode } from './manager'
 import type { LogDebugInfo } from '../../shared/types'
 
-const AUTH_LOG = path.join(os.tmpdir(), 'llm-gateway-auth-debug.log')
+const LOG_DIR = process.cwd()
+
+const AUTH_LOG = path.join(LOG_DIR, 'llm-gateway-auth-debug.log')
 function authDebugLog(...args: any[]): void {
   try {
     const ts = new Date().toISOString()
@@ -23,7 +24,7 @@ function authDebugLog(...args: any[]): void {
   } catch {}
 }
 
-const PROXY_LOG = path.join(os.tmpdir(), 'llm-gateway-proxy-debug.log')
+const PROXY_LOG = path.join(LOG_DIR, 'llm-gateway-proxy-debug.log')
 function proxyDebugLog(section: string, data: Record<string, any>): void {
   try {
     const ts = new Date().toISOString()

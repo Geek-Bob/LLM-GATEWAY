@@ -6,3 +6,4 @@ dist/
 .DS_Store
 .superpowers/
 new-api-main/
+*.log
