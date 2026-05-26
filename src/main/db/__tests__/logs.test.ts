@@ -221,6 +221,24 @@ describe('NDJSON Log Sharding', () => {
       expect(result.total).toBe(0)
       rmDir(emptyDir)
     })
+
+    it('should return debug field in queried entries via normalizeEntry', () => {
+      createLogEntry({
+        model: 'gpt-4',
+        apiFormat: 'openai',
+        debug: {
+          client: { body: '{}', apiFormat: 'openai' },
+          route: { providerName: 'P', providerType: 'openai', baseUrl: 'https://x.com', modelName: 'gpt-4' },
+          upstream: { url: 'https://x.com/v1', body: '{}', statusCode: 200, responseBody: '{}' }
+        }
+      })
+      const result = queryLogs({ page: 1, limit: 10 })
+      const entry = result.logs.find((e: any) => e.debug) as any
+      expect(entry).toBeDefined()
+      expect(entry.debug.client.apiFormat).toBe('openai')
+      expect(entry.debug.route.providerName).toBe('P')
+      expect(entry.debug.upstream.statusCode).toBe(200)
+    })
   })
 
   describe('file rolling', () => {
