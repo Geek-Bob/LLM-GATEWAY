@@ -299,7 +299,6 @@ export function createServer() {
           )
           if (debugInfo) {
             debugInfo.upstream.statusCode = response.status
-            debugInfo.upstream.responseBody = '(streaming — body not captured)'
           }
           extractAndLogSSE(forLogging, logBase, route.provider.providerType as 'anthropic' | 'openai', debugInfo ?? undefined).catch(() => {})
           return new Response(convertedStream, {
@@ -311,7 +310,6 @@ export function createServer() {
         // No conversion needed — existing behavior
         if (debugInfo) {
           debugInfo.upstream.statusCode = response.status
-          debugInfo.upstream.responseBody = '(streaming — body not captured)'
         }
         extractAndLogSSE(forLogging, logBase, apiFormat, debugInfo ?? undefined).catch(() => {})
         return new Response(forClient, {
@@ -364,6 +362,9 @@ export function createServer() {
         text += decoder.decode(value, { stream: true })
       }
       const usage = extractUsageFromSSE(text, apiFormat)
+      if (debug) {
+        debug.upstream.responseBody = extractContentFromSSE(text, apiFormat)
+      }
       tryLogEntry(null as any, { ...logBase, ...usage, debug })
     } catch {
       // Silent — logging is best-effort
@@ -591,5 +592,39 @@ export function createServer() {
     }
 
     return { tokensIn, tokensOut }
+  }
+
+  function extractContentFromSSE(
+    text: string,
+    apiFormat: 'anthropic' | 'openai'
+  ): string {
+    const parts: string[] = []
+
+    if (apiFormat === 'openai') {
+      for (const line of text.split('\n')) {
+        if (!line.startsWith('data: ') || line.includes('[DONE]')) continue
+        try {
+          const data = JSON.parse(line.slice(6))
+          const content = data.choices?.[0]?.delta?.content
+          if (content) parts.push(content)
+        } catch { /* skip */ }
+      }
+    } else {
+      let eventType = ''
+      for (const line of text.split('\n')) {
+        if (line.startsWith('event: ')) {
+          eventType = line.slice(7)
+        } else if (line.startsWith('data: ')) {
+          try {
+            const data = JSON.parse(line.slice(6))
+            if (eventType === 'content_block_delta' && data.delta?.type === 'text_delta') {
+              if (data.delta.text) parts.push(data.delta.text)
+            }
+          } catch { /* skip */ }
+        }
+      }
+    }
+
+    return parts.join('')
   }
 }
