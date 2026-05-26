@@ -16,7 +16,6 @@ export function getDebugMode(): boolean {
 }
 
 export function setDebugMode(enabled: boolean): void {
-  console.log(`[DEBUG MODE] setDebugMode(${enabled}) called`)
   debugMode = enabled
 }
 
