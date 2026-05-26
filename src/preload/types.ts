@@ -65,6 +65,8 @@ export interface ElectronAPI {
     stop: () => Promise<void>
     restart: (port?: number) => Promise<boolean>
     setPort: (port: number) => Promise<void>
+    getDebugMode: () => Promise<boolean>
+    setDebugMode: (enabled: boolean) => Promise<void>
   }
   window: {
     minimize: () => void

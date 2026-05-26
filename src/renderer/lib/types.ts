@@ -20,32 +20,9 @@ export interface ApiKey {
   created_at: string
 }
 
-export interface LogDebugInfo {
-  client: {
-    body: string
-    apiFormat: string
-  }
-  route: {
-    providerName: string
-    providerType: string
-    baseUrl: string
-    modelName: string
-  }
-  conversion?: {
-    from: string
-    to: string
-    originalPath: string
-    convertedPath: string
-    originalModel: string
-    convertedModel: string
-  }
-  upstream: {
-    url: string
-    body: string
-    statusCode: number
-    responseBody: string
-  }
-}
+import type { LogDebugInfo } from '../../shared/types'
+
+export type { LogDebugInfo }
 
 export interface LogEntry {
   id: number
@@ -120,6 +97,8 @@ declare global {
         stop: () => Promise<void>
         restart: (port?: number) => Promise<boolean>
         setPort: (port: number) => Promise<void>
+        getDebugMode: () => Promise<boolean>
+        setDebugMode: (enabled: boolean) => Promise<void>
       }
       debug: {
         log: (...args: any[]) => void
