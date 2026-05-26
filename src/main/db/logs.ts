@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { getDb } from './connection'
+import type { LogDebugInfo } from '../../shared/types'
 
 const MAX_LINES = 10000
 const MAX_FILES = 10
@@ -20,12 +21,7 @@ export interface LogEntryProps {
   tokensOut?: number
   durationMs?: number
   error?: string
-  debug?: {
-    client: { body: string; apiFormat: string }
-    route: { providerName: string; providerType: string; baseUrl: string; modelName: string }
-    conversion?: { from: string; to: string; originalPath: string; convertedPath: string; originalModel: string; convertedModel: string }
-    upstream: { url: string; body: string; statusCode: number; responseBody: string }
-  }
+  debug?: LogDebugInfo
 }
 
 export interface LogQuery {

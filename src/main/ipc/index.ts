@@ -25,7 +25,7 @@ import {
   listMessages,
   addMessage
 } from '../db/conversations'
-import { getProxyConfig, startProxy, stopProxy, restartProxy, setProxyPort } from '../proxy/manager'
+import { getProxyConfig, startProxy, stopProxy, restartProxy, setProxyPort, getDebugMode, setDebugMode } from '../proxy/manager'
 
 const DEBUG_LOG = path.join(os.tmpdir(), 'llm-gateway-chat-debug.log')
 
@@ -191,6 +191,14 @@ export function setupIpcHandlers(): void {
 
   ipcMain.handle('proxy:setPort', async (_event, port: number) => {
     setProxyPort(port)
+  })
+
+  ipcMain.handle('proxy:getDebugMode', async () => {
+    return getDebugMode()
+  })
+
+  ipcMain.handle('proxy:setDebugMode', async (_event, enabled: boolean) => {
+    setDebugMode(enabled)
   })
 
   // --- Renderer debug log handler ---

@@ -38,7 +38,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     start: (port?: number) => ipcRenderer.invoke('proxy:start', port),
     stop: () => ipcRenderer.invoke('proxy:stop'),
     restart: (port?: number) => ipcRenderer.invoke('proxy:restart', port),
-    setPort: (port: number) => ipcRenderer.invoke('proxy:setPort', port)
+    setPort: (port: number) => ipcRenderer.invoke('proxy:setPort', port),
+    getDebugMode: () => ipcRenderer.invoke('proxy:getDebugMode'),
+    setDebugMode: (enabled: boolean) => ipcRenderer.invoke('proxy:setDebugMode', enabled)
   },
   chat: {
     send: (data: { requestId: string; apiKeyId: number; model: string; messages: { role: string; content: string }[]; apiFormat: 'anthropic' | 'openai' }) => {
