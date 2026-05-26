@@ -329,7 +329,7 @@ export function createServer() {
 
       if (debugInfo) {
         debugInfo.upstream.statusCode = response.status
-        debugInfo.upstream.responseBody = JSON.stringify(convertedBody)
+        debugInfo.upstream.responseBody = JSON.stringify(responseBody)
       }
 
       let tokensIn = 0
