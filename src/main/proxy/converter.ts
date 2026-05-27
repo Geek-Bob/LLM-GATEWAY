@@ -993,6 +993,15 @@ function openAISSEToAnthropic(
   return null
 }
 
+// Overload: Anthropic→OpenAI always returns single object (never array)
+export function convertSSEEvent(
+  event: string, data: any, from: 'anthropic', to: 'openai', ctx?: StreamContext
+): { event: string; data: any } | null
+// Overload: dynamic union-type call — may return single or array (O→C path)
+export function convertSSEEvent(
+  event: string, data: any, from: ProtocolFormat, to: ProtocolFormat, ctx?: StreamContext
+): { event: string; data: any } | Array<{ event: string; data: any }> | null
+// Implementation
 export function convertSSEEvent(
   event: string,
   data: any,

@@ -14,7 +14,7 @@ export function StatusBar() {
   const handleCopy = async () => {
     if (!status) return
     try {
-      await navigator.clipboard.writeText(status.url)
+      await navigator.clipboard.writeText(status.url ?? '')
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch { /* clipboard not available */ }
