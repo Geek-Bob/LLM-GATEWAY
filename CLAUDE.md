@@ -3,7 +3,7 @@
 ## Build & Test
 - `npm run dev` — electron-vite dev (Electron + Vite)
 - `npm run build` — electron-vite build (全量构建)
-- `npm test` — vitest run (184 tests)
+- `npm test` — vitest run (294 tests)
 - `npm run lint` — eslint src/ (flat config: eslint.config.mjs)
 
 ## Architecture
