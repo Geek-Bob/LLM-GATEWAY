@@ -70,7 +70,7 @@ window.electronAPI = {
   providers: { list: _providerList, create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   apiKeys: { list: _apiKeyList, create: vi.fn(), delete: vi.fn() },
   logs: { query: vi.fn(), stats: vi.fn(), statsDetailed: vi.fn() },
-  proxy: { status: vi.fn().mockResolvedValue({ running: true, port: 8080 }) },
+  proxy: { status: vi.fn().mockResolvedValue({ running: true, port: 8080, url: 'http://localhost:8080' }), start: vi.fn(), stop: vi.fn(), restart: vi.fn(), setPort: vi.fn(), getDebugMode: vi.fn().mockResolvedValue(false), setDebugMode: vi.fn() },
   chat: { send: _chatSend, abort: _chatAbort, onChunk: _onChunk },
   conversations: {
     list: _conversationsList,

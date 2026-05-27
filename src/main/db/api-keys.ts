@@ -91,7 +91,7 @@ export function listApiKeys(): (Omit<ApiKeyRow, 'key_hash' | 'key_encrypted'> & 
   const db = getDb()
   const rows = db.prepare(
     'SELECT id, name, key_prefix, key_encrypted, is_active, rate_limit, created_at FROM api_keys ORDER BY created_at DESC'
-  ).all() as ApiKeyRow[]
+  ).all() as unknown as ApiKeyRow[]
 
   return rows.map((row) => {
     const keyPlaintext = tryDecrypt(row.key_encrypted)

@@ -749,8 +749,9 @@ describe('convertSSEEvent O→C', () => {
     }
     const result = convertSSEEvent('', data, 'openai', 'anthropic', ctx)
     expect(result).not.toBeNull()
-    const single = result as { event: string; data: any }
+    const single = Array.isArray(result) ? result[0] : result as { event: string; data: any }
     expect(single.event).toBe('message_start')
+    expect(single.data.type).toBe('message_start')
     expect(single.data.message.model).toBe('gpt-4')
     expect(single.data.message.role).toBe('assistant')
   })

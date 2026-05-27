@@ -21,7 +21,7 @@ export interface MessageRow {
 
 export function listConversations(): ConversationRow[] {
   const db = getDb()
-  return db.prepare('SELECT * FROM conversations ORDER BY updated_at DESC').all() as ConversationRow[]
+  return db.prepare('SELECT * FROM conversations ORDER BY updated_at DESC').all() as unknown as ConversationRow[]
 }
 
 export function createConversation(
@@ -98,7 +98,7 @@ export function listMessages(conversationId: number): MessageRow[] {
     .prepare(
       'SELECT * FROM messages WHERE conversation_id = ? ORDER BY id ASC'
     )
-    .all(conversationId) as MessageRow[]
+    .all(conversationId) as unknown as MessageRow[]
 }
 
 export function addMessage(

@@ -7,14 +7,15 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "outDir": "./out",
-    "rootDir": "./src/renderer",
+    "rootDir": "./src",
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/renderer/*"]
     }
   },
-  "include": ["src/renderer/**/*"]
+  "include": ["src/renderer/**/*", "src/shared/**/*"]
 }
