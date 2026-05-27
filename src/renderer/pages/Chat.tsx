@@ -7,7 +7,7 @@ import { ConversationSidebar } from '../components/ConversationSidebar'
 import type { Conversation } from '../lib/types'
 
 const debugLog = (...args: any[]) => {
-  try { api.debug?.log(...args) } catch {}
+  try { api.debug?.log(...args) } catch { /* ignore */ }
 }
 import { ChatMessage } from '../components/ChatMessage'
 import { ChatInput } from '../components/ChatInput'

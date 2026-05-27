@@ -30,7 +30,7 @@ export function Dashboard() {
       await navigator.clipboard.writeText(`http://localhost:${proxyPort}`)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch {}
+    } catch { /* ignore */ }
   }
 
   useEffect(() => {
