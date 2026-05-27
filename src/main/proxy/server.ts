@@ -21,7 +21,7 @@ function authDebugLog(...args: any[]): void {
     const ts = new Date().toISOString()
     const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')
     fs.appendFileSync(AUTH_LOG, `[${ts}] ${msg}\n`)
-  } catch {}
+  } catch { /* ignore */ }
 }
 
 const PROXY_LOG = path.join(LOG_DIR, 'llm-gateway-proxy-debug.log')
@@ -41,7 +41,7 @@ function proxyDebugLog(section: string, data: Record<string, any>): void {
     }
     const line = JSON.stringify(entry)
     fs.appendFileSync(PROXY_LOG, `${line}\n`)
-  } catch {}
+  } catch { /* ignore */ }
 }
 
 interface AppEnv {
@@ -63,7 +63,7 @@ export function createServer() {
     const allHeaders: Record<string, string> = {}
     c.req.raw.headers.forEach((v, k) => { allHeaders[k] = k === 'authorization' ? v.slice(0, 20) + '...' : v })
     authDebugLog('REQUEST', { path: c.req.path, method: c.req.method, allHeaders })
-    let token = authMiddleware(authHeader) || c.req.header('x-api-key') || null
+    const token = authMiddleware(authHeader) || c.req.header('x-api-key') || null
     if (!token) {
       logAuthFailure(c, `missing authorization header`)
       return c.json({ error: 'unauthorized' }, 401)

@@ -1,4 +1,5 @@
 // @vitest-environment node
+import crypto from 'crypto'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { initDatabase, closeDatabase } from '../connection'
 import { createTables } from '../schema'
@@ -118,7 +119,6 @@ describe('API Keys CRUD', () => {
 
     it('should return null for key with empty key_encrypted', () => {
       // Insert a key with empty key_encrypted to simulate legacy data
-      const crypto = require('crypto')
       const emptyKeyHash = crypto.createHash('sha256').update('sk-empty-key-test').digest('hex')
       getDb().prepare(`
         INSERT INTO api_keys (name, key_prefix, key_hash, key_encrypted, rate_limit)

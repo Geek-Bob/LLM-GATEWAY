@@ -163,7 +163,7 @@ function openaiToAnthropicRequest(
       if (msg.tool_calls) {
         for (const tc of msg.tool_calls) {
           let inputObj: any = {}
-          try { inputObj = JSON.parse(tc.function?.arguments || '{}') } catch {}
+          try { inputObj = JSON.parse(tc.function?.arguments || '{}') } catch { /* ignore */ }
           blocks.push({
             type: 'tool_use',
             id: tc.id,
@@ -547,7 +547,7 @@ function openAIToAnthropicResponse(
 
   if (choice.message?.tool_calls) {
     for (const tc of choice.message.tool_calls) {
-      let input: any = {}
+      let input: any
       try {
         input = JSON.parse(tc.function?.arguments || '{}')
       } catch { input = tc.function?.arguments ?? {} }

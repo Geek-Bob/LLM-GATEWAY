@@ -33,7 +33,7 @@ function debugFileLog(...args: any[]): void {
     const ts = new Date().toISOString()
     const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')
     fs.appendFileSync(DEBUG_LOG, `[${ts}] ${msg}\n`)
-  } catch {}
+  } catch { /* ignore */ }
 }
 
 export function setupIpcHandlers(): void {
