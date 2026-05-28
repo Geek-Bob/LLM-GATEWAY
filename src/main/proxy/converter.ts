@@ -1016,8 +1016,26 @@ export function convertSSEEvent(
   }
   if (from === 'openai' && to === 'anthropic') {
     if (!ctx) return null // require StreamContext for O→C streaming
-    // Reset state on [DONE] signal
     if (event === 'done' || (event === '' && data === null)) {
+      // If finish_reason was set in a prior chunk but never emitted (no usage in same chunk),
+      // emit message_delta + message_stop now before closing, so the client receives
+      // proper stream termination instead of an abrupt socket close.
+      const s = ctx.state
+      if (s.finishReason && !s.done) {
+        s.done = true
+        return [
+          ...stopOpenBlocks(s),
+          {
+            event: 'message_delta',
+            data: {
+              type: 'message_delta',
+              delta: { stop_reason: mapFinishReason(s.finishReason, 'toAnthropic') },
+              usage: { input_tokens: 0, output_tokens: 0 },
+            },
+          },
+          { event: 'message_stop', data: { type: 'message_stop' } },
+        ]
+      }
       return null
     }
     return openAISSEToAnthropic(data, ctx)
