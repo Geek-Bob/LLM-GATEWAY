@@ -1,16 +1,30 @@
 import { useState, useEffect, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { MessageSquare, Square } from 'lucide-react'
 import { api } from '../lib/ipc'
 import type { Provider, ApiKey } from '../lib/types'
+import { useProviders } from '../lib/queries/providers'
+import { useApiKeys } from '../lib/queries/apiKeys'
+import { useConversations } from '../lib/queries/conversations'
 import { ConversationSidebar } from '../components/ConversationSidebar'
-import type { Conversation } from '../lib/types'
-
-const debugLog = (...args: any[]) => {
-  try { api.debug?.log(...args) } catch { /* ignore */ }
-}
 import { ChatMessage } from '../components/ChatMessage'
 import { ChatInput } from '../components/ChatInput'
+import { Card, CardContent } from '../components/ui/card'
+import { Button } from '../components/ui/button'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../components/ui/select'
+
+const debugLog = (...args: unknown[]) => {
+  try { api.debug?.log(...args) } catch { /* ignore */ }
+}
 
 interface Message {
   role: 'user' | 'assistant'
@@ -23,13 +37,15 @@ interface Message {
 }
 
 export function ChatPage() {
-  const [providers, setProviders] = useState<Provider[]>([])
-  const [activeApiKeys, setActiveApiKeys] = useState<ApiKey[]>([])
+  const queryClient = useQueryClient()
+  const { data: providers = [] } = useProviders()
+  const { data: activeApiKeys = [] } = useApiKeys()
+  const { data: conversations = [] } = useConversations()
+
   const [selectedProviderId, setSelectedProviderId] = useState<number | null>(null)
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [selectedApiKeyId, setSelectedApiKeyId] = useState<number | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
-  const [conversations, setConversations] = useState<Conversation[]>([])
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const currentConvIdRef = useRef<number | null>(null)
@@ -39,15 +55,6 @@ export function ChatPage() {
   const currentRequestId = useRef<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    api.providers.list().then(setProviders)
-    api.apiKeys.list().then(setActiveApiKeys)
-  }, [])
-
-  useEffect(() => {
-    api.conversations.list().then(setConversations)
-  }, [])
-
   const selectedProvider = providers.find((p) => p.id === selectedProviderId)
   const availableModels = selectedProvider?.models ?? []
 
@@ -55,6 +62,10 @@ export function ChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
   useEffect(() => { scrollToBottom() }, [messages])
+
+  const invalidateConversations = () => {
+    queryClient.invalidateQueries({ queryKey: ['conversations'] })
+  }
 
   const handleSend = async (content: string) => {
     if (!selectedModel || !selectedApiKeyId || !selectedProvider) return
@@ -68,7 +79,7 @@ export function ChatPage() {
         apiKeyId: selectedApiKeyId,
       })
       setActiveConversationId(convId)
-      api.conversations.list().then(setConversations)
+      invalidateConversations()
     }
 
     // Save user message
@@ -140,7 +151,7 @@ export function ChatPage() {
                   api.conversations.update(convId, { title: accumulatedContent.current.slice(0, 30) || '新对话' })
                 }
               })
-              api.conversations.list().then(setConversations)
+              invalidateConversations()
             })
             .catch(() => {})
         }
@@ -225,18 +236,18 @@ export function ChatPage() {
     })
     setActiveConversationId(id)
     setMessages([])
-    api.conversations.list().then(setConversations)
+    invalidateConversations()
   }
 
   const handleDeleteConversation = async (id: number) => {
     const conv = conversations.find(c => c.id === id)
-    if (!confirm(`确定删除"${conv?.title || '此会话'}"？`)) return
+    toast.error(`确定删除"${conv?.title || '此会话'}"？`)
     await api.conversations.delete(id)
     if (activeConversationId === id) {
       setActiveConversationId(null)
       setMessages([])
     }
-    api.conversations.list().then(setConversations)
+    invalidateConversations()
   }
 
   const providerOptions = providers.filter((p) => p.isActive === 1)
@@ -261,45 +272,54 @@ export function ChatPage() {
 
       <div className="flex-1 flex flex-col min-w-0 pl-3">
         {/* Toolbar */}
-        <div className="cyber-card p-3 mb-4 flex items-center gap-3 flex-wrap">
-          <select
-            value={selectedProviderId ?? ''}
-            onChange={(e) => {
-              const id = Number(e.target.value)
+        <Card className="p-3 mb-4 flex items-center gap-3 flex-wrap">
+          <Select
+            value={selectedProviderId?.toString() ?? ''}
+            onValueChange={(val) => {
+              const id = Number(val)
               setSelectedProviderId(id || null)
               setSelectedModel(null)
             }}
-            className="cyber-select flex-1 min-w-[140px] text-sm px-3 py-2"
           >
-            <option value="">选择供应商</option>
-            {providerOptions.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+            <SelectTrigger className="flex-1 min-w-[140px]">
+              <SelectValue placeholder="选择供应商" />
+            </SelectTrigger>
+            <SelectContent>
+              {providerOptions.map((p) => (
+                <SelectItem key={p.id} value={p.id.toString()}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <select
+          <Select
             value={selectedModel ?? ''}
-            onChange={(e) => setSelectedModel(e.target.value || null)}
+            onValueChange={(val) => setSelectedModel(val || null)}
             disabled={!selectedProvider}
-            className="cyber-select flex-1 min-w-[140px] text-sm px-3 py-2"
           >
-            <option value="">选择模型</option>
-            {availableModels.map((m) => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
+            <SelectTrigger className="flex-1 min-w-[140px]">
+              <SelectValue placeholder="选择模型" />
+            </SelectTrigger>
+            <SelectContent>
+              {availableModels.map((m) => (
+                <SelectItem key={m} value={m}>{m}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <select
-            value={selectedApiKeyId ?? ''}
-            onChange={(e) => setSelectedApiKeyId(Number(e.target.value) || null)}
-            className="cyber-select flex-1 min-w-[140px] text-sm px-3 py-2"
+          <Select
+            value={selectedApiKeyId?.toString() ?? ''}
+            onValueChange={(val) => setSelectedApiKeyId(Number(val) || null)}
           >
-            <option value="">选择 API Key</option>
-            {keyOptions.map((k) => (
-              <option key={k.id} value={k.id}>{k.name}</option>
-            ))}
-          </select>
-        </div>
+            <SelectTrigger className="flex-1 min-w-[140px]">
+              <SelectValue placeholder="选择 API Key" />
+            </SelectTrigger>
+            <SelectContent>
+              {keyOptions.map((k) => (
+                <SelectItem key={k.id} value={k.id.toString()}>{k.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Card>
 
         {/* Messages */}
         <div className="flex-1 overflow-auto mb-4 px-1">
@@ -311,11 +331,13 @@ export function ChatPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
               >
-                <div className="cyber-card p-8 text-center max-w-sm">
-                  <div className="text-2xl mb-3 opacity-40">💬</div>
-                  <p className="text-sm font-medium" style={{ color: '#94a3b8' }}>选择模型和 API Key</p>
-                  <p className="text-xs mt-1" style={{ color: '#475569' }}>输入消息开始测试模型可用性</p>
-                </div>
+                <Card className="p-8 text-center max-w-sm">
+                  <CardContent className="flex flex-col items-center pt-6">
+                    <MessageSquare className="w-10 h-10 mb-3 text-muted-foreground/40" />
+                    <p className="text-sm font-medium text-muted-foreground">选择模型和 API Key</p>
+                    <p className="text-xs mt-1 text-muted-foreground/60">输入消息开始测试模型可用性</p>
+                  </CardContent>
+                </Card>
               </motion.div>
             ) : (
               messages.map((msg, i) => (
@@ -327,28 +349,22 @@ export function ChatPage() {
         </div>
 
         {/* Input */}
-        <div
-          className="cyber-card p-3 flex items-center gap-2"
-          style={{ background: 'rgba(255,255,255,0.02)' }}
-        >
+        <Card className="p-3 flex items-center gap-2 bg-background/50">
           <div className="flex-1">
             <ChatInput onSend={handleSend} disabled={isLoading || !selectedModel || !selectedApiKeyId} />
           </div>
           {isLoading && (
-            <motion.button
+            <Button
               onClick={handleStop}
-              className="px-3 py-2.5 text-sm font-medium rounded-xl transition-all duration-200 flex items-center gap-2"
-              style={{ background: 'rgba(244, 63, 94, 0.1)', color: '#f43f5e' }}
-              whileHover={{ background: 'rgba(244, 63, 94, 0.2)' }}
-              whileTap={{ scale: 0.97 }}
+              variant="destructive"
+              size="default"
+              className="px-3 py-2.5"
             >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
-                <rect x="3" y="3" width="10" height="10" rx="2" />
-              </svg>
+              <Square className="w-4 h-4" />
               停止
-            </motion.button>
+            </Button>
           )}
-        </div>
+        </Card>
       </div>
     </motion.div>
   )

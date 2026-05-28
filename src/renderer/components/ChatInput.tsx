@@ -1,4 +1,6 @@
 import { useRef } from 'react'
+import { Button } from './ui/button'
+import { Send } from 'lucide-react'
 
 interface ChatInputProps {
   onSend: (message: string) => void
@@ -41,19 +43,13 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
         placeholder="输入消息... (Shift+Enter 换行)"
         rows={1}
         disabled={disabled}
-        className="cyber-input flex-1 px-4 py-2.5 text-sm resize-none"
+        className="flex-1 min-h-9 w-full rounded-md border border-input bg-transparent px-3 py-2.5 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none"
         style={{ maxHeight: 200, fontFamily: 'inherit' }}
       />
-      <button
-        onClick={handleSend}
-        disabled={disabled}
-        className="btn-cyber !px-4 !py-2.5 flex items-center gap-2"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M12 5l7 7-7 7" />
-        </svg>
+      <Button onClick={handleSend} disabled={disabled} size="default" className="px-4 py-2.5">
+        <Send className="w-4 h-4" />
         发送
-      </button>
+      </Button>
     </div>
   )
 }
