@@ -1,85 +1,66 @@
-import { TitleBar } from './TitleBar'
+import { NavLink, Outlet } from 'react-router-dom'
 import { motion } from 'framer-motion'
+import { LayoutDashboard, Building2, Key, ScrollText, MessageSquare } from 'lucide-react'
+import { TitleBar } from './TitleBar'
+import { cn } from '../lib/utils'
 
-export type PageKey = 'dashboard' | 'providers' | 'api-keys' | 'logs' | 'chat'
-
-interface LayoutProps {
-  activePage: PageKey
-  onNavigate: (page: PageKey) => void
-  children: React.ReactNode
-}
-
-interface NavItem {
-  key: PageKey
-  label: string
-  icon: string
-}
-
-const navItems: NavItem[] = [
-  { key: 'dashboard', label: '仪表盘', icon: '📊' },
-  { key: 'providers', label: '供应商', icon: '🏢' },
-  { key: 'api-keys', label: 'API Keys', icon: '🔑' },
-  { key: 'logs', label: '请求日志', icon: '📋' },
-  { key: 'chat', label: 'Chat', icon: '💬' },
+const navItems = [
+  { to: '/', label: '仪表盘', icon: LayoutDashboard },
+  { to: '/providers', label: '供应商', icon: Building2 },
+  { to: '/api-keys', label: 'API Keys', icon: Key },
+  { to: '/logs', label: '请求日志', icon: ScrollText },
+  { to: '/chat', label: 'Chat', icon: MessageSquare },
 ]
 
-export function Layout({ activePage, onNavigate, children }: LayoutProps) {
+export function Layout() {
   return (
-    <div className="h-screen flex flex-col" style={{ background: '#080a0e' }}>
+    <div className="dark h-screen flex flex-col bg-background">
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
-        <nav className="w-56 shrink-0 flex flex-col py-3" style={{ background: '#0a0c12', borderRight: '1px solid rgba(255,255,255,0.04)' }}>
-          <div className="px-4 pb-3 mb-2" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
-            <p className="text-[11px] font-semibold tracking-wider uppercase" style={{ color: '#475569' }}>导航</p>
+        {/* Sidebar — macOS 26 毛玻璃 */}
+        <nav className="w-60 shrink-0 flex flex-col py-3 backdrop-blur-xl bg-background/60 border-r border-border/50">
+          <div className="px-4 pb-3 mb-2 border-b border-border/50">
+            <p className="text-[11px] font-semibold tracking-wider uppercase text-muted-foreground">导航</p>
           </div>
-          {navItems.map((item) => {
-            const isActive = activePage === item.key
-            return (
-              <button
-                key={item.key}
-                onClick={() => onNavigate(item.key)}
-                className="relative flex items-center gap-3 mx-2 px-4 py-2.5 text-sm text-left rounded-xl transition-all duration-200"
-                style={{
-                  background: isActive ? 'rgba(59, 130, 246, 0.08)' : 'transparent',
-                  color: isActive ? '#60a5fa' : '#64748b',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-                    e.currentTarget.style.color = '#e2e8f0'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.background = 'transparent'
-                    e.currentTarget.style.color = '#64748b'
-                  }
-                }}
-              >
-                {isActive && (
-                  <motion.span
-                    layoutId="activeNav"
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
-                    style={{ background: '#60a5fa' }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                  />
-                )}
-                <span className="text-base shrink-0">{item.icon}</span>
-                <span className="font-medium">{item.label}</span>
-              </button>
-            )
-          })}
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === '/'}
+              className={({ isActive }) =>
+                cn(
+                  'relative flex items-center gap-3 mx-2 px-4 py-2.5 text-sm text-left rounded-xl transition-all duration-200',
+                  isActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <motion.span
+                      layoutId="activeNav"
+                      className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full bg-primary"
+                      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                    />
+                  )}
+                  <item.icon className="w-4 h-4 shrink-0" />
+                  <span className="font-medium">{item.label}</span>
+                </>
+              )}
+            </NavLink>
+          ))}
         </nav>
 
         {/* Main content */}
         <motion.main
-          className="flex-1 overflow-auto p-6"
+          className="flex-1 overflow-auto p-8"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
         >
-          {children}
+          <Outlet />
         </motion.main>
       </div>
     </div>
