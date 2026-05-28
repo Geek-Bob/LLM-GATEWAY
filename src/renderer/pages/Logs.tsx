@@ -1,6 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { X, Bug } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { api } from '../lib/ipc'
+import { useLogs } from '../lib/queries/logs'
+import { useDebugMode, useSetDebugMode } from '../lib/queries/proxy'
+import { Switch } from '../components/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { Skeleton } from '../components/ui/skeleton'
 import type { LogEntry } from '../lib/types'
 
 const PAGE_SIZE = 10
@@ -21,8 +28,8 @@ function formatTokens(entry: LogEntry) {
 function DebugSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-sm font-semibold mb-2" style={{ color: '#94a3b8' }}>{title}</h4>
-      <div className="rounded-lg p-3 space-y-1.5 text-sm" style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(148, 163, 184, 0.1)' }}>
+      <h4 className="text-sm font-semibold mb-2 text-slate-400">{title}</h4>
+      <div className="rounded-lg p-3 space-y-1.5 text-sm bg-slate-900/60 border border-slate-400/10">
         {children}
       </div>
     </div>
@@ -32,8 +39,8 @@ function DebugSection({ title, children }: { title: string; children: React.Reac
 function DebugKV({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex gap-2">
-      <span style={{ color: '#475569', minWidth: '80px', flexShrink: 0 }}>{label}:</span>
-      <span className={mono ? 'font-mono' : ''} style={{ color: '#e2e8f0', wordBreak: 'break-all' }}>{value}</span>
+      <span className="text-slate-600 min-w-20 shrink-0">{label}:</span>
+      <span className={`text-slate-200 break-all ${mono ? 'font-mono' : ''}`}>{value}</span>
     </div>
   )
 }
@@ -46,11 +53,8 @@ function DebugJSON({ label, json }: { label: string; json: string }) {
 
   return (
     <div className="mt-1">
-      <span style={{ color: '#475569', fontSize: '13px' }}>{label}:</span>
-      <pre
-        className="mt-1 p-2.5 rounded text-xs overflow-x-auto max-h-72 overflow-y-auto font-mono"
-        style={{ background: 'rgba(2, 6, 23, 0.8)', color: '#cbd5e1', border: '1px solid rgba(148, 163, 184, 0.08)' }}
-      >
+      <span className="text-slate-600 text-[13px]">{label}:</span>
+      <pre className="mt-1 p-2.5 rounded text-xs overflow-x-auto max-h-72 overflow-y-auto font-mono bg-slate-950/80 text-slate-300 border border-slate-400/10">
         {formatted}
       </pre>
     </div>
@@ -58,36 +62,22 @@ function DebugJSON({ label, json }: { label: string; json: string }) {
 }
 
 export function LogsPage() {
-  const [logs, setLogs] = useState<LogEntry[]>([])
-  const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(true)
-  const [debugMode, setDebugMode] = useState(false)
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
 
+  const { data, isLoading } = useLogs(page, PAGE_SIZE)
+  const { data: debugMode = false } = useDebugMode()
+  const setDebugMode = useSetDebugMode()
+
+  const logs = data?.logs ?? []
+  const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
-
-  const fetchLogs = (pageNum: number) => {
-    setLoading(true)
-    setSelectedLog(null)
-    api.logs.query({ page: pageNum, limit: PAGE_SIZE })
-      .then((result) => { setLogs(result.logs); setTotal(result.total) })
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { fetchLogs(page) }, [page])
-
-  useEffect(() => {
-    api.proxy.getDebugMode().then(setDebugMode).catch(() => {})
-  }, [])
 
   const goToPrev = () => { if (page > 1) setPage((p) => p - 1) }
   const goToNext = () => { if (page < totalPages) setPage((p) => p + 1) }
 
-  const toggleDebugMode = () => {
-    const next = !debugMode
-    setDebugMode(next)
-    api.proxy.setDebugMode(next).catch(() => {})
+  const handleToggleDebug = (checked: boolean) => {
+    setDebugMode.mutate(checked)
   }
 
   return (
@@ -95,169 +85,158 @@ export function LogsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: '#f1f5f9' }}>请求日志</h1>
-          <p className="text-sm mt-1" style={{ color: '#64748b' }}>查看所有代理请求记录</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-100">请求日志</h1>
+          <p className="text-sm mt-1 text-slate-500">查看所有代理请求记录</p>
         </div>
-        <button
-          onClick={toggleDebugMode}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
-          style={{
-            background: debugMode ? 'rgba(34, 197, 94, 0.12)' : 'rgba(100, 116, 139, 0.12)',
-            color: debugMode ? '#22c55e' : '#64748b',
-            border: `1px solid ${debugMode ? 'rgba(34, 197, 94, 0.3)' : 'rgba(100, 116, 139, 0.2)'}`
-          }}
-        >
-          Debug {debugMode ? 'ON' : 'OFF'}
-        </button>
+        <div className="flex items-center gap-2">
+          <Bug className="h-4 w-4 text-slate-500" />
+          <span className="text-xs text-slate-400">Debug</span>
+          <Switch
+            checked={debugMode}
+            onCheckedChange={handleToggleDebug}
+          />
+        </div>
       </div>
 
       {/* Content */}
-      {loading ? (
-        <div className="cyber-card p-8">
+      {isLoading ? (
+        <div className="rounded-lg border border-slate-400/10 bg-slate-900/40 p-8">
           <div className="space-y-4">
-            {[1,2,3].map((i) => <div key={i} className="skeleton h-12 w-full" />)}
+            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
           </div>
         </div>
       ) : logs.length === 0 ? (
-        <div className="cyber-card p-12 text-center">
-          <div className="text-3xl mb-3 opacity-40">📋</div>
-          <p className="text-base font-medium" style={{ color: '#94a3b8' }}>暂无日志</p>
+        <div className="rounded-lg border border-slate-400/10 bg-slate-900/40 p-12 text-center">
+          <p className="text-base font-medium text-slate-400">暂无日志</p>
         </div>
       ) : (
         <>
-          <div className="cyber-card overflow-hidden">
-            <table className="cyber-table">
-              <thead>
-                <tr>
-                  <th>时间</th>
-                  <th>模型</th>
-                  <th>格式</th>
-                  <th>状态</th>
-                  <th>延迟</th>
-                  <th>Tokens</th>
-                  <th>详情</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((entry, idx) => {
+          <div className="rounded-lg border border-slate-400/10 bg-slate-900/40 overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-slate-400/10 hover:bg-transparent">
+                  <TableHead className="text-slate-400">时间</TableHead>
+                  <TableHead className="text-slate-400">模型</TableHead>
+                  <TableHead className="text-slate-400">格式</TableHead>
+                  <TableHead className="text-slate-400">状态</TableHead>
+                  <TableHead className="text-slate-400">延迟</TableHead>
+                  <TableHead className="text-slate-400">Tokens</TableHead>
+                  <TableHead className="text-slate-400">详情</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((entry) => {
                   const isSuccess = entry.status_code < 400
                   return (
-                    <motion.tr
+                    <TableRow
                       key={entry.id}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: idx * 0.02, duration: 0.25 }}
-                      tabIndex={0}
-                      role="button"
+                      className={`cursor-pointer border-slate-400/10 ${selectedLog?.id === entry.id ? 'bg-white/5' : ''}`}
                       onClick={() => setSelectedLog(selectedLog?.id === entry.id ? null : entry)}
-                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedLog(selectedLog?.id === entry.id ? null : entry) } }}
-                      style={{ cursor: 'pointer' }}
-                      className={selectedLog?.id === entry.id ? 'bg-white/5' : ''}
                     >
-                      <td>
-                        <span className="text-sm whitespace-nowrap" style={{ color: '#64748b' }}>{formatDate(entry.created_at)}</span>
-                      </td>
-                      <td>
-                        <span className="font-medium" style={{ color: '#f1f5f9' }}>{entry.model}</span>
-                      </td>
-                      <td>
-                        <span
-                          className="cyber-badge"
-                          style={{
-                            background: entry.api_format === 'openai' ? 'rgba(34, 197, 94, 0.08)' : 'rgba(59, 130, 246, 0.08)',
-                            color: entry.api_format === 'openai' ? '#22c55e' : '#60a5fa',
-                          }}
+                      <TableCell>
+                        <span className="text-sm whitespace-nowrap text-slate-500">{formatDate(entry.created_at)}</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-medium text-slate-100">{entry.model}</span>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            entry.api_format === 'openai'
+                              ? 'bg-green-500/10 text-green-500 border-transparent'
+                              : 'bg-blue-400/10 text-blue-400 border-transparent'
+                          }
                         >
                           {entry.api_format}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className="cyber-badge"
-                          style={{
-                            background: isSuccess ? 'rgba(34, 197, 94, 0.08)' : 'rgba(239, 68, 68, 0.08)',
-                            color: isSuccess ? '#22c55e' : '#ef4444',
-                          }}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            isSuccess
+                              ? 'bg-green-500/10 text-green-500 border-transparent'
+                              : 'bg-red-500/10 text-red-500 border-transparent'
+                          }
                         >
                           {entry.status_code}
-                        </span>
-                      </td>
-                      <td>
-                        <span className="font-mono text-sm" style={{ color: '#94a3b8' }}>{entry.duration_ms}ms</span>
-                      </td>
-                      <td>
-                        <span className="font-mono text-sm tabular-nums" style={{ color: '#94a3b8' }}>
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-sm text-slate-400">{entry.duration_ms}ms</span>
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-sm tabular-nums text-slate-400">
                           {formatTokens(entry)}
                         </span>
-                      </td>
-                      <td>
+                      </TableCell>
+                      <TableCell>
                         {entry.debug ? (
-                          <span
-                            className="cyber-badge text-xs"
-                            style={{
-                              background: 'rgba(34, 197, 94, 0.1)',
-                              color: '#22c55e',
-                              cursor: 'help'
-                            }}
+                          <Badge
+                            className="bg-green-500/10 text-green-500 border-transparent cursor-help"
                             title="此请求包含完整调试详情"
                           >
-                            ●
-                          </span>
+                            <Bug className="h-3 w-3" />
+                          </Badge>
                         ) : (
-                          <span className="text-xs" style={{ color: '#334155' }}>—</span>
+                          <span className="text-xs text-slate-700">--</span>
                         )}
-                      </td>
-                    </motion.tr>
+                      </TableCell>
+                    </TableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
 
           {/* Pagination */}
           <div className="flex items-center justify-between mt-4 px-1">
-            <span className="text-sm" style={{ color: '#475569' }}>共 {total} 条</span>
+            <span className="text-sm text-slate-600">共 {total} 条</span>
             <div className="flex items-center gap-3">
-              <button
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={goToPrev}
                 disabled={page <= 1}
-                className="btn-ghost text-xs !px-3 !py-1.5 disabled:opacity-30"
+                className="text-xs text-slate-400"
               >
                 上一页
-              </button>
-              <span className="text-sm tabular-nums" style={{ color: '#64748b' }}>{page} / {totalPages}</span>
-              <button
+              </Button>
+              <span className="text-sm tabular-nums text-slate-500">{page} / {totalPages}</span>
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={goToNext}
                 disabled={page >= totalPages}
-                className="btn-ghost text-xs !px-3 !py-1.5 disabled:opacity-30"
+                className="text-xs text-slate-400"
               >
                 下一页
-              </button>
+              </Button>
             </div>
           </div>
         </>
       )}
 
+      {/* Detail Panel */}
       {selectedLog && (
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="fixed right-0 top-12 bottom-0 w-[42%] overflow-y-auto z-30 border-l"
-          style={{ borderColor: 'rgba(148, 163, 184, 0.12)', background: '#0b1120' }}
+          className="fixed right-0 top-12 bottom-0 w-[42%] overflow-y-auto z-30 border-l border-slate-400/10 bg-slate-950"
         >
           {/* Panel header */}
-          <div className="flex items-center justify-between mb-5 sticky top-0 py-3 px-5 border-b" style={{ borderColor: 'rgba(148, 163, 184, 0.1)', background: '#0b1120', zIndex: 1 }}>
-            <h3 className="text-lg font-bold" style={{ color: '#f1f5f9' }}>
+          <div className="flex items-center justify-between mb-5 sticky top-0 py-3 px-5 border-b border-slate-400/10 bg-slate-950 z-10">
+            <h3 className="text-lg font-bold text-slate-100">
               请求详情 #{selectedLog.id}
             </h3>
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setSelectedLog(null)}
-              className="text-xl leading-none px-2 py-1 rounded hover:bg-white/5 transition-colors"
-              style={{ color: '#64748b' }}
+              className="text-slate-500 hover:text-slate-300"
             >
-              ✕
-            </button>
+              <X className="h-4 w-4" />
+            </Button>
           </div>
 
           <div className="px-5 pb-5 space-y-5">
@@ -277,7 +256,7 @@ export function LogsPage() {
                   <DebugKV label="上游模型" value={selectedLog.debug.route.modelName} />
                   {selectedLog.debug.conversion && (
                     <>
-                      <div className="mt-2 pt-2 border-t" style={{ borderColor: 'rgba(148, 163, 184, 0.1)' }} />
+                      <div className="mt-2 pt-2 border-t border-slate-400/10" />
                       <DebugKV label="协议转换" value={`${selectedLog.debug.conversion.from} → ${selectedLog.debug.conversion.to}`} />
                       <DebugKV label="原始路径" value={selectedLog.debug.conversion.originalPath} />
                       <DebugKV label="转换路径" value={selectedLog.debug.conversion.convertedPath} />
@@ -300,17 +279,17 @@ export function LogsPage() {
                 </DebugSection>
               </>
             ) : (
-              /* No debug data — show basic info + hint */
+              /* No debug data -- show basic info + hint */
               <div className="text-center py-12">
-                <p className="text-sm mb-4" style={{ color: '#94a3b8' }}>基础信息</p>
+                <p className="text-sm mb-4 text-slate-400">基础信息</p>
                 <div className="space-y-2 text-left max-w-xs mx-auto">
                   <DebugKV label="状态码" value={String(selectedLog.status_code)} />
                   <DebugKV label="耗时" value={`${selectedLog.duration_ms}ms`} />
                   <DebugKV label="Tokens" value={`${selectedLog.tokens_in}↑ ${selectedLog.tokens_out}↓`} />
                   {selectedLog.error && <DebugKV label="错误" value={selectedLog.error} />}
                 </div>
-                <div className="mt-8 p-4 rounded-lg mx-auto max-w-xs" style={{ background: debugMode ? 'rgba(250, 204, 21, 0.06)' : 'rgba(59, 130, 246, 0.06)', border: debugMode ? '1px solid rgba(250, 204, 21, 0.2)' : '1px solid rgba(59, 130, 246, 0.15)' }}>
-                  <p className="text-sm" style={{ color: debugMode ? '#facc15' : '#93c5fd' }}>
+                <div className={`mt-8 p-4 rounded-lg mx-auto max-w-xs ${debugMode ? 'bg-yellow-400/5 border border-yellow-400/20' : 'bg-blue-400/5 border border-blue-400/15'}`}>
+                  <p className={`text-sm ${debugMode ? 'text-yellow-400' : 'text-blue-300'}`}>
                     {debugMode
                       ? '此请求记录于 Debug 模式开启前，不含调试详情。请发送新请求以查看完整链路。'
                       : <>开启 <strong>Debug 模式</strong> 后可查看完整请求/响应体</>
