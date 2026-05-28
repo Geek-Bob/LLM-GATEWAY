@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { MessageSquare, Square } from 'lucide-react'
 import { api } from '../lib/ipc'
-import type { Provider, ApiKey } from '../lib/types'
+
 import { useProviders } from '../lib/queries/providers'
 import { useApiKeys } from '../lib/queries/apiKeys'
 import { useConversations } from '../lib/queries/conversations'
