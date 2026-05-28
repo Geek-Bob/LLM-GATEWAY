@@ -506,6 +506,17 @@ export function createServer() {
 
           controller.close()
         } catch (err) {
+          proxyDebugLog('SSE_CONVERSION_ERROR', {
+            error: err instanceof Error ? err.message : String(err),
+            stack: err instanceof Error ? err.stack?.slice(0, 1000) : undefined,
+            streamDone,
+            state: {
+              lastMessagesType: ctx.state.lastMessagesType,
+              index: ctx.state.index,
+              done: ctx.state.done,
+              finishReason: ctx.state.finishReason,
+            },
+          })
           controller.error(err)
         }
       }
