@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
+import { Plus, PanelLeftClose, PanelLeft, Trash2 } from 'lucide-react'
 
 interface Conversation {
   id: number
@@ -40,54 +41,41 @@ export function ConversationSidebar({
   if (collapsed) {
     return (
       <motion.div
-        className="flex flex-col items-center py-3 gap-2 cursor-pointer shrink-0"
-        style={{ width: 40, borderRight: '1px solid rgba(255,255,255,0.06)' }}
+        className="flex flex-col items-center py-3 gap-2 cursor-pointer shrink-0 w-10 border-r border-border/50 hover:bg-muted/30"
         onClick={onToggleCollapse}
-        whileHover={{ background: 'rgba(255,255,255,0.03)' }}
       >
-        <svg className="w-5 h-5" style={{ color: '#64748b' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
+        <PanelLeft className="w-5 h-5 text-muted-foreground" />
       </motion.div>
     )
   }
 
   return (
     <motion.div
-      className="flex flex-col shrink-0 overflow-hidden"
-      style={{ width: 240, borderRight: '1px solid rgba(255,255,255,0.06)' }}
+      className="flex flex-col shrink-0 overflow-hidden w-60 border-r border-border/50"
       initial={{ width: 0, opacity: 0 }}
       animate={{ width: 240, opacity: 1 }}
       exit={{ width: 0, opacity: 0 }}
       transition={{ duration: 0.2 }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-        <span className="text-xs font-semibold tracking-wider uppercase" style={{ color: '#64748b' }}>会话</span>
+      <div className="flex items-center justify-between px-3 py-3 border-b border-border/50">
+        <span className="text-xs font-semibold tracking-wider uppercase text-muted-foreground">会话</span>
         <div className="flex items-center gap-1">
           <motion.button
             type="button"
             onClick={onNew}
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-all"
-            style={{ color: '#60a5fa', background: 'rgba(59,130,246,0.1)' }}
-            whileHover={{ background: 'rgba(59,130,246,0.2)' }}
+            className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-all text-primary bg-primary/10 hover:bg-primary/20"
             whileTap={{ scale: 0.95 }}
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+            <Plus className="w-3.5 h-3.5" />
             新建
           </motion.button>
           <motion.button
             type="button"
             onClick={onToggleCollapse}
-            className="p-1 rounded-lg transition-all"
-            style={{ color: '#64748b' }}
-            whileHover={{ background: 'rgba(255,255,255,0.05)' }}
+            className="p-1 rounded-lg transition-all text-muted-foreground hover:bg-muted/50"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-            </svg>
+            <PanelLeftClose className="w-4 h-4" />
           </motion.button>
         </div>
       </div>
@@ -97,20 +85,19 @@ export function ConversationSidebar({
         <AnimatePresence>
           {conversations.length === 0 ? (
             <motion.div key="empty" className="px-4 py-8 text-center">
-              <p className="text-xs" style={{ color: '#475569' }}>暂无会话</p>
-              <p className="text-xs mt-1" style={{ color: '#64748b' }}>点击"新建"开始对话</p>
+              <p className="text-xs text-muted-foreground">暂无会话</p>
+              <p className="text-xs mt-1 text-muted-foreground/70">点击"新建"开始对话</p>
             </motion.div>
           ) : (
             conversations.map((conv) => (
               <motion.div
                 key={conv.id}
-                className="mx-1.5 my-0.5 px-3 py-2 rounded-lg cursor-pointer transition-all"
-                style={{
-                  background: activeId === conv.id ? 'rgba(59,130,246,0.12)' : 'transparent',
-                  border: activeId === conv.id ? '1px solid rgba(59,130,246,0.2)' : '1px solid transparent',
-                }}
+                className={`mx-1.5 my-0.5 px-3 py-2 rounded-lg cursor-pointer transition-all border ${
+                  activeId === conv.id
+                    ? 'bg-primary/10 border-primary/20'
+                    : 'border-transparent hover:bg-muted/30'
+                }`}
                 onClick={() => onSelect(conv.id)}
-                whileHover={{ background: activeId === conv.id ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.03)' }}
                 layout
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -118,30 +105,26 @@ export function ConversationSidebar({
                 transition={{ duration: 0.2 }}
               >
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-medium truncate flex-1" style={{ color: '#e2e8f0' }}>
+                  <p className="text-sm font-medium truncate flex-1 text-foreground">
                     {conv.title}
                   </p>
                   {activeId === conv.id && (
                     <motion.button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
-                      className="p-0.5 rounded shrink-0 ml-1"
-                      style={{ color: '#64748b' }}
-                      whileHover={{ color: '#ef4444' }}
+                      className="p-0.5 rounded shrink-0 ml-1 text-muted-foreground hover:text-destructive"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
+                      <Trash2 className="w-3.5 h-3.5" />
                     </motion.button>
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] font-mono truncate max-w-[120px]" style={{ color: '#475569' }}>
+                  <span className="text-[10px] font-mono truncate max-w-[120px] text-muted-foreground">
                     {conv.model}
                   </span>
-                  <span className="text-[10px] shrink-0" style={{ color: '#64748b' }}>
+                  <span className="text-[10px] shrink-0 text-muted-foreground/70">
                     {formatDate(conv.updated_at)}
                   </span>
                 </div>
