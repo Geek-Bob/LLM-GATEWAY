@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { RefreshCw } from 'lucide-react'
 import { useCheckUpdate } from '@/lib/queries/update'
@@ -9,11 +8,9 @@ interface UpdateButtonProps {
 }
 
 export function UpdateButton({ onUpdateAvailable }: UpdateButtonProps) {
-  const [isChecking, setIsChecking] = useState(false)
   const checkUpdate = useCheckUpdate()
 
   const handleCheck = async () => {
-    setIsChecking(true)
     try {
       const result = await checkUpdate.mutateAsync()
       if (result.available && result.version) {
@@ -23,8 +20,6 @@ export function UpdateButton({ onUpdateAvailable }: UpdateButtonProps) {
       }
     } catch {
       toast.error('检查更新失败，请稍后重试')
-    } finally {
-      setIsChecking(false)
     }
   }
 
@@ -33,10 +28,10 @@ export function UpdateButton({ onUpdateAvailable }: UpdateButtonProps) {
       variant="outline"
       size="sm"
       onClick={handleCheck}
-      disabled={isChecking}
+      disabled={checkUpdate.isPending}
     >
-      <RefreshCw className={`h-4 w-4 mr-2 ${isChecking ? 'animate-spin' : ''}`} />
-      {isChecking ? '检查中...' : '检查更新'}
+      <RefreshCw className={`h-4 w-4 mr-2 ${checkUpdate.isPending ? 'animate-spin' : ''}`} />
+      {checkUpdate.isPending ? '检查中...' : '检查更新'}
     </Button>
   )
 }
