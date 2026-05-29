@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
+import { Markdown } from './ui/markdown'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'
@@ -70,12 +71,24 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
         )}
 
         {/* Main content */}
-        <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words select-text ${error ? 'text-destructive' : 'text-foreground'}`}>
-          {content}
-          {isStreaming && !thinking && (
-            <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-primary" />
-          )}
-        </p>
+        {isUser ? (
+          <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words select-text ${error ? 'text-destructive' : 'text-foreground'}`}>
+            {content}
+            {isStreaming && !thinking && (
+              <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-primary" />
+            )}
+          </p>
+        ) : (
+          <Markdown
+            className={`text-sm ${error ? 'text-destructive' : 'text-foreground'}`}
+          >
+            {content}
+          </Markdown>
+        )}
+
+        {isStreaming && !isUser && (
+          <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-primary" />
+        )}
       </div>
     </motion.div>
   )
