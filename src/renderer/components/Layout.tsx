@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { LayoutDashboard, Building2, Key, ScrollText, MessageSquare } from 'lucide-react'
@@ -13,12 +14,20 @@ const navItems = [
 ]
 
 export function Layout() {
+  const [collapsed, setCollapsed] = useState(true)
+
   return (
     <div className="h-screen flex flex-col bg-background">
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar — macOS 26 毛玻璃 */}
-        <nav className="w-60 shrink-0 flex flex-col py-3 backdrop-blur-xl bg-background/60 border-r border-border/50">
+        {/* Sidebar — macOS 26 自动收起 */}
+        <motion.nav
+          className="shrink-0 flex flex-col py-3 backdrop-blur-xl bg-background/60 border-r border-border/50 overflow-hidden"
+          animate={{ width: collapsed ? 52 : 240 }}
+          transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+          onMouseEnter={() => setCollapsed(false)}
+          onMouseLeave={() => setCollapsed(true)}
+        >
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -26,7 +35,8 @@ export function Layout() {
               end={item.to === '/'}
               className={({ isActive }) =>
                 cn(
-                  'relative flex items-center gap-3 mx-2 px-4 py-2.5 text-sm text-left rounded-xl transition-all duration-200',
+                  'relative flex items-center gap-3 mx-2 px-3 py-2.5 text-sm text-left rounded-xl transition-all duration-200',
+                  collapsed && 'justify-center px-0',
                   isActive
                     ? 'bg-primary/10 text-primary'
                     : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -43,12 +53,21 @@ export function Layout() {
                     />
                   )}
                   <item.icon className="w-4 h-4 shrink-0" />
-                  <span className="font-medium">{item.label}</span>
+                  {!collapsed && (
+                    <motion.span
+                      className="font-medium whitespace-nowrap"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.15, delay: 0.05 }}
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
                 </>
               )}
             </NavLink>
           ))}
-        </nav>
+        </motion.nav>
 
         {/* Main content */}
         <motion.main
