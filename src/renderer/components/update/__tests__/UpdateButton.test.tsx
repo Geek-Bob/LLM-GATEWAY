@@ -32,7 +32,7 @@ describe('UpdateButton', () => {
     vi.mocked(updateQueries.useCheckUpdate).mockReturnValue({
       mutateAsync: mockMutateAsync,
       isPending: false,
-    } as ReturnType<typeof updateQueries.useCheckUpdate>)
+    } as unknown as ReturnType<typeof updateQueries.useCheckUpdate>)
   })
 
   it('应该渲染按钮', () => {
@@ -45,7 +45,7 @@ describe('UpdateButton', () => {
     vi.mocked(updateQueries.useCheckUpdate).mockReturnValue({
       mutateAsync: mockMutateAsync,
       isPending: true,
-    } as ReturnType<typeof updateQueries.useCheckUpdate>)
+    } as unknown as ReturnType<typeof updateQueries.useCheckUpdate>)
 
     renderWithQuery(<UpdateButton />)
 
