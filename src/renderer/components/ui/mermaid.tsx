@@ -2,84 +2,96 @@ import { useEffect, useRef, useState, memo } from 'react'
 import mermaid from 'mermaid'
 import { cn } from '@/lib/utils'
 
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'dark',
+  securityLevel: 'loose',
+  suppressErrorRendering: true,
+})
+
+// 模块级串行化：mermaid.render() 内部维护全局 DOM 状态，并发调用会触发
+// "Failed to execute 'removeChild'" 错误。此处将所有 render 调用串行排队。
+let mermaidLock: Promise<void> = Promise.resolve()
+
+async function serializedRender(id: string, content: string) {
+  const prev = mermaidLock
+  let release!: () => void
+  mermaidLock = new Promise<void>((r) => { release = r })
+  try {
+    await prev
+    return await mermaid.render(id, content)
+  } finally {
+    release()
+  }
+}
+
 interface MermaidProps {
   content: string
   className?: string
 }
 
 export const Mermaid = memo(function Mermaid({ content, className }: MermaidProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const renderIdRef = useRef(0)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  // svgRef 指向 React 在 ready 状态时创建的独立 div，避免 innerHTML
+  // 替换掉 React 已管理的子节点（如加载文字），导致协调冲突
+  const svgRef = useRef<HTMLDivElement>(null)
+  const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading')
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [svgContent, setSvgContent] = useState<string | null>(null)
 
   useEffect(() => {
-    let isMounted = true
+    let cancelled = false
 
     const renderChart = async () => {
       try {
-        setIsLoading(true)
-        setError(null)
+        setState('loading')
+        setErrorMsg(null)
+        setSvgContent(null)
 
-        mermaid.initialize({
-          startOnLoad: false,
-          theme: 'dark',
-          securityLevel: 'strict',
-        })
+        await mermaid.parse(content)
+        if (cancelled) return
 
-        const id = `mermaid-${Math.random().toString(36).substr(2, 9)}`
-        const { svg } = await mermaid.render(id, content)
+        const id = `m-${Math.random().toString(36).substring(2, 11)}`
+        const { svg } = await serializedRender(id, content)
+        if (cancelled) return
 
-        if (isMounted) {
-          setIsLoading(false)
-          // 在状态更新后设置 innerHTML，等待下一帧 DOM 更新
-          const currentId = ++renderIdRef.current
-          requestAnimationFrame(() => {
-            if (isMounted && renderIdRef.current === currentId && containerRef.current) {
-              containerRef.current.innerHTML = svg
-            }
-          })
-        }
-      } catch {
-        if (isMounted) {
-          setError('图表渲染失败')
-          setIsLoading(false)
-        }
+        setSvgContent(svg)
+        setState('ready')
+      } catch (err) {
+        if (cancelled) return
+        setErrorMsg(err instanceof Error ? err.message : '图表渲染失败')
+        setState('error')
       }
     }
 
     renderChart()
 
-    return () => {
-      isMounted = false
-    }
+    return () => { cancelled = true }
   }, [content])
 
-  if (error) {
-    return (
-      <div className={cn('rounded-lg bg-destructive/10 border border-destructive/20 p-4', className)}>
-        <p className="text-sm text-destructive">{error}</p>
-        <pre className="mt-2 text-xs text-muted-foreground overflow-auto">
-          {content}
-        </pre>
-      </div>
-    )
-  }
-
-  if (isLoading) {
-    return (
-      <div className={cn('flex items-center justify-center p-4', className)}>
-        <p className="text-sm text-muted-foreground">加载中...</p>
-      </div>
-    )
-  }
+  // React 提交 ready 状态（svgRef div 已挂载）后写入 SVG 内容
+  useEffect(() => {
+    if (svgContent && svgRef.current) {
+      svgRef.current.innerHTML = svgContent
+    }
+  }, [svgContent])
 
   return (
     <div
-      ref={containerRef}
-      className={cn('flex justify-center', className)}
+      className={cn('flex justify-center [&_svg]:max-w-full [&_svg]:h-auto', className)}
       role="img"
       aria-label="Mermaid 图表"
-    />
+    >
+      {state === 'loading' && (
+        <p className="text-sm text-muted-foreground py-4">加载中...</p>
+      )}
+      {state === 'error' && (
+        <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-4 w-full">
+          <p className="text-sm text-destructive">图表渲染失败</p>
+          {errorMsg && <p className="text-xs text-muted-foreground mt-1">{errorMsg}</p>}
+          <pre className="mt-2 text-xs text-muted-foreground overflow-auto max-h-32">{content}</pre>
+        </div>
+      )}
+      {state === 'ready' && <div ref={svgRef} />}
+    </div>
   )
 })

@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useRef, useEffect } from 'react'
 import { Button } from './ui/button'
 import { Send } from 'lucide-react'
 
@@ -9,6 +9,18 @@ interface ChatInputProps {
 
 export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
+
+  // disabled 解除时自动聚焦，解决 Electron confirm() 对话框焦点不归还问题
+  useEffect(() => {
+    if (!disabled && inputRef.current) {
+      // requestAnimationFrame 确保 Electron 渲染器在 DOM 变更后稳定下来再聚焦
+      // 解决新建会话时旧 textarea（持有焦点）被卸载导致窗口焦点丢失的问题
+      const raf = requestAnimationFrame(() => {
+        inputRef.current?.focus()
+      })
+      return () => cancelAnimationFrame(raf)
+    }
+  }, [disabled])
 
   const handleSend = () => {
     const el = inputRef.current
