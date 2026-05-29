@@ -108,4 +108,66 @@ describe('UpdateManager', () => {
     updateManager.setAllowPrerelease(true)
     expect(autoUpdater.allowPrerelease).toBe(true)
   })
+
+  it('应该通过 notifyRenderer 向所有窗口发送事件', async () => {
+    const { BrowserWindow } = await import('electron')
+    const mockSend = vi.fn()
+    const mockWin = {
+      isDestroyed: vi.fn(() => false),
+      webContents: { send: mockSend }
+    }
+    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([mockWin as any])
+
+    // 触发 update-available 事件回调来间接测试 notifyRenderer
+    const { autoUpdater } = await import('electron-updater')
+    const updateAvailableHandler = vi.mocked(autoUpdater.on).mock.calls.find(
+      (call) => call[0] === 'update-available'
+    )?.[1] as ((info: any) => void) | undefined
+
+    expect(updateAvailableHandler).toBeDefined()
+    updateAvailableHandler!({ version: '2.0.0', releaseNotes: 'test' })
+
+    expect(mockSend).toHaveBeenCalledWith('update:available', {
+      version: '2.0.0',
+      releaseNotes: 'test'
+    })
+  })
+
+  it('应该跳过已销毁的窗口', async () => {
+    const { BrowserWindow } = await import('electron')
+    const mockSend = vi.fn()
+    const destroyedWin = {
+      isDestroyed: vi.fn(() => true),
+      webContents: { send: mockSend }
+    }
+    vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([destroyedWin as any])
+
+    const { autoUpdater } = await import('electron-updater')
+    const updateAvailableHandler = vi.mocked(autoUpdater.on).mock.calls.find(
+      (call) => call[0] === 'update-available'
+    )?.[1] as ((info: any) => void) | undefined
+
+    updateAvailableHandler!({ version: '2.0.0', releaseNotes: 'test' })
+
+    expect(mockSend).not.toHaveBeenCalled()
+  })
+
+  it('应该跳过已标记跳过的版本', async () => {
+    const { autoUpdater } = await import('electron-updater')
+
+    // 先标记 1.1.0 为跳过版本
+    updateManager.skipVersion('1.1.0')
+
+    // 模拟检查到 1.1.0 更新
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue({
+      updateInfo: { version: '1.1.0' },
+      downloadPromise: Promise.resolve()
+    } as any)
+
+    const result = await updateManager.checkForUpdates()
+    expect(result).toEqual({
+      available: false,
+      version: '1.1.0'
+    })
+  })
 })
