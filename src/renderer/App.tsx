@@ -6,6 +6,7 @@ import { ProvidersPage } from './pages/Providers'
 import { ApiKeysPage } from './pages/ApiKeys'
 import { LogsPage } from './pages/Logs'
 import { ChatPage } from './pages/Chat'
+import { SettingsPage } from './pages/Settings'
 import { Sonner } from './components/ui/sonner'
 import { UpdateDialog } from './components/update/UpdateDialog'
 import { useSkipVersion } from './lib/queries/update'
@@ -80,6 +81,7 @@ function App() {
             <Route path="api-keys" element={<ApiKeysPage />} />
             <Route path="logs" element={<LogsPage />} />
             <Route path="chat" element={<ChatPage />} />
+            <Route path="settings" element={<SettingsPage />} />
           </Route>
         </Routes>
       </HashRouter>
