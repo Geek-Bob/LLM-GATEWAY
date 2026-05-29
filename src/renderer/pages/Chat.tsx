@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQueryClient } from '@tanstack/react-query'
-import { toast } from 'sonner'
+
 import { MessageSquare, Square } from 'lucide-react'
 import { api } from '../lib/ipc'
 
@@ -241,7 +241,7 @@ export function ChatPage() {
 
   const handleDeleteConversation = async (id: number) => {
     const conv = conversations.find(c => c.id === id)
-    toast.error(`确定删除"${conv?.title || '此会话'}"？`)
+    if (!confirm(`确定删除"${conv?.title || '此会话'}"？`)) return
     await api.conversations.delete(id)
     if (activeConversationId === id) {
       setActiveConversationId(null)
