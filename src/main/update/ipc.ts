@@ -26,4 +26,8 @@ export function setupUpdateIpcHandlers(updateManager: UpdateManager): void {
   ipcMain.handle('update:set-config', async (_event, config: Partial<UpdateConfig>) => {
     updateManager.updateConfig(config)
   })
+
+  ipcMain.handle('update:getCurrentVersion', async () => {
+    return updateManager.getCurrentVersion()
+  })
 }

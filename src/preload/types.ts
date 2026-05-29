@@ -83,6 +83,7 @@ export interface ElectronAPI {
     skipVersion: (version: string) => Promise<void>
     getConfig: () => Promise<UpdateConfig>
     setConfig: (config: Partial<UpdateConfig>) => Promise<void>
+    getCurrentVersion: () => Promise<string>
     onAvailable: (callback: (info: UpdateInfo) => void) => () => void
     onProgress: (callback: (progress: UpdateProgress) => void) => () => void
     onDownloaded: (callback: (info: UpdateInfo) => void) => () => void

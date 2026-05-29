@@ -68,6 +68,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     skipVersion: (version: string) => ipcRenderer.invoke('update:skip-version', version),
     getConfig: () => ipcRenderer.invoke('update:get-config'),
     setConfig: (config: Partial<UpdateConfig>) => ipcRenderer.invoke('update:set-config', config),
+    getCurrentVersion: () => ipcRenderer.invoke('update:getCurrentVersion'),
     onAvailable: (callback: (info: UpdateInfo) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: UpdateInfo) => callback(data)
       ipcRenderer.on('update:available', handler)

@@ -7,20 +7,24 @@ import { ApiKeysPage } from './pages/ApiKeys'
 import { LogsPage } from './pages/Logs'
 import { ChatPage } from './pages/Chat'
 import { Sonner } from './components/ui/sonner'
-import { Button } from './components/ui/button'
 import { UpdateDialog } from './components/update/UpdateDialog'
-import { DownloadProgress } from './components/update/DownloadProgress'
 import { useSkipVersion } from './lib/queries/update'
 import { toast } from 'sonner'
 
 function App() {
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseNotes?: string | null } | null>(null)
-  const [downloadStatus, setDownloadStatus] = useState<'idle' | 'downloading' | 'downloaded' | 'error'>('idle')
-  const [downloadPercent, setDownloadPercent] = useState(0)
-  const [downloadError, setDownloadError] = useState<string>()
+  const [currentVersion, setCurrentVersion] = useState('dev')
 
   const skipVersion = useSkipVersion()
+
+  // 通过 IPC 获取真实版本号
+  useEffect(() => {
+    const api = window.electronAPI?.update
+    if (!api) return
+
+    api.getCurrentVersion().then((v) => setCurrentVersion(v)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const api = window.electronAPI?.update
@@ -32,18 +36,18 @@ function App() {
     })
 
     const unsubscribeProgress = api.onProgress((progress) => {
-      setDownloadStatus('downloading')
-      setDownloadPercent(progress.percent)
+      const percent = Math.round(progress.percent)
+      toast.loading(`正在下载更新... ${percent}%`, { id: 'update-download' })
     })
 
     const unsubscribeDownloaded = api.onDownloaded(() => {
-      setDownloadStatus('downloaded')
-      toast.success('更新下载完成，点击安装重启应用')
+      toast.dismiss('update-download')
+      toast.success('更新下载完成，将自动安装并重启应用')
     })
 
     const unsubscribeError = api.onError((error) => {
-      setDownloadStatus('error')
-      setDownloadError(error.message)
+      toast.dismiss('update-download')
+      toast.error(`更新失败: ${error.message}`)
     })
 
     return () => {
@@ -59,14 +63,6 @@ function App() {
       await window.electronAPI?.update?.download()
     } catch {
       toast.error('下载更新失败')
-    }
-  }
-
-  const handleInstall = async () => {
-    try {
-      await window.electronAPI?.update?.install()
-    } catch {
-      toast.error('安装更新失败')
     }
   }
 
@@ -92,27 +88,12 @@ function App() {
       <UpdateDialog
         open={updateAvailable}
         onOpenChange={setUpdateAvailable}
-        currentVersion={window.electronAPI ? '1.0.0' : 'dev'}
+        currentVersion={currentVersion}
         newVersion={updateInfo?.version || ''}
         releaseNotes={updateInfo?.releaseNotes}
         onUpdate={handleUpdate}
         onSkip={handleSkip}
       />
-
-      {downloadStatus !== 'idle' && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <DownloadProgress
-            status={downloadStatus}
-            percent={downloadPercent}
-            error={downloadError}
-          />
-          {downloadStatus === 'downloaded' && (
-            <Button onClick={handleInstall} className="mt-2 w-full">
-              立即安装
-            </Button>
-          )}
-        </div>
-      )}
     </>
   )
 }
