@@ -1,6 +1,6 @@
 import { autoUpdater, UpdateInfo } from 'electron-updater'
 import { app, BrowserWindow } from 'electron'
-import { UpdateConfigManager } from './config'
+import { UpdateConfig, UpdateConfigManager } from './config'
 
 export interface UpdateCheckResult {
   available: boolean
@@ -109,11 +109,11 @@ export class UpdateManager {
     this.configManager.setSkipVersion(version)
   }
 
-  getConfig() {
+  getConfig(): UpdateConfig {
     return this.configManager.getConfig()
   }
 
-  updateConfig(updates: Record<string, unknown>) {
+  updateConfig(updates: Partial<UpdateConfig>) {
     this.configManager.updateConfig(updates)
   }
 }
