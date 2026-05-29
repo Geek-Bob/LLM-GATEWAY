@@ -73,10 +73,8 @@ export function LogsPage() {
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  useEffect(() => { setSelectedLog(null) }, [page])
-
-  const goToPrev = () => { if (page > 1) setPage((p) => p - 1) }
-  const goToNext = () => { if (page < totalPages) setPage((p) => p + 1) }
+  const goToPrev = () => { if (page > 1) { setSelectedLog(null); setPage((p) => p - 1) } }
+  const goToNext = () => { if (page < totalPages) { setSelectedLog(null); setPage((p) => p + 1) } }
 
   const handleToggleDebug = (checked: boolean) => {
     setDebugMode.mutate(checked)
@@ -132,7 +130,7 @@ export function LogsPage() {
                   return (
                     <TableRow
                       key={entry.id}
-                      className={`cursor-pointer border-border/50 ${selectedLog?.id === entry.id ? 'bg-white/5' : ''}`}
+                      className={`cursor-pointer border-border/50 ${selectedLog?.id === entry.id ? 'bg-muted/50' : ''}`}
                       onClick={() => setSelectedLog(selectedLog?.id === entry.id ? null : entry)}
                     >
                       <TableCell>
@@ -146,7 +144,7 @@ export function LogsPage() {
                           className={
                             entry.api_format === 'openai'
                               ? 'bg-green-500/10 text-green-500 border-transparent'
-                              : 'bg-blue-400/10 text-blue-400 border-transparent'
+                              : 'bg-primary/10 text-primary border-transparent'
                           }
                         >
                           {entry.api_format}
@@ -157,7 +155,7 @@ export function LogsPage() {
                           className={
                             isSuccess
                               ? 'bg-green-500/10 text-green-500 border-transparent'
-                              : 'bg-red-500/10 text-red-500 border-transparent'
+                              : 'bg-destructive/10 text-destructive border-transparent'
                           }
                         >
                           {entry.status_code}
@@ -220,12 +218,20 @@ export function LogsPage() {
 
       {/* Detail Panel */}
       {selectedLog && (
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="fixed right-0 top-12 bottom-0 w-[42%] overflow-y-auto z-30 border-l border-border/50 bg-popover"
-        >
+        <>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-20 bg-black/20 backdrop-blur-sm"
+            onClick={() => setSelectedLog(null)}
+          />
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+            className="fixed right-0 top-10 bottom-0 w-[42%] overflow-y-auto z-30 border-l border-border/50 bg-popover"
+          >
           {/* Panel header */}
           <div className="flex items-center justify-between mb-5 sticky top-0 py-3 px-5 border-b border-border/50 bg-popover z-10">
             <h3 className="text-lg font-bold text-foreground">
@@ -290,8 +296,8 @@ export function LogsPage() {
                   <DebugKV label="Tokens" value={`${selectedLog.tokens_in}↑ ${selectedLog.tokens_out}↓`} />
                   {selectedLog.error && <DebugKV label="错误" value={selectedLog.error} />}
                 </div>
-                <div className={`mt-8 p-4 rounded-lg mx-auto max-w-xs ${debugMode ? 'bg-yellow-400/5 border border-yellow-400/20' : 'bg-blue-400/5 border border-blue-400/15'}`}>
-                  <p className={`text-sm ${debugMode ? 'text-yellow-400' : 'text-blue-300'}`}>
+                <div className={`mt-8 p-4 rounded-lg mx-auto max-w-xs ${debugMode ? 'bg-destructive/5 border border-destructive/20' : 'bg-primary/5 border border-primary/15'}`}>
+                  <p className={`text-sm ${debugMode ? 'text-destructive' : 'text-primary'}`}>
                     {debugMode
                       ? '此请求记录于 Debug 模式开启前，不含调试详情。请发送新请求以查看完整链路。'
                       : <>开启 <strong>Debug 模式</strong> 后可查看完整请求/响应体</>
@@ -302,6 +308,7 @@ export function LogsPage() {
             )}
           </div>
         </motion.div>
+        </>
       )}
     </motion.div>
   )

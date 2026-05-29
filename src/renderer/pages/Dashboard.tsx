@@ -116,7 +116,7 @@ export function Dashboard() {
             <div className="flex items-center gap-4">
               <span
                 className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                  proxyRunning ? 'bg-green-500 animate-pulse' : 'bg-red-500'
+                  proxyRunning ? 'bg-green-500 animate-heartbeat' : 'bg-red-500'
                 }`}
               />
               <span className="text-sm font-medium text-foreground">代理服务</span>
@@ -130,7 +130,7 @@ export function Dashboard() {
                   <Input
                     type="number"
                     value={proxyPort}
-                    onChange={(e) => setProxyPort(Number(e.target.value))}
+                    onChange={(e) => setProxyPort(Math.max(1024, Math.min(65535, Number(e.target.value) || 8080)))}
                     min={1024}
                     max={65535}
                     className="w-20 text-xs h-7"

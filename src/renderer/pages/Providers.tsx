@@ -245,10 +245,12 @@ export function ProvidersPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 shrink-0 text-muted-foreground"
-                              onClick={() => {
-                                navigator.clipboard.writeText(p.apiKey)
-                                setCopiedKeyId(p.id)
-                                setTimeout(() => setCopiedKeyId(null), 2000)
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(p.apiKey)
+                                  setCopiedKeyId(p.id)
+                                  setTimeout(() => setCopiedKeyId(null), 2000)
+                                } catch { /* clipboard write failed */ }
                               }}
                             >
                               {copiedKeyId === p.id ? (
