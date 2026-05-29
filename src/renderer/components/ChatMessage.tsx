@@ -53,7 +53,7 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
               />
               思考过程
               {(isThinking || isStreaming) && (
-                <span className="inline-block w-1.5 h-1.5 rounded-full ml-1 bg-blue-400" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full ml-1 bg-primary" />
               )}
             </p>
             {thinkingExpanded && (
@@ -73,7 +73,7 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
         <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words select-text ${error ? 'text-destructive' : 'text-foreground'}`}>
           {content}
           {isStreaming && !thinking && (
-            <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-blue-400" />
+            <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-primary" />
           )}
         </p>
       </div>

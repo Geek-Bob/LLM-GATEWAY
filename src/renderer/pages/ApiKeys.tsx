@@ -75,11 +75,12 @@ export function ApiKeysPage() {
     }
   }
 
-  const handleCopyCreatedKey = () => {
-    navigator.clipboard.writeText(plaintextKey).then(() => {
+  const handleCopyCreatedKey = async () => {
+    try {
+      await navigator.clipboard.writeText(plaintextKey)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    })
+    } catch { /* clipboard write failed */ }
   }
 
   const handleDelete = async (key: ApiKey) => {
@@ -215,10 +216,12 @@ export function ApiKeysPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 shrink-0 text-muted-foreground"
-                              onClick={() => {
-                                navigator.clipboard.writeText(key.key_plaintext)
-                                setCopiedKeyId(key.id)
-                                setTimeout(() => setCopiedKeyId(null), 2000)
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(key.key_plaintext)
+                                  setCopiedKeyId(key.id)
+                                  setTimeout(() => setCopiedKeyId(null), 2000)
+                                } catch { /* clipboard write failed */ }
                               }}
                             >
                               {copiedKeyId === key.id ? (
