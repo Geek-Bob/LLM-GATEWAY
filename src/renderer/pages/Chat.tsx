@@ -117,6 +117,7 @@ export function ChatPage() {
 
   const chunkCountRef = useRef(0)
   useEffect(() => {
+    if (!api?.chat) return
     debugLog('[ChatPage] registering onChunk listener')
     const cleanup = api.chat.onChunk((data) => {
       debugLog('[ChatPage] onChunk received', { requestId: data.requestId?.slice(0, 8), currentId: currentRequestId.current?.slice(0, 8), textLen: data.text.length, done: data.done, error: !!data.error })
