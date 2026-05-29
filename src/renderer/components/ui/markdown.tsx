@@ -5,9 +5,6 @@ import rehypeRaw from 'rehype-raw'
 import { cn } from '@/lib/utils'
 import { Skeleton } from './skeleton'
 
-// 动态加载代码高亮插件
-const rehypeHighlight = lazy(() => import('rehype-highlight'))
-
 // 动态加载 Mermaid 组件
 const Mermaid = lazy(() =>
   import('./mermaid').then((module) => ({ default: module.Mermaid }))
@@ -60,11 +57,11 @@ export const Markdown = memo(function Markdown({
             a: ({ node, ...props }) => (
               <a {...props} target="_blank" rel="noopener noreferrer" />
             ),
-            code: ({ node, inline, className, children, ...props }) => {
+            code: ({ node, className, children, ...props }) => {
               const match = /language-(\w+)/.exec(className || '')
 
-              // Mermaid 图表渲染
-              if (!inline && match?.[1] === 'mermaid' && enableMermaid) {
+              // Mermaid 图表渲染（仅代码块有 language class，内联代码不会有）
+              if (match?.[1] === 'mermaid' && enableMermaid) {
                 return (
                   <Suspense
                     fallback={
@@ -79,16 +76,6 @@ export const Markdown = memo(function Markdown({
                 )
               }
 
-              // 普通代码块
-              if (!inline) {
-                return (
-                  <code className={className} {...props}>
-                    {children}
-                  </code>
-                )
-              }
-
-              // 内联代码
               return (
                 <code className={className} {...props}>
                   {children}
