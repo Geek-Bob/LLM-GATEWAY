@@ -12,11 +12,11 @@ asarUnpack:
   - resources/*
 win:
   executableName: llm-gateway
+  signAndEditExecutable: false
   target:
     - target: nsis
       arch:
         - x64
-        - ia32
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
@@ -40,3 +40,8 @@ linux:
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
+publish:
+  provider: github
+  owner: Geek-Bob
+  repo: LLM-GATEWAY
+  releaseType: release

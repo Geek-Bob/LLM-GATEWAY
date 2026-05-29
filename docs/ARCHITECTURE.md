@@ -236,6 +236,7 @@ event.sender.send()     ←  ipcRenderer.on()
 ### 6. 数据存储总结
 
 | 数据域 | 存储方式 | 位置 | 持久化 |
+
 |--------|----------|------|--------|
 | 供应商配置 | sql.js | `config.db` → `providers` | ✅ |
 | API Key | sql.js | `config.db` → `api_keys` | ✅ |

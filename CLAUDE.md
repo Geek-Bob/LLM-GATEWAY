@@ -33,11 +33,17 @@
 - macOS 26 Liquid Glass 色系：深空灰背景 `hsl(220,14%,9%)`，卡片 `hsl(220,12%,13%)`，冷蓝调边框 `hsl(220,10%,20%)`
 - recharts Tooltip formatter value 为 ValueType | undefined，需 Number(value ?? 0) 而非 .toLocaleString()
 
+## 详细规范（.claude/rules/）
+
+- [代码样式与架构](.claude/rules/code-style.md) — 目录结构、禁止事项、TypeScript/React/Tailwind 规范、视觉设计系统
+- [测试约定](.claude/rules/testing.md) — 框架、文件组织、编写原则、Mock 策略
+- [安全要求](.claude/rules/security.md) — Electron 安全模型、输入校验、API Key 处理、日志规范
+
 ## Skill 使用铁律
 在任何回应或行动之前，必须先调用 Skill 工具检查是否有适用的技能。这是不可协商的。
 
-## Conventions                                                                                                                                                                                               
-- 迁移 CSS 时注意移除 body 上的 `user-select: none`（Electron 遗留），文字应默认可选中 
+## Conventions
+- 迁移 CSS 时注意移除 body 上的 `user-select: none`（Electron 遗留），文字应默认可选中
 - ESLint: flat config, @typescript-eslint/no-explicit-any 为 warn（有意使用）
 - 测试：vitest + jsdom，每文件 co-located __tests__/ 目录
 - 日志：NDJSON 分片 + sql.js 预计算统计（仪表盘不读 NDJSON）

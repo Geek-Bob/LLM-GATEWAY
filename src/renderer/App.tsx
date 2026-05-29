@@ -43,7 +43,11 @@ function App() {
 
     const unsubscribeDownloaded = api.onDownloaded(() => {
       toast.dismiss('update-download')
-      toast.success('更新下载完成，将自动安装并重启应用')
+      toast.success('更新下载完成，正在安装...')
+      // 自动安装更新
+      setTimeout(() => {
+        window.electronAPI?.update?.install()
+      }, 1000)
     })
 
     const unsubscribeError = api.onError((error) => {
