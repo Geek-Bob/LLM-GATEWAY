@@ -4,6 +4,9 @@
   "description": "LLM Gateway - AI proxy and chat client",
   "author": "LLM Gateway Team",
   "main": "./out/main/index.js",
+  "build": {
+    "extends": "electron-builder.yml"
+  },
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",
@@ -30,6 +33,7 @@
     "@tanstack/react-query": "^5.100.14",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "electron-updater": "^6.8.3",
     "framer-motion": "^12.38.0",
     "hono": "^4.12.18",
     "lucide-react": "^1.17.0",
