@@ -42,30 +42,8 @@ export interface DashboardStats {
   total_errors: number
 }
 
-export interface UpdateInfo {
-  version: string
-  releaseNotes?: string | null
-}
-
-export interface UpdateProgress {
-  percent: number
-  bytesPerSecond: number
-  transferred: number
-  total: number
-}
-
-export interface UpdateCheckResult {
-  available: boolean
-  version?: string
-  error?: string
-}
-
-export interface UpdateConfig {
-  autoCheck: boolean
-  checkInterval: number
-  allowPrerelease: boolean
-  skipVersion: string | null
-}
+import type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig } from '../shared/types'
+export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig }
 
 export interface ElectronAPI {
   providers: {
