@@ -32,8 +32,8 @@ export class UpdateConfigManager {
         const data = fs.readFileSync(this.configPath, 'utf-8')
         return { ...defaultConfig, ...JSON.parse(data) }
       }
-    } catch {
-      // 忽略加载错误，使用默认配置
+    } catch (err) {
+      console.warn('[UpdateConfig] loadConfig failed:', err)
     }
     return { ...defaultConfig }
   }
@@ -41,8 +41,8 @@ export class UpdateConfigManager {
   private saveConfig(): void {
     try {
       fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2))
-    } catch {
-      // 忽略保存错误
+    } catch (err) {
+      console.warn('[UpdateConfig] saveConfig failed:', err)
     }
   }
 
