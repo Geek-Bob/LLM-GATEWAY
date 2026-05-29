@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import {
   Dialog,
   DialogContent,
@@ -13,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Download } from 'lucide-react'
+import { Markdown } from '@/components/ui/markdown'
 
 interface UpdateDialogProps {
   open: boolean
@@ -64,9 +63,7 @@ export function UpdateDialog({
           {releaseNotes && (
             <div>
               <h4 className="text-sm font-medium mb-2">更新内容</h4>
-              <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{releaseNotes}</ReactMarkdown>
-              </div>
+              <Markdown>{releaseNotes}</Markdown>
             </div>
           )}
 
