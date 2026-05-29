@@ -25,24 +25,25 @@
   }
 
   .dark {
-    --background: 222 47% 7%;
-    --foreground: 210 40% 96%;
-    --card: 222 30% 10%;
-    --card-foreground: 210 40% 96%;
-    --popover: 222 30% 10%;
-    --popover-foreground: 210 40% 96%;
+    /* macOS 26 Liquid Glass — 深空灰 + 冷蓝调 */
+    --background: 220 14% 9%;
+    --foreground: 210 20% 92%;
+    --card: 220 12% 13%;
+    --card-foreground: 210 20% 92%;
+    --popover: 220 12% 13%;
+    --popover-foreground: 210 20% 92%;
     --primary: 217 91% 60%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 217 20% 17%;
-    --secondary-foreground: 210 40% 96%;
-    --muted: 217 20% 17%;
-    --muted-foreground: 215 10% 55%;
-    --accent: 217 20% 17%;
-    --accent-foreground: 210 40% 96%;
-    --destructive: 0 84% 60%;
+    --secondary: 220 10% 17%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 220 10% 17%;
+    --muted-foreground: 220 8% 52%;
+    --accent: 220 10% 17%;
+    --accent-foreground: 210 20% 92%;
+    --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
-    --border: 217 20% 18%;
-    --input: 217 20% 18%;
+    --border: 220 10% 20%;
+    --input: 220 10% 20%;
     --ring: 217 91% 60%;
     --radius: 0.75rem;
   }
