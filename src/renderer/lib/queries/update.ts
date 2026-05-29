@@ -9,6 +9,13 @@ export function useUpdateConfig() {
   })
 }
 
+export function useCurrentVersion() {
+  return useQuery<string>({
+    queryKey: ['current-version'],
+    queryFn: () => api.update.getCurrentVersion(),
+  })
+}
+
 export function useCheckUpdate() {
   return useMutation<UpdateCheckResult>({
     mutationFn: () => api.update.check(),

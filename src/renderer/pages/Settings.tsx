@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
-import { Settings as SettingsIcon } from 'lucide-react'
+import { Settings as SettingsIcon, Info } from 'lucide-react'
 import { toast } from 'sonner'
-import { useUpdateConfig, useUpdateConfigMutation } from '../lib/queries/update'
+import { useUpdateConfig, useUpdateConfigMutation, useCurrentVersion } from '../lib/queries/update'
 import { Switch } from '../components/ui/switch'
 import { Label } from '../components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -20,6 +20,7 @@ const childVariants = {
 
 export function SettingsPage() {
   const { data: config, isLoading } = useUpdateConfig()
+  const { data: currentVersion } = useCurrentVersion()
   const updateConfig = useUpdateConfigMutation({
     onError: (error: Error) => {
       toast.error(`保存失败: ${error.message}`)
@@ -98,6 +99,45 @@ export function SettingsPage() {
             </CardContent>
           </Card>
         )}
+      </motion.div>
+
+      <motion.div variants={childVariants}>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Info className="h-5 w-5" />
+              关于我们
+            </CardTitle>
+            <CardDescription>应用信息和版本详情</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>应用名称</Label>
+                <p className="text-sm text-muted-foreground">LLM Gateway</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>当前版本</Label>
+                <p className="text-sm text-muted-foreground">
+                  v{currentVersion || '加载中...'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>检查更新</Label>
+                <p className="text-sm text-muted-foreground">
+                  检查是否有可用的新版本
+                </p>
+              </div>
+              <UpdateButton />
+            </div>
+          </CardContent>
+        </Card>
       </motion.div>
     </motion.div>
   )
