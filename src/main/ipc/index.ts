@@ -25,6 +25,8 @@ import {
   addMessage
 } from '../db/conversations'
 import { getProxyConfig, startProxy, stopProxy, restartProxy, setProxyPort, getDebugMode, setDebugMode } from '../proxy/manager'
+import { UpdateManager } from '../update/manager'
+import { setupUpdateIpcHandlers } from '../update/ipc'
 
 const DEBUG_LOG = path.join(process.cwd(), 'llm-gateway-chat-debug.log')
 
@@ -404,4 +406,8 @@ export function setupIpcHandlers(): void {
   ipcMain.handle('conversation:addMessage', async (_event, conversationId: number, role: 'user' | 'assistant', content: string, thinking?: string) => {
     return addMessage(conversationId, role, content, thinking)
   })
+
+  // --- Update handlers ---
+  const updateManager = new UpdateManager()
+  setupUpdateIpcHandlers(updateManager)
 }

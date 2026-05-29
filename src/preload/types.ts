@@ -42,6 +42,31 @@ export interface DashboardStats {
   total_errors: number
 }
 
+export interface UpdateInfo {
+  version: string
+  releaseNotes?: string | null
+}
+
+export interface UpdateProgress {
+  percent: number
+  bytesPerSecond: number
+  transferred: number
+  total: number
+}
+
+export interface UpdateCheckResult {
+  available: boolean
+  version?: string
+  error?: string
+}
+
+export interface UpdateConfig {
+  autoCheck: boolean
+  checkInterval: number
+  allowPrerelease: boolean
+  skipVersion: string | null
+}
+
 export interface ElectronAPI {
   providers: {
     list: () => Promise<Provider[]>
@@ -72,5 +97,17 @@ export interface ElectronAPI {
     minimize: () => void
     maximize: () => void
     close: () => void
+  }
+  update: {
+    check: () => Promise<UpdateCheckResult>
+    download: () => Promise<void>
+    install: () => Promise<void>
+    skipVersion: (version: string) => Promise<void>
+    getConfig: () => Promise<UpdateConfig>
+    setConfig: (config: Partial<UpdateConfig>) => Promise<void>
+    onAvailable: (callback: (info: UpdateInfo) => void) => () => void
+    onProgress: (callback: (progress: UpdateProgress) => void) => () => void
+    onDownloaded: (callback: (info: UpdateInfo) => void) => () => void
+    onError: (callback: (error: { message: string }) => void) => () => void
   }
 }
