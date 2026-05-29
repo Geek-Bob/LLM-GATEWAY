@@ -275,7 +275,7 @@ export function ChatPage() {
         {/* Toolbar */}
         <Card className="p-3 mb-4 flex items-center gap-3 flex-wrap">
           <Select
-            value={selectedProviderId?.toString() ?? ''}
+            value={selectedProviderId?.toString()}
             onValueChange={(val) => {
               const id = Number(val)
               setSelectedProviderId(id || null)
@@ -293,7 +293,7 @@ export function ChatPage() {
           </Select>
 
           <Select
-            value={selectedModel ?? ''}
+            value={selectedModel ?? undefined}
             onValueChange={(val) => setSelectedModel(val || null)}
             disabled={!selectedProvider}
           >
@@ -308,7 +308,7 @@ export function ChatPage() {
           </Select>
 
           <Select
-            value={selectedApiKeyId?.toString() ?? ''}
+            value={selectedApiKeyId?.toString()}
             onValueChange={(val) => setSelectedApiKeyId(Number(val) || null)}
           >
             <SelectTrigger className="flex-1 min-w-[140px]">
