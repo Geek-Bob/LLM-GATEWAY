@@ -90,6 +90,7 @@ window.electronAPI = {
     skipVersion: vi.fn().mockResolvedValue(undefined),
     getConfig: vi.fn().mockResolvedValue({ autoCheck: true, checkInterval: 3600000, allowPrerelease: false, skipVersion: null }),
     setConfig: vi.fn().mockResolvedValue(undefined),
+    getCurrentVersion: vi.fn().mockResolvedValue('1.0.0'),
     onAvailable: vi.fn().mockReturnValue(() => {}),
     onProgress: vi.fn().mockReturnValue(() => {}),
     onDownloaded: vi.fn().mockReturnValue(() => {}),
