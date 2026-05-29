@@ -38,7 +38,7 @@ function debugFileLog(...args: any[]): void {
   } catch { /* ignore */ }
 }
 
-export function setupIpcHandlers(): void {
+export function setupIpcHandlers(updateManager: UpdateManager): void {
   // --- Provider handlers ---
   ipcMain.handle('provider:list', async () => {
     return listProviders()
@@ -408,6 +408,5 @@ export function setupIpcHandlers(): void {
   })
 
   // --- Update handlers ---
-  const updateManager = new UpdateManager()
   setupUpdateIpcHandlers(updateManager)
 }
