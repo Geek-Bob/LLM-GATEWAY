@@ -34,38 +34,13 @@
 - recharts Tooltip formatter value 为 ValueType | undefined，需 Number(value ?? 0) 而非 .toLocaleString()
 
 ## Skill 使用铁律
-
 在任何回应或行动之前，必须先调用 Skill 工具检查是否有适用的技能。这是不可协商的。
 
-### 开发阶段 × 技能路由
-
-| 阶段 | 触发条件 | 技能 | 职责 |
-|------|----------|------|------|
-| **需求/设计** | 新功能、新组件、行为变更 | `superpowers:brainstorming` | 理解需求、设计方案、写规格文档 |
-| **写计划** | 有规格需要多步骤实施 | `superpowers:writing-plans` | 拆任务、写实施计划、TDD 步骤 |
-| **执行计划** | 有书面计划要执行 | `superpowers:subagent-driven-development` | 逐任务实现 + spec review + code review |
-| **前端 UI** | 页面/组件视觉设计 | `frontend-design:frontend-design` | 高审美、现代化 UI 实现 |
-| **修 Bug** | 测试失败/意外行为/错误 | `superpowers:systematic-debugging` | P1 调查→P2 假设→P3 验证→P4 修复 |
-| **测试先行** | 实现新函数/修复 bug | `superpowers:test-driven-development` | Red→Green→Refactor |
-| **代码审查** | 完成任务后、合并前 | `superpowers:requesting-code-review` | 派审查者子代理检查代码质量 |
-| **验证** | 声称完成/修复/通过前 | `superpowers:verification-before-completion` | 先运行验证命令，再声称成功 |
-| **收尾** | 测试全过、准备集成 | `superpowers:finishing-a-development-branch` | 合并/PR/保留/放弃 4 选 1 |
-
-### 技能优先级
-1. **流程技能优先**（brainstorming、debugging）— 决定如何接近任务
-2. **实施技能其次**（frontend-design）— 指导执行
-
-### 铁律（不可协商）
-- **任何编程动作必须先调 Skill 工具**，没有"简单任务"例外
-- 用"简单"当借口不调技能 = 违规
-- 调了技能不遵守其规则 = 违规
-
-## Conventions
-- 子代理派发后必须 `git diff --stat` 验证只修改了目标文件；本次会话子代理误改了 `src/main/` 下 3 个文件
-- `new-api-main/` 目录是外部项目残留，其空测试套件会报 FAIL，忽略即可
-- 迁移 CSS 时注意移除 body 上的 `user-select: none`（Electron 遗留），文字应默认可选中
+## Conventions                                                                                                                                                                                               
+- 迁移 CSS 时注意移除 body 上的 `user-select: none`（Electron 遗留），文字应默认可选中 
 - ESLint: flat config, @typescript-eslint/no-explicit-any 为 warn（有意使用）
 - 测试：vitest + jsdom，每文件 co-located __tests__/ 目录
 - 日志：NDJSON 分片 + sql.js 预计算统计（仪表盘不读 NDJSON）
 - 仪表盘统计：request_stats_provider 表按 (date, hour, provider_id, model) 聚合；Dashboard 需分别拉取 statsDetailed('24h') 和 statsDetailed('30d')
 - NDJSON log entries 含 auto-incrementing id 字段；queryLogs 返回过滤后 total
+- `new-api-main/` 目录是外部项目残留，其空测试套件会报 FAIL，忽略即可
