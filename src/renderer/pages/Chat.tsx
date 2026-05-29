@@ -27,6 +27,7 @@ const debugLog = (...args: unknown[]) => {
 }
 
 interface Message {
+  id: string
   role: 'user' | 'assistant'
   content: string
   thinking?: string
@@ -52,6 +53,7 @@ export function ChatPage() {
   const accumulatedContent = useRef('')
   const accumulatedThinking = useRef('')
   const [isLoading, setIsLoading] = useState(false)
+  const [inputKey, setInputKey] = useState(0)
   const currentRequestId = useRef<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -100,8 +102,8 @@ export function ChatPage() {
     const requestId = uuidv4()
     currentRequestId.current = requestId
 
-    const userMessage: Message = { role: 'user', content }
-    const assistantMessage: Message = { role: 'assistant', content: '', thinking: '', isThinking: true, model: selectedModel, isStreaming: true }
+    const userMessage: Message = { id: uuidv4(), role: 'user', content }
+    const assistantMessage: Message = { id: uuidv4(), role: 'assistant', content: '', thinking: '', isThinking: true, model: selectedModel, isStreaming: true }
 
     setMessages((prev) => [...prev, userMessage, assistantMessage])
     setIsLoading(true)
@@ -110,7 +112,7 @@ export function ChatPage() {
       requestId,
       apiKeyId: selectedApiKeyId,
       model: `${selectedProvider.name}/${selectedModel}`,
-      messages: [{ role: 'user', content }],
+      messages: [...messages.map(m => ({ role: m.role, content: m.content })), { role: 'user', content }],
       apiFormat: selectedProvider.providerType,
     })
   }
@@ -206,12 +208,41 @@ export function ChatPage() {
     }
   }
 
+  const handleRegenerate = async () => {
+    if (!selectedModel || !selectedApiKeyId || !selectedProvider) return
+
+    const last = messages[messages.length - 1]
+    if (last?.role !== 'assistant') return
+
+    const apiMessages = messages.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
+
+    accumulatedContent.current = ''
+    accumulatedThinking.current = ''
+    currentConvIdRef.current = activeConversationId
+
+    const requestId = uuidv4()
+    currentRequestId.current = requestId
+
+    const newAssistant: Message = { id: uuidv4(), role: 'assistant', content: '', thinking: '', isThinking: true, model: selectedModel, isStreaming: true }
+    setMessages((prev) => [...prev.slice(0, -1), newAssistant])
+    setIsLoading(true)
+
+    api.chat.send({
+      requestId,
+      apiKeyId: selectedApiKeyId,
+      model: `${selectedProvider.name}/${selectedModel}`,
+      messages: apiMessages,
+      apiFormat: selectedProvider.providerType,
+    })
+  }
+
   const handleSelectConversation = async (id: number) => {
     setActiveConversationId(id)
     setMessages([])
 
     const msgs = await api.conversations.messages(id)
     setMessages(msgs.map(m => ({
+      id: uuidv4(),
       role: m.role,
       content: m.content,
       thinking: m.thinking || undefined,
@@ -228,27 +259,43 @@ export function ChatPage() {
   }
 
   const handleNewConversation = async () => {
-    if (!selectedModel || !selectedProviderId || !selectedApiKeyId) return
-    const id = await api.conversations.create({
-      title: '新对话',
-      model: selectedModel,
-      providerId: selectedProviderId,
-      apiKeyId: selectedApiKeyId,
-    })
-    setActiveConversationId(id)
+    // 立即清空 UI，不等 API 返回
+    if (currentRequestId.current) {
+      api.chat.abort(currentRequestId.current)
+      currentRequestId.current = null
+    }
+    setIsLoading(false)
     setMessages([])
-    invalidateConversations()
+    setActiveConversationId(null)
+    setInputKey(k => k + 1)
+
+    if (!selectedModel || !selectedProviderId || !selectedApiKeyId) return
+    try {
+      const id = await api.conversations.create({
+        title: '新对话',
+        model: selectedModel,
+        providerId: selectedProviderId,
+        apiKeyId: selectedApiKeyId,
+      })
+      setActiveConversationId(id)
+      invalidateConversations()
+    } catch {
+      // 创建失败，UI 已清空，用户可直接发消息创建新会话
+    }
   }
 
   const handleDeleteConversation = async (id: number) => {
     const conv = conversations.find(c => c.id === id)
     if (!confirm(`确定删除"${conv?.title || '此会话'}"？`)) return
     await api.conversations.delete(id)
+    // 如果删除的是当前活跃会话，清空消息和活跃状态
     if (activeConversationId === id) {
       setActiveConversationId(null)
       setMessages([])
+      setIsLoading(false)
     }
     invalidateConversations()
+    setInputKey(k => k + 1)
   }
 
   const providerOptions = providers.filter((p) => p.isActive === 1)
@@ -341,9 +388,12 @@ export function ChatPage() {
                 </Card>
               </motion.div>
             ) : (
-              messages.map((msg, i) => (
-                <ChatMessage key={i} {...msg} />
-              ))
+              messages.map((msg) => {
+                const isLastAssistant = msg.id === messages[messages.length - 1]?.id && msg.role === 'assistant' && !msg.isStreaming
+                return (
+                  <ChatMessage key={msg.id} {...msg} onRegenerate={isLastAssistant ? handleRegenerate : undefined} />
+                )
+              })
             )}
           </AnimatePresence>
           <div ref={messagesEndRef} />
@@ -352,7 +402,7 @@ export function ChatPage() {
         {/* Input */}
         <Card className="p-3 flex items-center gap-2 bg-background/50">
           <div className="flex-1">
-            <ChatInput onSend={handleSend} disabled={isLoading || !selectedModel || !selectedApiKeyId} />
+            <ChatInput key={inputKey} onSend={handleSend} disabled={isLoading || !selectedModel || !selectedApiKeyId} />
           </div>
           {isLoading && (
             <Button

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Copy, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
 import { Markdown } from './ui/markdown'
 import { ErrorBoundary } from './ErrorBoundary'
 
@@ -12,9 +13,10 @@ interface ChatMessageProps {
   model?: string
   isStreaming?: boolean
   error?: boolean
+  onRegenerate?: () => void
 }
 
-export function ChatMessage({ role, content, thinking, isThinking, model, isStreaming, error }: ChatMessageProps) {
+export function ChatMessage({ role, content, thinking, isThinking, model, isStreaming, error, onRegenerate }: ChatMessageProps) {
   const isUser = role === 'user'
   const [thinkingExpanded, setThinkingExpanded] = useState(true)
 
@@ -24,11 +26,22 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
     }
   }, [isThinking, thinking])
 
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content)
+      toast.success('已复制')
+    } catch {
+      toast.error('复制失败')
+    }
+  }
+
   const bubbleClass = isUser
     ? 'bg-primary/10 border-primary/20'
     : error
       ? 'bg-destructive/10 border-destructive/20 text-destructive'
       : 'bg-muted/30 border-border/50'
+
+  const showActions = !isUser && !isStreaming && !error && content
 
   return (
     <motion.div
@@ -82,6 +95,8 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
         ) : (
           <ErrorBoundary>
             <Markdown
+              enableMermaid
+              isStreaming={isStreaming}
               className={`text-sm ${error ? 'text-destructive' : 'text-foreground'}`}
             >
               {content}
@@ -91,6 +106,28 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
 
         {isStreaming && !isUser && (
           <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-primary" />
+        )}
+
+        {/* Action buttons */}
+        {showActions && (
+          <div className="flex items-center gap-0.5 mt-3 pt-2 border-t border-border/30">
+            <button
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/50"
+              onClick={handleCopy}
+            >
+              <Copy className="w-3 h-3" />
+              复制
+            </button>
+            {onRegenerate && (
+              <button
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/50"
+                onClick={onRegenerate}
+              >
+                <RefreshCw className="w-3 h-3" />
+                重新生成
+              </button>
+            )}
+          </div>
         )}
       </div>
     </motion.div>

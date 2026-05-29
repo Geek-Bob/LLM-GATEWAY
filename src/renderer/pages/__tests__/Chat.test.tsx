@@ -535,7 +535,10 @@ describe('ChatPage', () => {
 
     await waitFor(() => expect(_chatSend).toHaveBeenCalledTimes(2))
     expect(_chatSend).toHaveBeenCalledWith(expect.objectContaining({
-      messages: [{ role: 'user', content: 'B' }],
+      messages: expect.arrayContaining([
+        expect.objectContaining({ role: 'user', content: 'A' }),
+        expect.objectContaining({ role: 'user', content: 'B' }),
+      ]),
     }))
   })
 
