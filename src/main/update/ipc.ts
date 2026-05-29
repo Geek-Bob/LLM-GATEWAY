@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { UpdateManager } from './manager'
+import type { UpdateConfig } from './config'
 
 export function setupUpdateIpcHandlers(updateManager: UpdateManager): void {
   ipcMain.handle('update:check', async () => {
@@ -22,7 +23,7 @@ export function setupUpdateIpcHandlers(updateManager: UpdateManager): void {
     return updateManager.getConfig()
   })
 
-  ipcMain.handle('update:set-config', async (_event, config) => {
+  ipcMain.handle('update:set-config', async (_event, config: Partial<UpdateConfig>) => {
     updateManager.updateConfig(config)
   })
 }

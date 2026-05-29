@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { UpdateConfig, UpdateInfo, UpdateProgress } from './types'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   debug: {
@@ -66,24 +67,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
     install: () => ipcRenderer.invoke('update:install'),
     skipVersion: (version: string) => ipcRenderer.invoke('update:skip-version', version),
     getConfig: () => ipcRenderer.invoke('update:get-config'),
-    setConfig: (config: Record<string, unknown>) => ipcRenderer.invoke('update:set-config', config),
-    onAvailable: (callback: (info: any) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
+    setConfig: (config: Partial<UpdateConfig>) => ipcRenderer.invoke('update:set-config', config),
+    onAvailable: (callback: (info: UpdateInfo) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: UpdateInfo) => callback(data)
       ipcRenderer.on('update:available', handler)
       return () => ipcRenderer.removeListener('update:available', handler)
     },
-    onProgress: (callback: (progress: any) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
+    onProgress: (callback: (progress: UpdateProgress) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: UpdateProgress) => callback(data)
       ipcRenderer.on('update:download-progress', handler)
       return () => ipcRenderer.removeListener('update:download-progress', handler)
     },
-    onDownloaded: (callback: (info: any) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
+    onDownloaded: (callback: (info: UpdateInfo) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: UpdateInfo) => callback(data)
       ipcRenderer.on('update:downloaded', handler)
       return () => ipcRenderer.removeListener('update:downloaded', handler)
     },
-    onError: (callback: (error: any) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, data: any) => callback(data)
+    onError: (callback: (error: { message: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, data: { message: string }) => callback(data)
       ipcRenderer.on('update:error', handler)
       return () => ipcRenderer.removeListener('update:error', handler)
     }
