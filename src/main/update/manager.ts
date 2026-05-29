@@ -1,6 +1,6 @@
 import { autoUpdater, UpdateInfo } from 'electron-updater'
 import { app, BrowserWindow } from 'electron'
-import { UpdateConfig, UpdateConfigManager } from './config'
+import { type UpdateConfig, UpdateConfigManager } from './config'
 
 export interface UpdateCheckResult {
   available: boolean
