@@ -61,6 +61,9 @@
 - 调了技能不遵守其规则 = 违规
 
 ## Conventions
+- 子代理派发后必须 `git diff --stat` 验证只修改了目标文件；本次会话子代理误改了 `src/main/` 下 3 个文件
+- `new-api-main/` 目录是外部项目残留，其空测试套件会报 FAIL，忽略即可
+- 迁移 CSS 时注意移除 body 上的 `user-select: none`（Electron 遗留），文字应默认可选中
 - ESLint: flat config, @typescript-eslint/no-explicit-any 为 warn（有意使用）
 - 测试：vitest + jsdom，每文件 co-located __tests__/ 目录
 - 日志：NDJSON 分片 + sql.js 预计算统计（仪表盘不读 NDJSON）
