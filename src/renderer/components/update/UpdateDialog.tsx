@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 import {
   Dialog,
   DialogContent,
@@ -62,8 +63,8 @@ export function UpdateDialog({
           {releaseNotes && (
             <div>
               <h4 className="text-sm font-medium mb-2">更新内容</h4>
-              <div className="text-sm text-muted-foreground whitespace-pre-wrap">
-                {releaseNotes}
+              <div className="text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none">
+                <ReactMarkdown>{releaseNotes}</ReactMarkdown>
               </div>
             </div>
           )}
