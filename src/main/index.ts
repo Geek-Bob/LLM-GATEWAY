@@ -1,10 +1,12 @@
 import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron'
 import path from 'path'
+import fs from 'fs'
 import { initDatabase, closeDatabase } from './db/connection'
 import { createTables } from './db/schema'
 import { initLogsDir } from './db/logs'
 import { startProxy, setProxyPort } from './proxy/manager'
 import { setupIpcHandlers } from './ipc'
+import { UpdateManager } from './update/manager'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -109,7 +111,23 @@ function createTray(): void {
   )
 }
 
+function cleanupDebugLogs(): void {
+  const debugFiles = [
+    'llm-gateway-chat-debug.log',
+    'llm-gateway-auth-debug.log',
+    'llm-gateway-proxy-debug.log'
+  ]
+  for (const file of debugFiles) {
+    try {
+      const fp = path.join(process.cwd(), file)
+      if (fs.existsSync(fp)) fs.unlinkSync(fp)
+    } catch { /* ignore */ }
+  }
+}
+
 async function startServer(): Promise<void> {
+  cleanupDebugLogs()
+
   const dataDir = app.getPath('userData')
   await initDatabase(path.join(dataDir, 'config.db'))
   createTables()
@@ -123,11 +141,21 @@ async function startServer(): Promise<void> {
   startProxy()
 }
 
+let updateManager: UpdateManager
+
 app.whenReady().then(async () => {
   await startServer()
   createWindow()
   createTray()
-  setupIpcHandlers()
+
+  // 初始化更新管理器
+  updateManager = new UpdateManager()
+  setupIpcHandlers(updateManager)
+
+  // 延迟检查更新（等待窗口加载完成）
+  setTimeout(() => {
+    updateManager.checkForUpdates()
+  }, 5000)
 })
 
 app.on('window-all-closed', () => {
