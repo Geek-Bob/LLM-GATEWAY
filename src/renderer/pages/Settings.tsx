@@ -1,9 +1,11 @@
 import { motion } from 'framer-motion'
 import { Settings as SettingsIcon } from 'lucide-react'
+import { toast } from 'sonner'
 import { useUpdateConfig, useUpdateConfigMutation } from '../lib/queries/update'
 import { Switch } from '../components/ui/switch'
 import { Label } from '../components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Skeleton } from '../components/ui/skeleton'
 import { UpdateButton } from '../components/update/UpdateButton'
 
 const pageVariants = {
@@ -17,8 +19,12 @@ const childVariants = {
 } as const
 
 export function SettingsPage() {
-  const { data: config } = useUpdateConfig()
-  const updateConfig = useUpdateConfigMutation()
+  const { data: config, isLoading } = useUpdateConfig()
+  const updateConfig = useUpdateConfigMutation({
+    onError: (error: Error) => {
+      toast.error(`保存失败: ${error.message}`)
+    },
+  })
 
   return (
     <motion.div variants={pageVariants} initial="hidden" animate="show" className="space-y-6">
@@ -31,57 +37,67 @@ export function SettingsPage() {
       </motion.div>
 
       <motion.div variants={childVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle>自动更新</CardTitle>
-            <CardDescription>配置应用自动更新行为</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="auto-check">自动检查更新</Label>
-                <p className="text-sm text-muted-foreground">
-                  应用启动时自动检查新版本
-                </p>
-              </div>
-              <Switch
-                id="auto-check"
-                checked={config?.autoCheck ?? true}
-                onCheckedChange={(checked) =>
-                  updateConfig.mutate({ autoCheck: checked })
-                }
-              />
+        {isLoading ? (
+          <div className="rounded-xl border border-border bg-card p-8">
+            <div className="space-y-4">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
             </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label htmlFor="allow-prerelease">允许预发布版本</Label>
-                <p className="text-sm text-muted-foreground">
-                  接收测试版和预发布版本更新
-                </p>
-              </div>
-              <Switch
-                id="allow-prerelease"
-                checked={config?.allowPrerelease ?? false}
-                onCheckedChange={(checked) =>
-                  updateConfig.mutate({ allowPrerelease: checked })
-                }
-              />
-            </div>
-
-            <div className="pt-2 border-t">
-              <div className="flex items-center justify-between pt-4">
+          </div>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>自动更新</CardTitle>
+              <CardDescription>配置应用自动更新行为</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex items-center justify-between">
                 <div className="space-y-0.5">
-                  <Label>手动检查更新</Label>
+                  <Label htmlFor="auto-check">自动检查更新</Label>
                   <p className="text-sm text-muted-foreground">
-                    立即检查是否有可用更新
+                    应用启动时自动检查新版本
                   </p>
                 </div>
-                <UpdateButton />
+                <Switch
+                  id="auto-check"
+                  checked={config?.autoCheck ?? true}
+                  onCheckedChange={(checked) =>
+                    updateConfig.mutate({ autoCheck: checked })
+                  }
+                />
               </div>
-            </div>
-          </CardContent>
-        </Card>
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="allow-prerelease">允许预发布版本</Label>
+                  <p className="text-sm text-muted-foreground">
+                    接收测试版和预发布版本更新
+                  </p>
+                </div>
+                <Switch
+                  id="allow-prerelease"
+                  checked={config?.allowPrerelease ?? false}
+                  onCheckedChange={(checked) =>
+                    updateConfig.mutate({ allowPrerelease: checked })
+                  }
+                />
+              </div>
+
+              <div className="pt-2 border-t">
+                <div className="flex items-center justify-between pt-4">
+                  <div className="space-y-0.5">
+                    <Label>手动检查更新</Label>
+                    <p className="text-sm text-muted-foreground">
+                      立即检查是否有可用更新
+                    </p>
+                  </div>
+                  <UpdateButton />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </motion.div>
     </motion.div>
   )
