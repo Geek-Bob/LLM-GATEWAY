@@ -19,9 +19,6 @@ export function Layout() {
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar — macOS 26 毛玻璃 */}
         <nav className="w-60 shrink-0 flex flex-col py-3 backdrop-blur-xl bg-background/60 border-r border-border/50">
-          <div className="px-4 pb-3 mb-2 border-b border-border/50">
-            <p className="text-[11px] font-semibold tracking-wider uppercase text-muted-foreground">导航</p>
-          </div>
           {navItems.map((item) => (
             <NavLink
               key={item.to}
