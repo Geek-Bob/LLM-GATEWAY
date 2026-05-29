@@ -127,15 +127,6 @@ export function SettingsPage() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>检查更新</Label>
-                <p className="text-sm text-muted-foreground">
-                  检查是否有可用的新版本
-                </p>
-              </div>
-              <UpdateButton />
-            </div>
           </CardContent>
         </Card>
       </motion.div>
