@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Provider, ApiKey } from '../../lib/types'
+import { ChatMessage } from '../../components/ChatMessage'
 
 // ======================
 // Mocks
@@ -595,5 +596,101 @@ describe('ChatPage', () => {
     expect(chunkCallback).not.toBeNull()
     unmount()
     expect(chunkCallback).toBeNull()
+  })
+})
+
+// ======================
+// ChatMessage Tests
+// ======================
+
+describe('ChatMessage', () => {
+  it('应该渲染用户消息（纯文本）', () => {
+    render(
+      <ChatMessage
+        role="user"
+        content="这是一条用户消息"
+      />
+    )
+
+    expect(screen.getByText('这是一条用户消息')).toBeInTheDocument()
+  })
+
+  it('应该渲染助手消息（Markdown 格式）', () => {
+    const content = `## 代码示例
+
+\`\`\`javascript
+console.log("hello")
+\`\`\`
+
+**加粗文本**`
+
+    render(
+      <ChatMessage
+        role="assistant"
+        content={content}
+      />
+    )
+
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent('代码示例')
+    expect(screen.getByText('console.log("hello")')).toBeInTheDocument()
+    expect(screen.getByText('加粗文本')).toBeInTheDocument()
+  })
+
+  it('应该渲染列表', () => {
+    const content = `- 项目 1
+- 项目 2
+- 项目 3`
+
+    render(
+      <ChatMessage
+        role="assistant"
+        content={content}
+      />
+    )
+
+    expect(screen.getByRole('list')).toBeInTheDocument()
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
+  })
+
+  it('应该渲染表格', () => {
+    const content = `| 列 1 | 列 2 |
+|------|------|
+| A    | B    |`
+
+    render(
+      <ChatMessage
+        role="assistant"
+        content={content}
+      />
+    )
+
+    expect(screen.getByRole('table')).toBeInTheDocument()
+  })
+
+  it('应该显示错误状态', () => {
+    render(
+      <ChatMessage
+        role="assistant"
+        content="发生错误"
+        error={true}
+      />
+    )
+
+    // 错误类应用在 Markdown 容器上，检查 bubble 级别的样式
+    expect(screen.getByText('发生错误')).toBeInTheDocument()
+    const bubble = screen.getByText('发生错误').closest('[class*="rounded-2xl"]')
+    expect(bubble).toHaveClass('bg-destructive/10', 'border-destructive/20')
+  })
+
+  it('应该显示流式输入光标', () => {
+    render(
+      <ChatMessage
+        role="assistant"
+        content="正在输入"
+        isStreaming={true}
+      />
+    )
+
+    expect(screen.getByText('正在输入')).toBeInTheDocument()
   })
 })
