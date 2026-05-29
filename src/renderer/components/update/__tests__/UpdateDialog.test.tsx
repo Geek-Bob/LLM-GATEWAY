@@ -81,4 +81,39 @@ describe('UpdateDialog', () => {
     fireEvent.click(screen.getByText('稍后再说'))
     expect(defaultProps.onSkip).not.toHaveBeenCalled()
   })
+
+  it('应该渲染更新内容（Markdown 格式）', () => {
+    const releaseNotes = `## 更新内容
+
+- 支持自动检查更新
+- 支持下载和安装更新
+- 支持跳过版本
+- 设置页面配置`
+
+    render(<UpdateDialog {...defaultProps} releaseNotes={releaseNotes} />)
+
+    expect(screen.getAllByText('更新内容').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('支持自动检查更新')).toBeInTheDocument()
+    expect(screen.getByText('支持下载和安装更新')).toBeInTheDocument()
+  })
+
+  it('应该渲染更新内容（HTML 格式）', () => {
+    const releaseNotes = `<ul>
+<li>支持自动检查更新</li>
+<li>支持下载和安装更新</li>
+<li>支持跳过版本</li>
+<li>设置页面配置</li>
+</ul>`
+
+    render(<UpdateDialog {...defaultProps} releaseNotes={releaseNotes} />)
+
+    expect(screen.getByText('更新内容')).toBeInTheDocument()
+    expect(screen.getByText('支持自动检查更新')).toBeInTheDocument()
+  })
+
+  it('应该在没有更新内容时隐藏内容区域', () => {
+    render(<UpdateDialog {...defaultProps} releaseNotes={null} />)
+
+    expect(screen.queryByText('更新内容')).not.toBeInTheDocument()
+  })
 })
