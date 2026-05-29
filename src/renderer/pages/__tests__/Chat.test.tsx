@@ -83,6 +83,18 @@ window.electronAPI = {
     addMessage: _conversationsAddMessage,
   },
   window: { minimize: vi.fn(), maximize: vi.fn(), close: vi.fn() },
+  update: {
+    check: vi.fn().mockResolvedValue({ available: false }),
+    download: vi.fn().mockResolvedValue(undefined),
+    install: vi.fn().mockResolvedValue(undefined),
+    skipVersion: vi.fn().mockResolvedValue(undefined),
+    getConfig: vi.fn().mockResolvedValue({ autoCheck: true, checkInterval: 3600000, allowPrerelease: false, skipVersion: null }),
+    setConfig: vi.fn().mockResolvedValue(undefined),
+    onAvailable: vi.fn().mockReturnValue(() => {}),
+    onProgress: vi.fn().mockReturnValue(() => {}),
+    onDownloaded: vi.fn().mockReturnValue(() => {}),
+    onError: vi.fn().mockReturnValue(() => {}),
+  },
 }
 
 function simulateChunk(data: { requestId: string; text?: string; done?: boolean; error?: string }) {

@@ -24,3 +24,28 @@ export interface LogDebugInfo {
     responseBody: string
   }
 }
+
+export interface UpdateInfo {
+  version: string
+  releaseNotes?: string | null
+}
+
+export interface UpdateProgress {
+  percent: number
+  bytesPerSecond: number
+  transferred: number
+  total: number
+}
+
+export interface UpdateCheckResult {
+  available: boolean
+  version?: string
+  error?: string
+}
+
+export interface UpdateConfig {
+  autoCheck: boolean
+  checkInterval: number
+  allowPrerelease: boolean
+  skipVersion: string | null
+}

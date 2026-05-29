@@ -20,7 +20,7 @@ export interface ApiKey {
   created_at: string
 }
 
-import type { LogDebugInfo } from '../../shared/types'
+import type { LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress } from '../../shared/types'
 
 export type { LogDebugInfo }
 
@@ -121,6 +121,18 @@ declare global {
         minimize: () => void
         maximize: () => void
         close: () => void
+      }
+      update: {
+        check: () => Promise<UpdateCheckResult>
+        download: () => Promise<void>
+        install: () => Promise<void>
+        skipVersion: (version: string) => Promise<void>
+        getConfig: () => Promise<UpdateConfig>
+        setConfig: (config: Partial<UpdateConfig>) => Promise<void>
+        onAvailable: (callback: (info: UpdateInfo) => void) => () => void
+        onProgress: (callback: (progress: UpdateProgress) => void) => () => void
+        onDownloaded: (callback: (info: UpdateInfo) => void) => () => void
+        onError: (callback: (error: { message: string }) => void) => () => void
       }
     }
   }
