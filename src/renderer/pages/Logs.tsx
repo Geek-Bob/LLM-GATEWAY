@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Bug } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useLogs } from '../lib/queries/logs'
@@ -28,8 +28,8 @@ function formatTokens(entry: LogEntry) {
 function DebugSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div>
-      <h4 className="text-sm font-semibold mb-2 text-slate-400">{title}</h4>
-      <div className="rounded-lg p-3 space-y-1.5 text-sm bg-slate-900/60 border border-slate-400/10">
+      <h4 className="text-sm font-semibold mb-2 text-muted-foreground">{title}</h4>
+      <div className="rounded-lg p-3 space-y-1.5 text-sm bg-card border border-border/50">
         {children}
       </div>
     </div>
@@ -39,8 +39,8 @@ function DebugSection({ title, children }: { title: string; children: React.Reac
 function DebugKV({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex gap-2">
-      <span className="text-slate-600 min-w-20 shrink-0">{label}:</span>
-      <span className={`text-slate-200 break-all ${mono ? 'font-mono' : ''}`}>{value}</span>
+      <span className="text-muted-foreground min-w-20 shrink-0">{label}:</span>
+      <span className={`text-foreground break-all ${mono ? 'font-mono' : ''}`}>{value}</span>
     </div>
   )
 }
@@ -53,8 +53,8 @@ function DebugJSON({ label, json }: { label: string; json: string }) {
 
   return (
     <div className="mt-1">
-      <span className="text-slate-600 text-[13px]">{label}:</span>
-      <pre className="mt-1 p-2.5 rounded text-xs overflow-x-auto max-h-72 overflow-y-auto font-mono bg-slate-950/80 text-slate-300 border border-slate-400/10">
+      <span className="text-muted-foreground text-[13px]">{label}:</span>
+      <pre className="mt-1 p-2.5 rounded text-xs overflow-x-auto max-h-72 overflow-y-auto font-mono bg-popover/80 text-foreground border border-border/50">
         {formatted}
       </pre>
     </div>
@@ -73,6 +73,8 @@ export function LogsPage() {
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
+  useEffect(() => { setSelectedLog(null) }, [page])
+
   const goToPrev = () => { if (page > 1) setPage((p) => p - 1) }
   const goToNext = () => { if (page < totalPages) setPage((p) => p + 1) }
 
@@ -85,12 +87,12 @@ export function LogsPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">请求日志</h1>
-          <p className="text-sm mt-1 text-slate-500">查看所有代理请求记录</p>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">请求日志</h1>
+          <p className="text-sm mt-1 text-muted-foreground">查看所有代理请求记录</p>
         </div>
         <div className="flex items-center gap-2">
-          <Bug className="h-4 w-4 text-slate-500" />
-          <span className="text-xs text-slate-400">Debug</span>
+          <Bug className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Debug</span>
           <Switch
             checked={debugMode}
             onCheckedChange={handleToggleDebug}
@@ -100,28 +102,28 @@ export function LogsPage() {
 
       {/* Content */}
       {isLoading ? (
-        <div className="rounded-lg border border-slate-400/10 bg-slate-900/40 p-8">
+        <div className="rounded-lg border border-border/50 bg-card p-8">
           <div className="space-y-4">
             {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
           </div>
         </div>
       ) : logs.length === 0 ? (
-        <div className="rounded-lg border border-slate-400/10 bg-slate-900/40 p-12 text-center">
-          <p className="text-base font-medium text-slate-400">暂无日志</p>
+        <div className="rounded-lg border border-border/50 bg-card p-12 text-center">
+          <p className="text-base font-medium text-muted-foreground">暂无日志</p>
         </div>
       ) : (
         <>
-          <div className="rounded-lg border border-slate-400/10 bg-slate-900/40 overflow-hidden">
+          <div className="rounded-lg border border-border/50 bg-card overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="border-slate-400/10 hover:bg-transparent">
-                  <TableHead className="text-slate-400">时间</TableHead>
-                  <TableHead className="text-slate-400">模型</TableHead>
-                  <TableHead className="text-slate-400">格式</TableHead>
-                  <TableHead className="text-slate-400">状态</TableHead>
-                  <TableHead className="text-slate-400">延迟</TableHead>
-                  <TableHead className="text-slate-400">Tokens</TableHead>
-                  <TableHead className="text-slate-400">详情</TableHead>
+                <TableRow className="border-border/50 hover:bg-transparent">
+                  <TableHead className="text-muted-foreground">时间</TableHead>
+                  <TableHead className="text-muted-foreground">模型</TableHead>
+                  <TableHead className="text-muted-foreground">格式</TableHead>
+                  <TableHead className="text-muted-foreground">状态</TableHead>
+                  <TableHead className="text-muted-foreground">延迟</TableHead>
+                  <TableHead className="text-muted-foreground">Tokens</TableHead>
+                  <TableHead className="text-muted-foreground">详情</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -130,14 +132,14 @@ export function LogsPage() {
                   return (
                     <TableRow
                       key={entry.id}
-                      className={`cursor-pointer border-slate-400/10 ${selectedLog?.id === entry.id ? 'bg-white/5' : ''}`}
+                      className={`cursor-pointer border-border/50 ${selectedLog?.id === entry.id ? 'bg-white/5' : ''}`}
                       onClick={() => setSelectedLog(selectedLog?.id === entry.id ? null : entry)}
                     >
                       <TableCell>
-                        <span className="text-sm whitespace-nowrap text-slate-500">{formatDate(entry.created_at)}</span>
+                        <span className="text-sm whitespace-nowrap text-muted-foreground">{formatDate(entry.created_at)}</span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-medium text-slate-100">{entry.model}</span>
+                        <span className="font-medium text-foreground">{entry.model}</span>
                       </TableCell>
                       <TableCell>
                         <Badge
@@ -162,10 +164,10 @@ export function LogsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-sm text-slate-400">{entry.duration_ms}ms</span>
+                        <span className="font-mono text-sm text-muted-foreground">{entry.duration_ms}ms</span>
                       </TableCell>
                       <TableCell>
-                        <span className="font-mono text-sm tabular-nums text-slate-400">
+                        <span className="font-mono text-sm tabular-nums text-muted-foreground">
                           {formatTokens(entry)}
                         </span>
                       </TableCell>
@@ -178,7 +180,7 @@ export function LogsPage() {
                             <Bug className="h-3 w-3" />
                           </Badge>
                         ) : (
-                          <span className="text-xs text-slate-700">--</span>
+                          <span className="text-xs text-muted-foreground/50">--</span>
                         )}
                       </TableCell>
                     </TableRow>
@@ -190,24 +192,24 @@ export function LogsPage() {
 
           {/* Pagination */}
           <div className="flex items-center justify-between mt-4 px-1">
-            <span className="text-sm text-slate-600">共 {total} 条</span>
+            <span className="text-sm text-muted-foreground">共 {total} 条</span>
             <div className="flex items-center gap-3">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={goToPrev}
                 disabled={page <= 1}
-                className="text-xs text-slate-400"
+                className="text-xs text-muted-foreground"
               >
                 上一页
               </Button>
-              <span className="text-sm tabular-nums text-slate-500">{page} / {totalPages}</span>
+              <span className="text-sm tabular-nums text-muted-foreground">{page} / {totalPages}</span>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={goToNext}
                 disabled={page >= totalPages}
-                className="text-xs text-slate-400"
+                className="text-xs text-muted-foreground"
               >
                 下一页
               </Button>
@@ -222,18 +224,18 @@ export function LogsPage() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.25, ease: 'easeOut' }}
-          className="fixed right-0 top-12 bottom-0 w-[42%] overflow-y-auto z-30 border-l border-slate-400/10 bg-slate-950"
+          className="fixed right-0 top-12 bottom-0 w-[42%] overflow-y-auto z-30 border-l border-border/50 bg-popover"
         >
           {/* Panel header */}
-          <div className="flex items-center justify-between mb-5 sticky top-0 py-3 px-5 border-b border-slate-400/10 bg-slate-950 z-10">
-            <h3 className="text-lg font-bold text-slate-100">
+          <div className="flex items-center justify-between mb-5 sticky top-0 py-3 px-5 border-b border-border/50 bg-popover z-10">
+            <h3 className="text-lg font-bold text-foreground">
               请求详情 #{selectedLog.id}
             </h3>
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setSelectedLog(null)}
-              className="text-slate-500 hover:text-slate-300"
+              className="text-muted-foreground hover:text-foreground"
             >
               <X className="h-4 w-4" />
             </Button>
@@ -256,7 +258,7 @@ export function LogsPage() {
                   <DebugKV label="上游模型" value={selectedLog.debug.route.modelName} />
                   {selectedLog.debug.conversion && (
                     <>
-                      <div className="mt-2 pt-2 border-t border-slate-400/10" />
+                      <div className="mt-2 pt-2 border-t border-border/50" />
                       <DebugKV label="协议转换" value={`${selectedLog.debug.conversion.from} → ${selectedLog.debug.conversion.to}`} />
                       <DebugKV label="原始路径" value={selectedLog.debug.conversion.originalPath} />
                       <DebugKV label="转换路径" value={selectedLog.debug.conversion.convertedPath} />
@@ -281,7 +283,7 @@ export function LogsPage() {
             ) : (
               /* No debug data -- show basic info + hint */
               <div className="text-center py-12">
-                <p className="text-sm mb-4 text-slate-400">基础信息</p>
+                <p className="text-sm mb-4 text-muted-foreground">基础信息</p>
                 <div className="space-y-2 text-left max-w-xs mx-auto">
                   <DebugKV label="状态码" value={String(selectedLog.status_code)} />
                   <DebugKV label="耗时" value={`${selectedLog.duration_ms}ms`} />
