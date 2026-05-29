@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
 import { Markdown } from './ui/markdown'
+import { ErrorBoundary } from './ErrorBoundary'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'
@@ -79,11 +80,13 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
             )}
           </p>
         ) : (
-          <Markdown
-            className={`text-sm ${error ? 'text-destructive' : 'text-foreground'}`}
-          >
-            {content}
-          </Markdown>
+          <ErrorBoundary>
+            <Markdown
+              className={`text-sm ${error ? 'text-destructive' : 'text-foreground'}`}
+            >
+              {content}
+            </Markdown>
+          </ErrorBoundary>
         )}
 
         {isStreaming && !isUser && (

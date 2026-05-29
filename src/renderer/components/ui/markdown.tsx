@@ -24,7 +24,7 @@ export const Markdown = memo(function Markdown({
   return (
     <div
       className={cn(
-        'prose prose-sm dark:prose-invert max-w-none',
+        'prose prose-sm max-w-none',
         'prose-headings:font-semibold prose-headings:tracking-tight',
         'prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg',
         'prose-p:leading-relaxed prose-p:my-2',
@@ -39,6 +39,7 @@ export const Markdown = memo(function Markdown({
         'prose-img:rounded-lg prose-img:shadow-sm',
         '[&>*:first-child]:mt-0 [&>*:last-child]:mb-0',
         '[overflow-wrap:anywhere] break-words',
+        'text-foreground',
         className
       )}
     >
