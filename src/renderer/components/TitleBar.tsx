@@ -14,9 +14,6 @@ export function TitleBar() {
           <span className="w-2.5 h-2.5 rounded-full bg-primary" />
           <span className="text-sm font-bold tracking-tight text-foreground">LLM Gateway</span>
         </div>
-        <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-primary/10 text-primary">
-          v1.0
-        </span>
       </div>
       <div className="no-drag flex items-center gap-1">
         {[
