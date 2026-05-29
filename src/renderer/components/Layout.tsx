@@ -14,7 +14,7 @@ const navItems = [
 
 export function Layout() {
   return (
-    <div className="dark h-screen flex flex-col bg-background">
+    <div className="h-screen flex flex-col bg-background">
       <TitleBar />
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar — macOS 26 毛玻璃 */}
