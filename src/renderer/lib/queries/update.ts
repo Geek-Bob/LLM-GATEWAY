@@ -43,7 +43,9 @@ export function useSkipVersion() {
   })
 }
 
-export function useUpdateConfigMutation() {
+export function useUpdateConfigMutation(
+  options?: Partial<{ onError: (error: Error) => void }>
+) {
   const queryClient = useQueryClient()
 
   return useMutation({
@@ -51,5 +53,6 @@ export function useUpdateConfigMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['update-config'] })
     },
+    onError: options?.onError,
   })
 }
