@@ -24,7 +24,13 @@
 - gateway API key 明文存储（key_encrypted 列），Chat 通过代理时使用
 - 调试日志写入 os.tmpdir()/llm-gateway-*.log，不用硬编码路径
 - 渲染进程传模型名只用 model ID（如 gpt-4），不加 provider 前缀
-- 渲染进程：React 19 + react-router-dom v7 + recharts + framer-motion
+- 渲染进程：React 19 + react-router-dom v7 (HashRouter) + shadcn/ui (Radix) + TanStack Query + recharts + framer-motion + Lucide React + Sonner
+- shadcn/ui 组件在 `src/renderer/components/ui/`，通过 CLI 或手动引入，使用 `cn()` (clsx + tailwind-merge) 合并类名
+- TanStack Query hooks 在 `src/renderer/lib/queries/`，每个数据域一个文件，替代 useEffect+useState 模式
+- `dark` 类必须在 `<html>` 元素上（`main.tsx` 中 `document.documentElement.classList.add('dark')`），Radix Portal 组件脱离 DOM 树需要全局作用域
+- Tailwind CSS v4 使用 CSS-first 配置（`@theme inline` 指令），不创建 tailwind.config.ts
+- 浏览器中 `window.electronAPI` 不存在，Chat 等 IPC 调用需 `api?.chat` null guard
+- macOS 26 Liquid Glass 色系：深空灰背景 `hsl(220,14%,9%)`，卡片 `hsl(220,12%,13%)`，冷蓝调边框 `hsl(220,10%,20%)`
 - recharts Tooltip formatter value 为 ValueType | undefined，需 Number(value ?? 0) 而非 .toLocaleString()
 
 ## Skill 使用铁律
