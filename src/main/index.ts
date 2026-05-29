@@ -63,6 +63,13 @@ function createWindow(): void {
       mainWindow?.show()
       mainWindow?.webContents.openDevTools()
     }
+
+    // 窗口加载完成后再延迟检查更新，避免阻塞启动
+    if (!isDev) {
+      setTimeout(() => {
+        updateManager.checkForUpdates()
+      }, 3000)
+    }
   })
 
   if (isDev && process.env['ELECTRON_RENDERER_URL']) {
@@ -145,17 +152,15 @@ let updateManager: UpdateManager
 
 app.whenReady().then(async () => {
   await startServer()
-  createWindow()
-  createTray()
 
-  // 初始化更新管理器
+  // 初始化更新管理器（在 createWindow 之前，确保 did-finish-load 回调可访问）
   updateManager = new UpdateManager()
   setupIpcHandlers(updateManager)
 
-  // 延迟检查更新（等待窗口加载完成）
-  setTimeout(() => {
-    updateManager.checkForUpdates()
-  }, 5000)
+  createWindow()
+  createTray()
+
+  // 更新检查已移至 did-finish-load 回调中，由事件驱动而非固定延迟
 })
 
 app.on('window-all-closed', () => {
