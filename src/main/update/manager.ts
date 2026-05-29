@@ -20,6 +20,11 @@ export class UpdateManager {
     autoUpdater.logger = null
     autoUpdater.autoDownload = false
 
+    // 开发模式下允许检查更新
+    if (!app.isPackaged) {
+      autoUpdater.forceDevUpdateConfig = true
+    }
+
     const config = this.configManager.getConfig()
     autoUpdater.allowPrerelease = config.allowPrerelease
 
@@ -67,24 +72,37 @@ export class UpdateManager {
 
   async checkForUpdates(): Promise<UpdateCheckResult> {
     try {
+      console.log('[UpdateManager] Checking for updates...')
+      console.log('[UpdateManager] Current version:', this.getCurrentVersion())
+      console.log('[UpdateManager] isPackaged:', app.isPackaged)
+      console.log('[UpdateManager] forceDevUpdateConfig:', autoUpdater.forceDevUpdateConfig)
+
       const result = await autoUpdater.checkForUpdates()
+      console.log('[UpdateManager] checkForUpdates result:', result)
+
       if (!result) {
+        console.log('[UpdateManager] No result from checkForUpdates')
         return { available: false }
       }
 
       const currentVersion = this.getCurrentVersion()
       const newVersion = result.updateInfo.version
+      console.log('[UpdateManager] Current:', currentVersion, 'New:', newVersion)
 
       if (this.configManager.shouldSkipVersion(newVersion)) {
+        console.log('[UpdateManager] Version skipped:', newVersion)
         return { available: false, version: newVersion }
       }
 
       if (newVersion === currentVersion) {
+        console.log('[UpdateManager] Same version, no update')
         return { available: false, version: newVersion }
       }
 
+      console.log('[UpdateManager] Update available:', newVersion)
       return { available: true, version: newVersion }
     } catch (error) {
+      console.error('[UpdateManager] Error checking for updates:', error)
       return {
         available: false,
         error: error instanceof Error ? error.message : 'Unknown error'
