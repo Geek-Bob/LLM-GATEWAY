@@ -57,7 +57,7 @@ describe('Schema - createTables', () => {
     expect(columnNames).toContain('name')
     expect(columnNames).toContain('provider_type')
     expect(columnNames).toContain('base_url')
-    expect(columnNames).toContain('api_key_encrypted')
+    expect(columnNames).toContain('api_key')
     expect(columnNames).toContain('models')
     expect(columnNames).toContain('is_active')
     expect(columnNames).toContain('created_at')
@@ -112,13 +112,13 @@ describe('Schema - createTables', () => {
 
     getDb()!
       .prepare(
-        "INSERT INTO providers (name, provider_type, base_url, api_key_encrypted) VALUES ('test', 'openai', 'https://test.com', 'key')"
+        "INSERT INTO providers (name, provider_type, base_url, api_key) VALUES ('test', 'openai', 'https://test.com', 'key')"
       )
       .run()
     expect(() => {
       getDb()!
         .prepare(
-          "INSERT INTO providers (name, provider_type, base_url, api_key_encrypted) VALUES ('test', 'openai', 'https://test.com', 'key')"
+          "INSERT INTO providers (name, provider_type, base_url, api_key) VALUES ('test', 'openai', 'https://test.com', 'key')"
         )
         .run()
     }).toThrow()

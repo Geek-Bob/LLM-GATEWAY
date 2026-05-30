@@ -117,11 +117,11 @@ describe('API Keys CRUD', () => {
       expect(plaintext).toBe(result.plaintextKey)
     })
 
-    it('should return null for key with empty key_encrypted', () => {
-      // Insert a key with empty key_encrypted to simulate legacy data
+    it('should return null for key with empty key', () => {
+      // Insert a key with empty key to simulate legacy data
       const emptyKeyHash = crypto.createHash('sha256').update('sk-empty-key-test').digest('hex')
       getDb().prepare(`
-        INSERT INTO api_keys (name, key_prefix, key_hash, key_encrypted, rate_limit)
+        INSERT INTO api_keys (name, key_prefix, key_hash, key, rate_limit)
         VALUES (@name, @prefix, @hash, @encrypted, @rate)
       `).run({ name: 'Empty Key', prefix: 'sk-empty', hash: emptyKeyHash, encrypted: '', rate: 60 })
 
