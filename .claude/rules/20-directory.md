@@ -6,10 +6,10 @@ paths:
 # 目录边界
 - 完整目录结构见 `docs/superpowers/specs/2026-05-30-architecture-refactoring-design.md` 第 5 节
 - 导入方向（单向依赖）：
-  domain.router → domain.service → core/ + proxy/
-  feature/hooks/ → shared/lib/api-client.ts → HTTP
-  feature/queries/ → shared/lib/api-client.ts → HTTP
-  feature/components/ → 纯 UI，只接收 props + 回调
+  domain/{name}.router.ts → domain/{name}.service.ts → core/ + proxy/
+  features/{name}/hooks/ → shared/lib/api-client.ts → HTTP
+  features/{name}/queries/ → shared/lib/api-client.ts → HTTP
+  features/{name}/components/ → 纯 UI，只接收 props + 回调
 
 # 禁止
 - `renderer/` 导入 `main/` 任何文件（编译隔离）
