@@ -9,7 +9,7 @@ export function createTables(): void {
       name TEXT NOT NULL UNIQUE,
       provider_type TEXT NOT NULL CHECK(provider_type IN ('anthropic', 'openai')),
       base_url TEXT NOT NULL,
-      api_key_encrypted TEXT NOT NULL,
+      api_key TEXT NOT NULL,
       models TEXT NOT NULL DEFAULT '[]',
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -21,7 +21,7 @@ export function createTables(): void {
       name TEXT NOT NULL,
       key_prefix TEXT NOT NULL,
       key_hash TEXT NOT NULL UNIQUE,
-      key_encrypted TEXT NOT NULL DEFAULT '',
+      key TEXT NOT NULL DEFAULT '',
       is_active INTEGER NOT NULL DEFAULT 1,
       rate_limit INTEGER NOT NULL DEFAULT 60,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -72,9 +72,9 @@ export function createTables(): void {
     );
   `)
 
-  // Migration: add key_encrypted to existing databases
+  // Migration: add key to existing databases
   try {
-    db.exec(`ALTER TABLE api_keys ADD COLUMN key_encrypted TEXT NOT NULL DEFAULT ''`)
+    db.exec(`ALTER TABLE api_keys ADD COLUMN key TEXT NOT NULL DEFAULT ''`)
   } catch {
     // Column already exists — ignore
   }
