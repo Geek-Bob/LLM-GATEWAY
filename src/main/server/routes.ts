@@ -1,8 +1,10 @@
 import type { Hono } from 'hono'
+import { getDb } from '../db/connection'
+import { createProviderService } from '../domains/provider/provider.service'
+import { createProviderRouter } from '../domains/provider/provider.router'
 
-export function registerRoutes(_app: Hono): void {
-  // 各 domain router 将在后续 Phase 注册
-  // app.route('/v1/admin/providers', createProviderRouter(service))
-  // app.route('/v1/admin/api-keys', createApiKeyRouter(service))
-  // ...
+export function registerRoutes(app: Hono): void {
+  const db = getDb()
+  const providerService = createProviderService(db)
+  app.route('/v1/admin/providers', createProviderRouter(providerService))
 }
