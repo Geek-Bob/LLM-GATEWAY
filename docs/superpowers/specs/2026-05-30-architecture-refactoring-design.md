@@ -1,6 +1,6 @@
 # LLM Gateway 架构重构设计
 
-> 状态：已确认 | 版本：2.0 | 日期：2026-05-30
+> 状态：已确认 | 版本：2.1 | 日期：2026-05-30
 
 ## 1. 动机
 
@@ -88,63 +88,349 @@
 
 ## 4. 规则体系
 
-### 4.1 文件清单
+### 4.1 设计原则：宪法 + 部门细则
+
+遵循 Claude Code 官方推荐的分层模型：
+
+```
+CLAUDE.md          → 全局宪法（~30 行），每次会话加载
+.claude/rules/     → 部门细则，按 paths 条件加载
+```
+
+**分工逻辑：**
+
+| 层 | 加载时机 | 适合放什么 |
+|----|---------|-----------|
+| CLAUDE.md | 每次会话 | 项目定位、构建命令、全局铁律（3-5 条）、指向 rules |
+| rules（无 paths） | 每次会话 | 全局适用但不想塞进主文件的主题（版本红线） |
+| rules（有 paths） | 读到匹配文件时 | 目录级/技术栈级专项规范 |
+
+**CLAUDE.md 重构后内容（~30 行）：**
+
+```markdown
+# LLM Gateway
+Electron 42 桌面客户端 — 多 LLM 供应商统一代理 + 聊天 + 仪表盘
+
+## Build & Test
+- `npm run dev` — electron-vite dev | `npm run build` — 全量构建
+- `npm test` — vitest run | `npm run lint` — eslint src/
+
+## 全局铁律
+- 新功能 SDD（spec）→ TDD（Red → Green → Refactor），无例外
+- 数据请求走 TanStack Query，禁止组件内裸 fetch
+- 中文输出，技术术语保留英文
+
+## 规则模块（按需加载）
+- `.claude/rules/00-core.mdc` — 全局禁止项+必须项
+- `.claude/rules/10-tech-stack.mdc` — 版本红线和禁止 API
+- `.claude/rules/20-directory.mdc` — 目录边界和导入规则
+- `.claude/rules/30-main.mdc` — 主进程 domain 模式（模板）
+- `.claude/rules/31-renderer.mdc` — 渲染进程 feature 模式（模板）
+- `.claude/rules/40-api.mdc` — Hono API 设计规范
+- `.claude/rules/50-testing.mdc` — 测试约定
+- `.claude/rules/60-security.mdc` — 安全要求
+
+## 架构速览
+Renderer → HTTP (localhost:8080) → Hono → domain/* → proxy/* → Provider
+例外：apiKeys CRUD 走 IPC（bootstrap），shell/window/update 事件走 IPC
+```
+
+### 4.2 规则文件清单（含 paths 条件加载）
 
 ```
 .claude/rules/
-├── 00-core.mdc              # Always Apply — 全局铁律
-├── 10-tech-stack.mdc        # 精确版本 + 禁区
-├── 20-directory.mdc         # 目录边界 + 导入规则
-├── 30-main.mdc              # 主进程 domain pattern 模板
-├── 31-renderer.mdc          # 渲染进程 feature pattern 模板
-├── 40-api.mdc               # Hono API 设计规范
-├── 50-testing.mdc           # 测试规范（从现有精简）
-└── 60-security.mdc          # 安全要求（从现有精简）
+├── 00-core.mdc              # 无 paths → 始终加载
+├── 10-tech-stack.mdc        # 无 paths → 始终加载（版本红线全局适用）
+├── 20-directory.mdc         # paths: ["src/**"]
+├── 30-main.mdc              # paths: ["src/main/**"]
+├── 31-renderer.mdc          # paths: ["src/renderer/**"]
+├── 40-api.mdc               # paths: ["src/main/domains/**", "src/main/server/**"]
+├── 50-testing.mdc           # paths: ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"]
+└── 60-security.mdc          # paths: ["src/main/**"]
 ```
 
-### 4.2 核心规则内容
+### 4.3 各规则文件内容定义
 
-**00-core.mdc** — 全局铁律：
+**00-core.mdc** — 全局禁止项 + 必须项（无 paths，始终加载）：
 
-```
-禁止：
-- console.log（用 core/logger.ts）
+```markdown
+---
+description: 全局禁止项和必须项，覆盖所有目录和文件类型
+---
+
+# 禁止
+- console.log → 用 `core/logger.ts`
 - IPC handler 暴露业务 CRUD（仅 apikey CRUD 除外）
-- 组件内直接 fetch/IPC（封装在 hooks/）
-- 跨 feature 导入（features/chat → features/dashboard）
-- core/ 中引入业务逻辑
-- Tailwind 任意值
+- 组件内直接 fetch / IPC 调用 → 封装在 hooks/
+- 跨 feature 导入（`features/chat` → `features/dashboard`）
+- `core/` 中引入业务逻辑
+- Tailwind 任意值 `h-[13px]` / `w-[27px]` 等
 
-必须：
-- 数据请求走 TanStack Query（queries/）
-- 每个 domain 有且仅有一个 service.ts 作为业务入口
-- 新功能遵循 TDD: Red → Green → Refactor
-- Hono 路由只做参数提取 + 调用 service + 返回 Response
+# 必须
+- 数据请求走 TanStack Query（`queries/`），不得绕过
+- 每个 domain 有且仅有一个 `service.ts` 作为业务入口
+- 新功能遵循 TDD：Red → Green → Refactor
+- Hono 路由：参数提取 → 调 service → 返回 Response（不超过 50 行）
+- `shared/lib/api-client.ts` 统一封装所有 HTTP 请求
 ```
 
-**10-tech-stack.mdc** — 精确版本红线：
+**10-tech-stack.mdc** — 版本红线 + 禁止 API（无 paths，始终加载）：
 
-| 技术 | 版本 | 禁止 |
-|------|------|------|
-| TypeScript | 6.0 | enum, namespace, decorators |
-| React | 19.2 | defaultProps, forwardRef, class component |
-| Tailwind | 4.3 | tailwind.config.ts, @layer components |
-| Vite | 6.4 | 额外 vite.config.ts |
-| ESLint | 10.x | .eslintrc |
-| Hono | 4.x | 在 server.ts 中写路由逻辑 |
-| React Router | 7.x | BrowserRouter |
-| TanStack Query | 5.x | 字符串 queryKey |
+```markdown
+---
+description: 精确技术和版本约束，全局适用
+---
 
-**20-directory.mdc** — 目录边界：
-- 完整目录结构见第 5 节
-- 导入规则：domain.router → domain.service → core/ + proxy/
+| 技术 | 锁定版本 | 禁止使用 |
+|------|---------|---------|
+| TypeScript | 6.0 | `enum`, `namespace`, 装饰器 |
+| React | 19.2 | `defaultProps`, `forwardRef`, class 组件 |
+| Tailwind | 4.3 | `tailwind.config.ts`, `@layer components` |
+| Vite | 6.4 | 额外的 vite.config.ts |
+| ESLint | 10.x | `.eslintrc` 格式 |
+| Hono | 4.x | 在 `server.ts` 中写路由逻辑 |
+| React Router | 7.x | `BrowserRouter`（Electron 用 HashRouter） |
+| TanStack Query | 5.x | 字符串 queryKey（用数组 `['key', id]`） |
+| Shiki | 最新 | 高亮超过 5 种语言（ts/js/python/json/bash） |
+```
 
-### 4.3 编写原则（基于实际教训）
+**20-directory.mdc** — 目录边界 + 导入规则：
 
-1. **"禁止"优先** — 每个文件以禁止项开头
-2. **模板优于原则** — 30-main.mdc 和 31-renderer.mdc 各含完整模板
-3. **瘦文件** — 每个 .mdc ≤ 50 行
-4. **基于反例** — 规则来源于本次重构发现的屎山（两层 SSE、死加密、大文件）
+```markdown
+---
+paths:
+  - "src/**"
+---
+
+# 目录边界
+- 完整目录结构见 spec 第 5 节
+- 导入方向（单向依赖）：
+  domain.router → domain.service → core/ + proxy/
+  feature/hooks/ → shared/lib/api-client.ts → HTTP
+  feature/queries/ → shared/lib/api-client.ts → HTTP
+  feature/components/ → 纯 UI，只接收 props + 回调
+
+# 禁止
+- `renderer/` 导入 `main/` 任何文件（编译隔离）
+- `core/` 导入 `domains/` 任何文件（下层不能依赖上层）
+- `proxy/` 导入 `domains/` 任何文件（工具层不含业务）
+- `shared/` 导入 `features/` 或 `domains/`（共享层不依赖业务）
+```
+
+**30-main.mdc** — 主进程 domain 模板：
+
+```markdown
+---
+paths:
+  - "src/main/**"
+---
+
+# Domain Pattern（每个 domain 必须遵循）
+
+## 文件结构
+domain/{name}/
+├── {name}.service.ts   # 业务逻辑，唯一入口
+├── {name}.router.ts    # Hono 路由（≤50 行）
+├── {name}.schema.ts    # Zod 校验（可选）
+└── {name}.types.ts     # 类型定义（可选）
+
+## service.ts 模板
+```typescript
+import { getDatabase } from '../../core/database'
+
+export function create{Name}Service(db: ReturnType<typeof getDatabase>) {
+  return {
+    list: async () => { ... },
+    getById: async (id: number) => { ... },
+    create: async (data: CreateInput) => { ... },
+    update: async (id: number, data: UpdateInput) => { ... },
+    remove: async (id: number) => { ... },
+  }
+}
+
+export type {Name}Service = ReturnType<typeof create{Name}Service>
+```
+
+## router.ts 模板
+```typescript
+import { Hono } from 'hono'
+import type { {Name}Service } from './{name}.service'
+
+export function create{Name}Router(service: {Name}Service) {
+  const router = new Hono()
+
+  router.get('/', async (c) => {
+    const items = await service.list()
+    return c.json(items)
+  })
+
+  router.post('/', async (c) => {
+    const body = await c.req.json()
+    const item = await service.create(body)
+    return c.json(item, 201)
+  })
+
+  return router
+}
+```
+
+# 禁止
+- router 中直接操作数据库（必须走 service）
+- service 中直接操作 Request/Response（纯数据层）
+- 在 `server/` 中写任何业务路由逻辑
+```
+
+**31-renderer.mdc** — 渲染进程 feature 模板：
+
+```markdown
+---
+paths:
+  - "src/renderer/**"
+---
+
+# Feature Pattern（每个 feature 必须遵循）
+
+## 文件结构
+features/{name}/
+├── components/   # 纯 UI 组件（props + 回调，无数据请求）
+├── hooks/        # fetch/IPC 封装，返回 { data, error, isLoading }
+├── queries/      # TanStack Query hooks（useQuery/useMutation）
+└── index.ts      # 公共导出（可选）
+
+## hooks/ 模板
+```typescript
+import { useState, useEffect } from 'react'
+import { apiFetch } from '@/shared/lib/api-client'
+
+export function use{Name}() {
+  const [data, setData] = useState<Item[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+
+  useEffect(() => {
+    setIsLoading(true)
+    apiFetch('/v1/admin/{name}')
+      .then(res => res.json())
+      .then(setData)
+      .catch(setError)
+      .finally(() => setIsLoading(false))
+  }, [])
+
+  return { data, isLoading, error }
+}
+```
+
+## queries/ 模板
+```typescript
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { apiFetch } from '@/shared/lib/api-client'
+
+export function use{Name}s() {
+  return useQuery({
+    queryKey: ['{name}s'],
+    queryFn: () => apiFetch('/v1/admin/{name}s').then(r => r.json()),
+  })
+}
+```
+
+# 禁止
+- 组件中直接调用 `fetch()` 或 `window.electronAPI`
+- hooks/ 返回 JSX（纯数据层）
+- components/ 中使用 useQuery（走 queries/）
+- 跨 feature 导入组件或 hooks
+```
+
+**40-api.mdc** — Hono API 设计规范：
+
+```markdown
+---
+paths:
+  - "src/main/domains/**"
+  - "src/main/server/**"
+---
+
+# API 约定
+
+## URL 模式
+- 管理类：`/v1/admin/{resource}` + `/:id`
+- 功能类：`/v1/{action}`（如 `/v1/chat/completions`）
+- 代理类：`/v1/proxy/{provider}/{model}/*`
+
+## 响应格式
+- 成功：直接返回 JSON 对象或数组（不包裹外层 envelope）
+- 列表：返回数组 `[{...}, {...}]`
+- 错误：`{ error: string, code?: string }` + 对应 HTTP 状态码
+- 创建：返回创建后的对象 + 201 状态码
+
+## 中间件
+- `auth.ts`：提取 Authorization Bearer token → 校验 gateway API key
+- `rate-limit.ts`：每个 API key 每分钟最多 60 次请求
+- 中间件失败返回 `{ error: "..." }` + 401/429 状态码
+
+## 禁止
+- 路由文件超过 50 行
+- 在路由中直接操作数据库
+- 使用 Hono 之外的 HTTP 框架
+```
+
+**50-testing.mdc** — 测试约定：
+
+```markdown
+---
+paths:
+  - "**/*.test.*"
+  - "**/*.spec.*"
+  - "**/__tests__/**"
+---
+
+# 测试框架
+- vitest + jsdom（渲染进程组件测试）
+- 测试文件与源文件 co-located：`src/**/__tests__/xxx.test.ts`
+- 禁止 mock 数据库（集成测试用真实 sql.js 内存库）
+
+# 编写原则
+- 每个 service.ts 必须有对应的 service.test.ts
+- 每个 router.ts 必须有对应的 router.test.ts（用 Hono test client）
+- 组件测试：测试交互行为，不测试实现细节
+- TDD 流程：Red（写失败测试）→ Green（最小实现）→ Refactor（优化）
+
+# 禁止
+- 测试中使用真实网络请求（用 MSW 或 fetch mock）
+- 测试文件导入未测试的 feature 模块
+```
+
+**60-security.mdc** — 安全要求：
+
+```markdown
+---
+paths:
+  - "src/main/**"
+---
+
+# 安全边界
+- 本应用为本地桌面客户端，所有通信在 localhost 内进行
+- API Key 明文存储（本地文件系统，无网络暴露风险）
+- 无加密/解密逻辑（已删除 crypto.ts，不回退）
+
+# 代理安全
+- 上游 Provider API Key 通过 Authorization/X-Api-Key 头透传
+- 代理只监听 localhost（127.0.0.1），不对外暴露端口
+- 不做 HTTPS 证书校验（本地回环可信）
+
+# 禁止
+- 重新引入任何加密/解密函数
+- 将 API Key 写入日志或 NDJSON
+- 代理监听 0.0.0.0（除非用户明确配置局域网共享）
+```
+
+### 4.4 编写原则（基于实际教训）
+
+1. **"禁止"优先** — 每个 rules 文件以禁止项开头，禁止项比必须项更重要
+2. **模板优于原则** — 30-main.mdc 和 31-renderer.mdc 各含可复制的完整模板，减少 AI 猜测空间
+3. **瘦文件** — 每个 .mdc ≤ 50 行（不含模板），CLAUDE.md ≤ 30 行
+4. **paths 条件加载** — 除 00-core 和 10-tech-stack 外，所有 rules 必须声明 paths，避免无关上下文污染
+5. **基于反例** — 规则来源于本次重构发现的屎山实例（两层 SSE → 40-api 路由行数限制、死加密 → 60-security 禁止加密）
+6. **CLAUDE.md 只做索引** — 不重复 rules 内容，只列文件名和一行描述，指向 rules 目录
 
 ## 5. 目标目录结构
 
