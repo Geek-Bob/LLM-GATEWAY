@@ -8,6 +8,8 @@ import { createConversationService } from '../domains/conversation/conversation.
 import { createConversationRouter } from '../domains/conversation/conversation.router'
 import { createLogsService } from '../domains/logs/logs.service'
 import { createLogsRouter } from '../domains/logs/logs.router'
+import { createStatsService } from '../domains/stats/stats.service'
+import { createStatsRouter } from '../domains/stats/stats.router'
 
 export function registerRoutes(app: Hono): void {
   const db = getDb()
@@ -22,4 +24,7 @@ export function registerRoutes(app: Hono): void {
 
   const logsService = createLogsService(db)
   app.route('/v1/admin/logs', createLogsRouter(logsService))
+
+  const statsService = createStatsService(db)
+  app.route('/v1/admin/stats', createStatsRouter(statsService))
 }
