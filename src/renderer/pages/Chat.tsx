@@ -5,6 +5,9 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { MessageSquare, Square } from 'lucide-react'
 import { api } from '../lib/ipc'
+import { setApiKey } from '../shared/lib/api-client'
+import { useChatStream } from '../features/chat/hooks/useChatStream'
+import type { StreamMessage } from '../features/chat/hooks/useChatStream'
 
 import { useProviders } from '../lib/queries/providers'
 import { useApiKeys } from '../lib/queries/apiKeys'
@@ -21,10 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../components/ui/select'
-
-const debugLog = (...args: unknown[]) => {
-  try { api.debug?.log(...args) } catch { /* ignore */ }
-}
 
 interface Message {
   id: string
@@ -46,15 +45,10 @@ export function ChatPage() {
   const [selectedProviderId, setSelectedProviderId] = useState<number | null>(null)
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [selectedApiKeyId, setSelectedApiKeyId] = useState<number | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
-  const currentConvIdRef = useRef<number | null>(null)
-  const accumulatedContent = useRef('')
-  const accumulatedThinking = useRef('')
-  const [isLoading, setIsLoading] = useState(false)
   const [inputKey, setInputKey] = useState(0)
-  const currentRequestId = useRef<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const selectedProvider = providers.find((p) => p.id === selectedProviderId)
@@ -69,8 +63,61 @@ export function ChatPage() {
     queryClient.invalidateQueries({ queryKey: ['conversations'] })
   }
 
+  const ensureApiKey = async () => {
+    if (!selectedApiKeyId) return
+    const keyPlaintext = await api.apiKeys.list().then(
+      (keys: Array<{ id: number; key_plaintext: string }>) =>
+        keys.find((k: { id: number }) => k.id === selectedApiKeyId)?.key_plaintext || ''
+    ).catch(() => '')
+    setApiKey(keyPlaintext)
+  }
+
+  const handleStreamUpdate = (msg: StreamMessage) => {
+    setMessages((prev) => {
+      const last = prev[prev.length - 1]
+      if (last?.role !== 'assistant') {
+        return [...prev, {
+          id: msg.id,
+          role: 'assistant' as const,
+          content: msg.content,
+          thinking: msg.thinking,
+          isThinking: msg.isThinking,
+          model: selectedModel || undefined,
+          isStreaming: msg.isStreaming,
+          error: msg.error,
+        }]
+      }
+      return prev.with(-1, {
+        ...last,
+        content: msg.content,
+        thinking: msg.thinking,
+        isThinking: msg.isThinking,
+        isStreaming: msg.isStreaming,
+        error: msg.error,
+      })
+    })
+
+    // Save assistant message to conversation when stream completes
+    if (!msg.isStreaming && !msg.error && activeConversationId && msg.content) {
+      api.conversations.addMessage(activeConversationId, 'assistant', msg.content, msg.thinking || '')
+        .then(() => {
+          api.conversations.get(activeConversationId).then(conv => {
+            if (conv && conv.title === '新对话') {
+              api.conversations.update(activeConversationId, { title: msg.content.slice(0, 30) || '新对话' })
+            }
+          })
+          invalidateConversations()
+        })
+        .catch(() => {})
+    }
+  }
+
+  const { send, abort, isLoading: streamLoading } = useChatStream(handleStreamUpdate)
+
   const handleSend = async (content: string) => {
     if (!selectedModel || !selectedApiKeyId || !selectedProvider) return
+
+    await ensureApiKey()
 
     let convId = activeConversationId
     if (!convId) {
@@ -84,128 +131,28 @@ export function ChatPage() {
       invalidateConversations()
     }
 
-    // Save user message
-    await api.conversations.addMessage(convId, 'user', content)
-
-    // Sync conversation's model/provider/key selections (user may have changed them)
+    // Sync conversation's model/provider/key selections
     await api.conversations.update(convId, {
       model: selectedModel,
       providerId: selectedProviderId,
       apiKeyId: selectedApiKeyId,
     })
 
-    // Reset accumulated refs in case previous stream was aborted mid-stream
-    accumulatedContent.current = ''
-    accumulatedThinking.current = ''
-    currentConvIdRef.current = convId
-
-    const requestId = uuidv4()
-    currentRequestId.current = requestId
+    // Save user message
+    await api.conversations.addMessage(convId, 'user', content)
 
     const userMessage: Message = { id: uuidv4(), role: 'user', content }
-    const assistantMessage: Message = { id: uuidv4(), role: 'assistant', content: '', thinking: '', isThinking: true, model: selectedModel, isStreaming: true }
+    setMessages((prev) => [...prev, userMessage])
 
-    setMessages((prev) => [...prev, userMessage, assistantMessage])
-    setIsLoading(true)
-
-    api.chat.send({
-      requestId,
-      apiKeyId: selectedApiKeyId,
-      model: `${selectedProvider.name}/${selectedModel}`,
-      messages: [...messages.map(m => ({ role: m.role, content: m.content })), { role: 'user', content }],
-      apiFormat: selectedProvider.providerType,
-    })
+    const modelFull = `${selectedProvider.name}/${selectedModel}`
+    send(modelFull, selectedProvider.providerType, [
+      ...messages.map(m => ({ role: m.role, content: m.content })),
+      { role: 'user' as const, content }
+    ])
   }
 
-  const chunkCountRef = useRef(0)
-  useEffect(() => {
-    if (!api?.chat) return
-    debugLog('[ChatPage] registering onChunk listener')
-    const cleanup = api.chat.onChunk((data) => {
-      debugLog('[ChatPage] onChunk received', { requestId: data.requestId?.slice(0, 8), currentId: currentRequestId.current?.slice(0, 8), textLen: data.text.length, done: data.done, error: !!data.error })
-
-      if (data.requestId !== currentRequestId.current) {
-        debugLog('[ChatPage] onChunk SKIPPED - requestId mismatch')
-        return
-      }
-
-      // Update accumulated refs OUTSIDE setMessages to avoid StrictMode double-invocation
-      if (data.chunkType === 'thinking') {
-        accumulatedThinking.current += data.text
-      } else if (!data.done && !data.error) {
-        accumulatedContent.current += data.text
-      }
-
-      // Side effects outside state updater (StrictMode-safe)
-      if (data.error || data.done) {
-        setIsLoading(false)
-        currentRequestId.current = null
-      }
-
-      // Save assistant message + update title outside setMessages (StrictMode-safe)
-      if (data.done) {
-        const convId = currentConvIdRef.current
-        if (convId && (accumulatedContent.current || accumulatedThinking.current)) {
-          api.conversations.addMessage(convId, 'assistant', accumulatedContent.current, accumulatedThinking.current || '')
-            .then(() => {
-              // Update title if still default
-              api.conversations.get(convId).then(conv => {
-                if (conv && conv.title === '新对话') {
-                  api.conversations.update(convId, { title: accumulatedContent.current.slice(0, 30) || '新对话' })
-                }
-              })
-              invalidateConversations()
-            })
-            .catch(() => {})
-        }
-        accumulatedContent.current = ''
-        accumulatedThinking.current = ''
-        currentConvIdRef.current = null
-      }
-
-      setMessages((prev) => {
-        const last = prev[prev.length - 1]
-        if (last?.role !== 'assistant') {
-          debugLog('[ChatPage] onChunk SKIPPED - last is not assistant', { lastRole: last?.role, totalItems: prev.length })
-          return prev
-        }
-
-        if (data.error) {
-          debugLog('[ChatPage] onChunk ERROR', { error: data.error })
-          return prev.with(-1, { ...last, content: data.error, isStreaming: false, isThinking: false, error: true })
-        } else if (data.done) {
-          debugLog('[ChatPage] onChunk DONE', { totalChars: (last.content || '').length + (last.thinking || '').length })
-          return prev.with(-1, { ...last, isStreaming: false, isThinking: false })
-        } else if (data.chunkType === 'thinking') {
-          chunkCountRef.current++
-          return prev.with(-1, { ...last, thinking: (last.thinking || '') + data.text })
-        } else {
-          // text chunk — first text chunk auto-collapses thinking
-          chunkCountRef.current++
-          return prev.with(-1, { ...last, isThinking: false, content: last.content + data.text })
-        }
-      })
-    })
-
-    return () => {
-      debugLog('[ChatPage] cleanup onChunk listener')
-      cleanup()
-    }
-  }, [])
-
   const handleStop = () => {
-    if (currentRequestId.current) {
-      api.chat.abort(currentRequestId.current)
-      currentRequestId.current = null
-      setIsLoading(false)
-      setMessages((prev) => {
-        const last = prev[prev.length - 1]
-        if (last?.role === 'assistant' && last.isStreaming) {
-          return prev.with(-1, { ...last, isStreaming: false })
-        }
-        return prev
-      })
-    }
+    abort()
   }
 
   const handleRegenerate = async () => {
@@ -214,26 +161,11 @@ export function ChatPage() {
     const last = messages[messages.length - 1]
     if (last?.role !== 'assistant') return
 
+    await ensureApiKey()
+
     const apiMessages = messages.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
-
-    accumulatedContent.current = ''
-    accumulatedThinking.current = ''
-    currentConvIdRef.current = activeConversationId
-
-    const requestId = uuidv4()
-    currentRequestId.current = requestId
-
-    const newAssistant: Message = { id: uuidv4(), role: 'assistant', content: '', thinking: '', isThinking: true, model: selectedModel, isStreaming: true }
-    setMessages((prev) => [...prev.slice(0, -1), newAssistant])
-    setIsLoading(true)
-
-    api.chat.send({
-      requestId,
-      apiKeyId: selectedApiKeyId,
-      model: `${selectedProvider.name}/${selectedModel}`,
-      messages: apiMessages,
-      apiFormat: selectedProvider.providerType,
-    })
+    send(`${selectedProvider.name}/${selectedModel}`, selectedProvider.providerType, apiMessages)
+    setMessages((prev) => prev.slice(0, -1))
   }
 
   const handleSelectConversation = async (id: number) => {
@@ -243,7 +175,7 @@ export function ChatPage() {
     const msgs = await api.conversations.messages(id)
     setMessages(msgs.map(m => ({
       id: uuidv4(),
-      role: m.role,
+      role: m.role as 'user' | 'assistant',
       content: m.content,
       thinking: m.thinking || undefined,
       isThinking: false,
@@ -259,12 +191,7 @@ export function ChatPage() {
   }
 
   const handleNewConversation = async () => {
-    // 立即清空 UI，不等 API 返回
-    if (currentRequestId.current) {
-      api.chat.abort(currentRequestId.current)
-      currentRequestId.current = null
-    }
-    setIsLoading(false)
+    abort()
     setMessages([])
     setActiveConversationId(null)
     setInputKey(k => k + 1)
@@ -288,11 +215,9 @@ export function ChatPage() {
     const conv = conversations.find(c => c.id === id)
     if (!confirm(`确定删除"${conv?.title || '此会话'}"？`)) return
     await api.conversations.delete(id)
-    // 如果删除的是当前活跃会话，清空消息和活跃状态
     if (activeConversationId === id) {
       setActiveConversationId(null)
       setMessages([])
-      setIsLoading(false)
     }
     invalidateConversations()
     setInputKey(k => k + 1)
@@ -402,9 +327,9 @@ export function ChatPage() {
         {/* Input */}
         <Card className="p-3 flex items-center gap-2 bg-background/50">
           <div className="flex-1">
-            <ChatInput key={inputKey} onSend={handleSend} disabled={isLoading || !selectedModel || !selectedApiKeyId} />
+            <ChatInput key={inputKey} onSend={handleSend} disabled={streamLoading || !selectedModel || !selectedApiKeyId} />
           </div>
-          {isLoading && (
+          {streamLoading && (
             <Button
               onClick={handleStop}
               variant="destructive"

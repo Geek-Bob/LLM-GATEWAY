@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { apiFetch, getApiKey } from '@/shared/lib/api-client'
 
-interface StreamMessage {
+export interface StreamMessage {
   id: string
   role: 'assistant'
   content: string
@@ -14,7 +14,6 @@ interface StreamMessage {
 interface UseChatStreamReturn {
   send: (model: string, providerType: 'anthropic' | 'openai', messages: { role: string; content: string }[]) => Promise<void>
   abort: () => void
-  message: StreamMessage | null
   isLoading: boolean
   error: string | null
 }
@@ -158,5 +157,5 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
     }
   }, [onUpdate])
 
-  return { send, abort, message: messageRef.current, isLoading, error }
+  return { send, abort, isLoading, error }
 }
