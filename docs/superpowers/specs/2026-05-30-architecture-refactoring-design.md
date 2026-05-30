@@ -11,7 +11,7 @@
 | SSE 解析写了两遍 | `ipc/index.ts:270-341` 和 `server.ts:411-523` 各有一套 SSE 状态机 | Chat 走 IPC→HTTP 绕路 |
 | `ipc/index.ts` 412 行 | 6 个业务域的所有 IPC handler 堆在一个文件 | 未按领域拆分 |
 | 加密系统是死代码 | `crypto.ts` 的 AES-256-GCM 从未被调用，`key_encrypted` 列存的是明文 | 安全 theater |
-| `highlight.js` + `rehype-highlight` 零引用 | package.json 声明但 src/ 全项目无 import | 遗留依赖 |
+| Markdown 渲染栈：代码块无语法高亮 | `highlight.js` + `rehype-highlight` 在 package.json 中声明但 src/ 零引用；`<code>` 实际只有 Tailwind prose 灰底样式，无 token 级着色 | 只装了依赖但从未集成 |
 
 **原则：** 不计成本重构，每条原则写入 rules 文件作为后续开发的合同。
 
@@ -310,8 +310,8 @@ provider.service.ts → core/database.ts → sql.js
 |------|------|
 | `src/main/utils/crypto.ts` | 加密函数从未被调用 |
 | `src/main/utils/__tests__/crypto.ts` | 相关测试 |
-| `package.json` 中的 `highlight.js` | src/ 零引用 |
-| `package.json` 中的 `rehype-highlight` | src/ 零引用 |
+| `package.json` 中的 `highlight.js` | 替换为 `shiki`（VS Code 品质高亮，dark-plus 主题） |
+| `package.json` 中的 `rehype-highlight` | highlight.js 的 rehype 桥接，一并替换 |
 
 ### 7.2 新建
 
@@ -352,7 +352,9 @@ provider.service.ts → core/database.ts → sql.js
 
 | 文件 | 原因 |
 |------|------|
-| `src/renderer/components/ui/*` (20 个) | shadcn 原语，无业务依赖 |
+| `src/renderer/components/ui/markdown.tsx` | 核心架构不变，仅 code 渲染器接入 Shiki |
+| `src/renderer/components/ui/mermaid.tsx` | Mermaid 渲染逻辑不变 |
+| `src/renderer/components/ui/*` (其余 18 个) | shadcn 原语，无业务依赖 |
 | `src/renderer/index.css` | Tailwind v4 配置已就绪 |
 | `src/renderer/main.tsx` | 入口逻辑不变（QueryClient + HashRouter + dark） |
 | `src/main/index.ts` (入口) | 窗口+托盘逻辑不变 |
@@ -361,6 +363,39 @@ provider.service.ts → core/database.ts → sql.js
 | `electron.vite.config.ts` | 构建配置不变 |
 | `eslint.config.mjs` | Lint 配置不变 |
 | `vitest.config.ts` | 测试配置不变 |
+
+### 7.5 Markdown 渲染栈决策
+
+**当前实际使用（4 个包）：**
+```
+react-markdown → Markdown → React 组件树
+remark-gfm     → GFM 表格/删除线/任务列表
+rehype-raw     → 支持 Markdown 中内嵌原始 HTML
+mermaid        → ```mermaid 代码块 → SVG 图表
+```
+
+**当前死依赖（即将移除）：**
+```
+highlight.js      → 70KB gzipped，0 import
+rehype-highlight  → 桥接层，0 import
+```
+
+**新增（替代 highlight.js）：**
+```
+shiki → VS Code token 级语法高亮引擎
+  - dark-plus 主题（与 macOS Liquid Glass 暗色完美匹配）
+  - 初始支持 5 语言：ts, js, python, json, bash（按需扩展）
+  - 高亮时机：isStreaming=false 时执行（与 Mermaid 模式一致）
+  - ~50KB gzipped（core + 5 lang + 1 theme，比 highlight.js 轻 30%）
+```
+
+**代码块渲染规则：**
+
+| 语言标记 | 流式中 | 完成后 |
+|---------|--------|--------|
+| ` ```mermaid ` | 显示灰色占位 "图表渲染中…" | `MermaidBlock` → SVG |
+| ` ```ts ` 等 | 纯文本 `<pre><code>` + prose 灰底 | Shiki `codeToHtml()` → 彩色 token |
+| 无语言标记 | 纯文本 `<pre><code>` + prose 灰底 | 纯文本 `<pre><code>` + prose 灰底 |
 
 ## 8. 风险与缓解
 
