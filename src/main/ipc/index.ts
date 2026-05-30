@@ -1,7 +1,5 @@
-import { randomUUID } from 'crypto'
-import * as fs from 'fs'
-import * as path from 'path'
 import { ipcMain, BrowserWindow } from 'electron'
+import { createLogger } from '../core/logger'
 import {
   listProviders,
   createProvider,
@@ -11,8 +9,7 @@ import {
 import {
   listApiKeys,
   createApiKey,
-  deleteApiKey,
-  getApiKeyPlaintext
+  deleteApiKey
 } from '../db/api-keys'
 import { queryLogs, getLogStats, getDetailedStats } from '../db/logs'
 import {
@@ -28,15 +25,7 @@ import { getProxyConfig, startProxy, stopProxy, restartProxy, setProxyPort, getD
 import { UpdateManager } from '../update/manager'
 import { setupUpdateIpcHandlers } from '../update/ipc'
 
-const DEBUG_LOG = path.join(process.cwd(), 'llm-gateway-chat-debug.log')
-
-function debugFileLog(...args: any[]): void {
-  try {
-    const ts = new Date().toISOString()
-    const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')
-    fs.appendFileSync(DEBUG_LOG, `[${ts}] ${msg}\n`)
-  } catch { /* ignore */ }
-}
+const logger = createLogger('ipc')
 
 export function setupIpcHandlers(updateManager: UpdateManager): void {
   // --- Provider handlers ---
@@ -203,163 +192,8 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
   })
 
   // --- Renderer debug log handler ---
-  ipcMain.on('renderer:log', (_event, args: any[]) => {
-    debugFileLog('[RENDERER]', ...args)
-  })
-
-  // --- Chat handlers ---
-  const chatAbortControllers = new Map<string, AbortController>()
-
-  ipcMain.on('chat:send', async (event, data: {
-    requestId: string
-    apiKeyId: number
-    model: string
-    messages: { role: string; content: string }[]
-    apiFormat: 'anthropic' | 'openai'
-  }) => {
-    const requestId = data.requestId || randomUUID()
-    const abortController = new AbortController()
-    chatAbortControllers.set(requestId, abortController)
-
-    debugFileLog('=== CHAT SEND START ===', { requestId, model: data.model, apiFormat: data.apiFormat, messages: data.messages })
-
-    try {
-      // Step 1: Get API key
-      const keyPlaintext = getApiKeyPlaintext(data.apiKeyId)
-      debugFileLog('STEP1: getApiKeyPlaintext', { apiKeyId: data.apiKeyId, found: !!keyPlaintext })
-      if (!keyPlaintext) throw new Error('API key not found or not available')
-
-      // Step 2: Build URL
-      const path = data.apiFormat === 'anthropic' ? '/v1/messages' : '/v1/chat/completions'
-      const url = `http://localhost:${getProxyConfig().port}${path}`
-      debugFileLog('STEP2: url', { url, model: data.model })
-
-      // Step 3: Fetch from proxy
-      debugFileLog('STEP3: calling fetch...')
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${keyPlaintext}`
-        },
-        body: JSON.stringify({
-          model: data.model,
-          messages: data.messages,
-          stream: true
-        }),
-        signal: abortController.signal,
-      })
-      debugFileLog('STEP3: fetch response', { status: response.status, ok: response.ok, contentType: response.headers.get('content-type') })
-
-      if (!response.ok) {
-        const errBody = await response.text().catch(() => '')
-        debugFileLog('STEP3: response NOT OK', { status: response.status, body: errBody })
-        throw new Error(`Proxy returned ${response.status}: ${errBody}`)
-      }
-
-      // Step 4: Read SSE body
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error('Response body is not readable')
-      debugFileLog('STEP4: got reader, starting stream read')
-
-      const decoder = new TextDecoder()
-      let buffer = ''
-      let totalBytes = 0
-      let extractedCount = 0
-      let sseLineCount = 0
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        totalBytes += value?.byteLength || 0
-        const decoded = decoder.decode(value, { stream: true })
-        buffer += decoded
-
-        // Log raw chunk
-        if (totalBytes < 50000) {
-          debugFileLog('STEP4: raw chunk', { byteLength: value?.byteLength, decodedLength: decoded.length, decodedPreview: decoded.slice(0, 200) })
-        }
-
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed || trimmed.startsWith(':')) continue
-          sseLineCount++
-
-          let text = ''
-          let chunkType: 'thinking' | 'text' | undefined
-          if (data.apiFormat === 'openai') {
-            if (trimmed.startsWith('data: ')) {
-              const jsonStr = trimmed.slice(6)
-              if (jsonStr === '[DONE]') continue
-              try {
-                const parsed = JSON.parse(jsonStr)
-                text = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.text || ''
-                if (text) debugFileLog('SSE:openai line extracted', { preview: text.slice(0, 50) })
-              } catch { /* skip malformed JSON */ }
-            }
-          } else {
-            const tryExtract = (obj: any): { text: string; chunkType: 'thinking' | 'text' } | null => {
-              if (obj?.type !== 'content_block_delta') return null
-              const d = obj.delta
-              if (!d) return null
-              if (d.type === 'text_delta' && d.text) return { text: d.text, chunkType: 'text' }
-              if (d.type === 'thinking_delta' && d.thinking) return { text: d.thinking, chunkType: 'thinking' }
-              return null
-            }
-
-            // Log every SSE line for anthropic format (first 100 lines)
-            if (sseLineCount <= 100) {
-              debugFileLog('SSE:anthropic line', { index: sseLineCount, raw: trimmed.slice(0, 200) })
-            }
-
-            if (trimmed.startsWith('data: ')) {
-              try {
-                const parsed = JSON.parse(trimmed.slice(6))
-                const result = tryExtract(parsed)
-                if (result) {
-                  debugFileLog('SSE:anthropic EXTRACTED', { len: result.text.length, type: result.chunkType, preview: result.text.slice(0, 50) })
-                  text = result.text
-                  chunkType = result.chunkType
-                }
-                // Log when content_block_delta is found but no text extracted
-                if (parsed?.type === 'content_block_delta') {
-                  debugFileLog('SSE:anthropic content_block_delta', { delta: parsed.delta })
-                }
-              } catch { /* skip */ }
-            }
-          }
-
-          if (text) {
-            extractedCount++
-            debugFileLog('STEP5: sending chunk via IPC', { requestId, textLen: text.length, chunkType, preview: text.slice(0, 40).replace(/\n/g, '\\n'), chunkIndex: extractedCount })
-            event.sender.send('chat:chunk', { requestId, text, chunkType, done: false })
-          }
-        }
-      }
-
-      debugFileLog('STEP6: stream complete', { requestId, totalBytes, bufferRemaining: buffer.length, sseLineCount, extractedCount })
-      event.sender.send('chat:chunk', { requestId, text: '', done: true })
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
-      if (err instanceof DOMException && (err as DOMException).name === 'AbortError') {
-        debugFileLog('STEP: request aborted', { requestId })
-        return
-      }
-      debugFileLog('STEP: ERROR', { requestId, error: message, stack: err instanceof Error ? err.stack : '' })
-      event.sender.send('chat:chunk', { requestId, text: '', done: true, error: message })
-    } finally {
-      chatAbortControllers.delete(requestId)
-    }
-  })
-
-  ipcMain.on('chat:abort', (_event, requestId: string) => {
-    const controller = chatAbortControllers.get(requestId)
-    controller?.abort()
-    chatAbortControllers.delete(requestId)
+  ipcMain.on('renderer:log', (_event, args: unknown[]) => {
+    logger.debug('renderer', { args })
   })
 
   // --- Conversation handlers ---
