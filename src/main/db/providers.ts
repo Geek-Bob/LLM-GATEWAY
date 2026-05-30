@@ -1,5 +1,4 @@
 import { getDb } from './connection'
-import { decrypt } from '../utils/crypto'
 
 export interface ProviderInput {
   name: string
@@ -35,22 +34,13 @@ const columnMap: Record<string, string> = {
   name: 'name',
   providerType: 'provider_type',
   baseUrl: 'base_url',
-  apiKey: 'api_key_encrypted',
+  apiKey: 'api_key',
   models: 'models',
   isActive: 'is_active',
   createdAt: 'created_at',
   updatedAt: 'updated_at'
 }
 
-const ENCRYPTION_SECRET = process.env.LLM_GATEWAY_SECRET || 'default-dev-secret'
-
-function tryDecrypt(text: string): string {
-  if (!text) return text
-  if (text.split(':').length === 3 && text.length > 40) {
-    try { return decrypt(text, ENCRYPTION_SECRET) } catch { /* not actually encrypted */ }
-  }
-  return text
-}
 
 function rowToProvider(row: { [key: string]: unknown }): Provider {
   return {
@@ -58,7 +48,7 @@ function rowToProvider(row: { [key: string]: unknown }): Provider {
     name: row.name as string,
     providerType: row.provider_type as string,
     baseUrl: row.base_url as string,
-    apiKey: tryDecrypt(row.api_key_encrypted as string),
+    apiKey: row.api_key as string,
     models: JSON.parse(row.models as string) as string[],
     isActive: row.is_active as number,
     createdAt: row.created_at as string,
@@ -69,14 +59,14 @@ function rowToProvider(row: { [key: string]: unknown }): Provider {
 export function createProvider(input: ProviderInput): number {
   const db = getDb()
   const stmt = db.prepare(`
-    INSERT INTO providers (name, provider_type, base_url, api_key_encrypted, models)
-    VALUES (@name, @providerType, @baseUrl, @apiKeyEncrypted, @models)
+    INSERT INTO providers (name, provider_type, base_url, api_key, models)
+    VALUES (@name, @providerType, @baseUrl, @apiKey, @models)
   `)
   const result = stmt.run({
     name: input.name,
     providerType: input.providerType,
     baseUrl: input.baseUrl,
-    apiKeyEncrypted: input.apiKey,
+    apiKey: input.apiKey,
     models: JSON.stringify(input.models)
   })
   return Number(result.lastInsertRowid)
