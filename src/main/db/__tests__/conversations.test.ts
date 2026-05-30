@@ -341,7 +341,7 @@ describe('getApiKeyById', () => {
     // Create a key using the raw module
     const keyHash = crypto.createHash('sha256').update('sk-test-key').digest('hex')
     getDb().prepare(`
-      INSERT INTO api_keys (name, key_prefix, key_hash, key_encrypted, rate_limit)
+      INSERT INTO api_keys (name, key_prefix, key_hash, key, rate_limit)
       VALUES (@name, @prefix, @hash, @encrypted, @rate)
     `).run({ name: 'Test Key Entry', prefix: 'sk-test-', hash: keyHash, encrypted: 'sk-test-key-plaintext', rate: 30 })
 
