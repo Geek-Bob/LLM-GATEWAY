@@ -10,6 +10,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.invoke('apikey:create', name, rateLimit),
     delete: (id: number) => ipcRenderer.invoke('apikey:delete', id)
   },
+  proxy: {
+    status: () => ipcRenderer.invoke('proxy:status'),
+    start: (port?: number) => ipcRenderer.invoke('proxy:start', port),
+    stop: () => ipcRenderer.invoke('proxy:stop'),
+    restart: (port?: number) => ipcRenderer.invoke('proxy:restart', port),
+    setPort: (port: number) => ipcRenderer.invoke('proxy:setPort', port),
+    getDebugMode: () => ipcRenderer.invoke('proxy:getDebugMode'),
+    setDebugMode: (enabled: boolean) => ipcRenderer.invoke('proxy:setDebugMode', enabled)
+  },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     maximize: () => ipcRenderer.send('window:maximize'),

@@ -75,21 +75,13 @@ export interface ProxyStatus {
 declare global {
   interface Window {
     electronAPI: {
-      providers: {
-        list: () => Promise<Provider[]>
-        create: (data: any) => Promise<number>
-        update: (id: number, data: any) => Promise<void>
-        delete: (id: number) => Promise<void>
+      debug: {
+        log: (...args: any[]) => void
       }
       apiKeys: {
         list: () => Promise<ApiKey[]>
         create: (name: string, rateLimit?: number) => Promise<{ plaintextKey: string; key: ApiKey }>
         delete: (id: number) => Promise<void>
-      }
-      logs: {
-        query: (params: any) => Promise<{ logs: LogEntry[]; total: number }>
-        stats: (range: string) => Promise<DashboardStats>
-        statsDetailed: (range: '24h' | '30d') => Promise<ProviderStatsGroup[]>
       }
       proxy: {
         status: () => Promise<ProxyStatus>
@@ -99,23 +91,6 @@ declare global {
         setPort: (port: number) => Promise<void>
         getDebugMode: () => Promise<boolean>
         setDebugMode: (enabled: boolean) => Promise<void>
-      }
-      debug: {
-        log: (...args: any[]) => void
-      }
-      chat: {
-        send: (data: { requestId: string; apiKeyId: number; model: string; messages: { role: string; content: string }[]; apiFormat: 'anthropic' | 'openai' }) => void
-        abort: (requestId: string) => void
-        onChunk: (callback: (data: { requestId: string; text: string; chunkType?: 'thinking' | 'text'; done: boolean; error?: string }) => void) => () => void
-      }
-      conversations: {
-        list: () => Promise<Conversation[]>
-        create: (data: { title: string; model: string; providerId?: number | null; apiKeyId?: number | null }) => Promise<number>
-        update: (id: number, data: { title?: string; providerId?: number | null; model?: string; apiKeyId?: number | null }) => Promise<void>
-        delete: (id: number) => Promise<void>
-        get: (id: number) => Promise<Conversation | null>
-        messages: (conversationId: number) => Promise<ConversationMessage[]>
-        addMessage: (conversationId: number, role: 'user' | 'assistant', content: string, thinking?: string) => Promise<number>
       }
       window: {
         minimize: () => void

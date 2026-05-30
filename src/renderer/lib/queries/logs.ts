@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../ipc'
+import { apiFetch } from '../../shared/lib/api-client'
 import type { LogEntry } from '../types'
 
 interface LogsResult {
@@ -10,6 +10,6 @@ interface LogsResult {
 export function useLogs(page: number, limit: number) {
   return useQuery<LogsResult>({
     queryKey: ['logs', page, limit],
-    queryFn: () => api.logs.query({ page, limit }),
+    queryFn: () => apiFetch(`/v1/admin/logs/query?page=${page}&limit=${limit}`).then(r => r.json()),
   })
 }

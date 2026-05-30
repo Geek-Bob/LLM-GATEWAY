@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { MessageSquare, Square } from 'lucide-react'
 import { api } from '../lib/ipc'
-import { setApiKey } from '../shared/lib/api-client'
+import { setApiKey, apiFetch } from '../shared/lib/api-client'
 import { useChatStream } from '../features/chat/hooks/useChatStream'
 import type { StreamMessage } from '../features/chat/hooks/useChatStream'
 
@@ -99,15 +99,20 @@ export function ChatPage() {
 
     // Save assistant message to conversation when stream completes
     if (!msg.isStreaming && !msg.error && activeConversationId && msg.content) {
-      api.conversations.addMessage(activeConversationId, 'assistant', msg.content, msg.thinking || '')
-        .then(() => {
-          api.conversations.get(activeConversationId).then(conv => {
-            if (conv && conv.title === '新对话') {
-              api.conversations.update(activeConversationId, { title: msg.content.slice(0, 30) || '新对话' })
-            }
-          })
-          invalidateConversations()
+      apiFetch(`/v1/admin/conversations/${activeConversationId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ role: 'assistant', content: msg.content, thinking: msg.thinking || '' })
+      }).then(r => r.json()).then(() => {
+        apiFetch(`/v1/admin/conversations/${activeConversationId}`).then(r => r.json()).then(conv => {
+          if (conv && conv.title === '新对话') {
+            apiFetch(`/v1/admin/conversations/${activeConversationId}`, {
+              method: 'PUT',
+              body: JSON.stringify({ title: msg.content.slice(0, 30) || '新对话' })
+            })
+          }
         })
+        invalidateConversations()
+      })
         .catch(() => {})
     }
   }
@@ -121,25 +126,35 @@ export function ChatPage() {
 
     let convId = activeConversationId
     if (!convId) {
-      convId = await api.conversations.create({
-        title: content.slice(0, 30) || '新对话',
-        model: selectedModel,
-        providerId: selectedProviderId,
-        apiKeyId: selectedApiKeyId,
-      })
+      const conv = await apiFetch('/v1/admin/conversations', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: content.slice(0, 30) || '新对话',
+          model: selectedModel,
+          providerId: selectedProviderId,
+          apiKeyId: selectedApiKeyId,
+        })
+      }).then(r => r.json())
+      convId = conv.id
       setActiveConversationId(convId)
       invalidateConversations()
     }
 
     // Sync conversation's model/provider/key selections
-    await api.conversations.update(convId, {
-      model: selectedModel,
-      providerId: selectedProviderId,
-      apiKeyId: selectedApiKeyId,
+    await apiFetch(`/v1/admin/conversations/${convId}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        model: selectedModel,
+        providerId: selectedProviderId,
+        apiKeyId: selectedApiKeyId,
+      })
     })
 
     // Save user message
-    await api.conversations.addMessage(convId, 'user', content)
+    await apiFetch(`/v1/admin/conversations/${convId}/messages`, {
+      method: 'POST',
+      body: JSON.stringify({ role: 'user', content })
+    })
 
     const userMessage: Message = { id: uuidv4(), role: 'user', content }
     setMessages((prev) => [...prev, userMessage])
@@ -172,7 +187,7 @@ export function ChatPage() {
     setActiveConversationId(id)
     setMessages([])
 
-    const msgs = await api.conversations.messages(id)
+    const msgs = await apiFetch(`/v1/admin/conversations/${id}/messages`).then(r => r.json())
     setMessages(msgs.map(m => ({
       id: uuidv4(),
       role: m.role as 'user' | 'assistant',
@@ -182,8 +197,9 @@ export function ChatPage() {
       isStreaming: false,
     })))
 
-    const conv = await api.conversations.get(id)
-    if (conv) {
+    const res = await apiFetch(`/v1/admin/conversations/${id}`)
+    if (res.ok) {
+      const conv = await res.json()
       if (conv.provider_id) setSelectedProviderId(conv.provider_id)
       if (conv.model) setSelectedModel(conv.model)
       if (conv.api_key_id) setSelectedApiKeyId(conv.api_key_id)
@@ -198,13 +214,16 @@ export function ChatPage() {
 
     if (!selectedModel || !selectedProviderId || !selectedApiKeyId) return
     try {
-      const id = await api.conversations.create({
-        title: '新对话',
-        model: selectedModel,
-        providerId: selectedProviderId,
-        apiKeyId: selectedApiKeyId,
-      })
-      setActiveConversationId(id)
+      const conv = await apiFetch('/v1/admin/conversations', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: '新对话',
+          model: selectedModel,
+          providerId: selectedProviderId,
+          apiKeyId: selectedApiKeyId,
+        })
+      }).then(r => r.json())
+      setActiveConversationId(conv.id)
       invalidateConversations()
     } catch {
       // 创建失败，UI 已清空，用户可直接发消息创建新会话
@@ -214,7 +233,7 @@ export function ChatPage() {
   const handleDeleteConversation = async (id: number) => {
     const conv = conversations.find(c => c.id === id)
     if (!confirm(`确定删除"${conv?.title || '此会话'}"？`)) return
-    await api.conversations.delete(id)
+    await apiFetch(`/v1/admin/conversations/${id}`, { method: 'DELETE' })
     if (activeConversationId === id) {
       setActiveConversationId(null)
       setMessages([])
