@@ -1,0 +1,18 @@
+---
+paths:
+  - "src/**"
+---
+
+# 目录边界
+- 完整目录结构见 `docs/superpowers/specs/2026-05-30-architecture-refactoring-design.md` 第 5 节
+- 导入方向（单向依赖）：
+  domain.router → domain.service → core/ + proxy/
+  feature/hooks/ → shared/lib/api-client.ts → HTTP
+  feature/queries/ → shared/lib/api-client.ts → HTTP
+  feature/components/ → 纯 UI，只接收 props + 回调
+
+# 禁止
+- `renderer/` 导入 `main/` 任何文件（编译隔离）
+- `core/` 导入 `domains/` 任何文件（下层不能依赖上层）
+- `proxy/` 导入 `domains/` 任何文件（工具层不含业务）
+- `shared/` 导入 `features/` 或 `domains/`（共享层不依赖业务）
