@@ -6,6 +6,8 @@ import { createApiKeyService } from '../domains/apikey/apikey.service'
 import { createApiKeyRouter } from '../domains/apikey/apikey.router'
 import { createConversationService } from '../domains/conversation/conversation.service'
 import { createConversationRouter } from '../domains/conversation/conversation.router'
+import { createLogsService } from '../domains/logs/logs.service'
+import { createLogsRouter } from '../domains/logs/logs.router'
 
 export function registerRoutes(app: Hono): void {
   const db = getDb()
@@ -17,4 +19,7 @@ export function registerRoutes(app: Hono): void {
 
   const conversationService = createConversationService(db)
   app.route('/v1/admin/conversations', createConversationRouter(conversationService))
+
+  const logsService = createLogsService(db)
+  app.route('/v1/admin/logs', createLogsRouter(logsService))
 }
