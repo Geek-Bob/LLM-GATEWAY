@@ -1,10 +1,11 @@
-import { memo, useState } from 'react'
+import { memo, useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 import type { Root } from 'hast'
 import { cn } from '@/lib/utils'
 import { Mermaid } from './mermaid'
+import { highlightCode } from '@/shared/lib/shiki'
 
 /** 剥离行内样式中 hardcoded color/background，防止深色文字在深色主题下不可见 */
 function rehypeStripColorStyle() {
@@ -81,6 +82,30 @@ function MermaidBlock({ code }: { code: string }) {
   )
 }
 
+/** 代码语法高亮块：使用 Shiki 渲染已完成（非流式）的代码片段 */
+function CodeBlock({ lang, code }: { lang: string; code: string }) {
+  const [html, setHtml] = useState<string>('')
+
+  useEffect(() => {
+    highlightCode(code, lang).then(setHtml)
+  }, [code, lang])
+
+  if (!html) {
+    return (
+      <pre className="text-xs bg-muted/20 rounded p-3 overflow-auto">
+        <code>{code}</code>
+      </pre>
+    )
+  }
+
+  return (
+    <div
+      className="my-3 rounded-lg overflow-hidden border border-border/50"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  )
+}
+
 interface MarkdownProps {
   children: string
   className?: string
@@ -131,11 +156,17 @@ export const Markdown = memo(function Markdown({
               return <MermaidBlock code={String(children).replace(/\n$/, '')} />
             }
 
-            return (
-              <code className={className} {...props}>
-                {children}
-              </code>
-            )
+            // 流式传输或无语言标注：纯文本渲染
+            if (isStreaming || !match) {
+              return (
+                <code className={className} {...props}>
+                  {children}
+                </code>
+              )
+            }
+
+            // 已完成且有语言标注：Shiki 语法高亮
+            return <CodeBlock lang={match[1]} code={String(children).replace(/\n$/, '')} />
           },
         }}
       >
