@@ -1,7 +1,6 @@
-import type { Database } from '../../db/database'
 import { getLogStats } from '../../db/logs'
 
-export function createStatsService(_db: Database) {
+export function createStatsService() {
   return {
     summary: async (range: string) => {
       return getLogStats({ range })

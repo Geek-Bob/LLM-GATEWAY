@@ -18,16 +18,16 @@ export function registerRoutes(app: Hono): void {
   const providerService = createProviderService(db)
   app.route('/v1/admin/providers', createProviderRouter(providerService))
 
-  const apiKeyService = createApiKeyService(db)
+  const apiKeyService = createApiKeyService()
   app.route('/v1/admin/api-keys', createApiKeyRouter(apiKeyService))
 
   const conversationService = createConversationService(db)
   app.route('/v1/admin/conversations', createConversationRouter(conversationService))
 
-  const logsService = createLogsService(db)
+  const logsService = createLogsService()
   app.route('/v1/admin/logs', createLogsRouter(logsService))
 
-  const statsService = createStatsService(db)
+  const statsService = createStatsService()
   app.route('/v1/admin/stats', createStatsRouter(statsService))
 
   const chatService = createChatService()

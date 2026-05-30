@@ -1,8 +1,7 @@
-import type { Database } from '../../db/database'
 import { queryLogs, getLogStats, getDetailedStats } from '../../db/logs'
 import { listProviders } from '../../db/providers'
 
-export function createLogsService(_db: Database) {
+export function createLogsService() {
   return {
     query: async (params: Record<string, unknown>) => {
       return queryLogs(params)

@@ -22,11 +22,14 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const messageRef = useRef<StreamMessage | null>(null)
 
   const abort = useCallback(() => {
     abortRef.current?.abort()
+    readerRef.current?.cancel().catch(() => {})
     abortRef.current = null
+    readerRef.current = null
     setIsLoading(false)
   }, [])
 
@@ -83,6 +86,7 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
 
       const reader = response.body?.getReader()
       if (!reader) throw new Error('No response body')
+      readerRef.current = reader
 
       const decoder = new TextDecoder()
       let buffer = ''
@@ -107,6 +111,19 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
           try {
             const parsed = JSON.parse(jsonStr)
             if (parsed.done) {
+              if (parsed.error) {
+                const errorMsg: StreamMessage = {
+                  ...messageRef.current!,
+                  content: parsed.text || parsed.error,
+                  isStreaming: false,
+                  isThinking: false,
+                  error: true,
+                }
+                messageRef.current = errorMsg
+                onUpdate(errorMsg)
+                setError(parsed.error)
+                return
+              }
               const doneMsg: StreamMessage = {
                 ...messageRef.current!,
                 content: contentAcc,
@@ -153,6 +170,7 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
       }
     } finally {
       abortRef.current = null
+      readerRef.current = null
       setIsLoading(false)
     }
   }, [onUpdate])

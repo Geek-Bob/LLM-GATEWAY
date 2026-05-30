@@ -1,8 +1,7 @@
-import type { Database } from '../../db/database'
 import type { ApiKeyResponse, CreateApiKeyInput } from './apikey.types'
 import { listApiKeys, createApiKey, deleteApiKey, getApiKeyById } from '../../db/api-keys'
 
-export function createApiKeyService(_db: Database) {
+export function createApiKeyService() {
   return {
     list: async (): Promise<ApiKeyResponse[]> => {
       return listApiKeys()

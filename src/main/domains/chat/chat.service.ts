@@ -130,7 +130,7 @@ export function createChatService() {
                 yield { text: '', done: true }
                 return
               }
-            } else {
+            } else if (providerType === 'anthropic') {
               // Anthropic SSE: event-named messages with typed content blocks
               switch (currentEvent) {
                 case 'content_block_start': {
@@ -155,6 +155,9 @@ export function createChatService() {
                   yield { text: '', done: true }
                   return
               }
+            } else {
+              yield { text: `Unknown provider type: ${providerType}`, done: true, error: 'Unknown provider' }
+              return
             }
           }
 

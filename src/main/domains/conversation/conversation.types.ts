@@ -26,9 +26,9 @@ export interface CreateConversationInput {
 
 export interface UpdateConversationInput {
   title?: string
-  provider_id?: number | null
+  providerId?: number | null
   model?: string
-  api_key_id?: number | null
+  apiKeyId?: number | null
 }
 
 export interface AddMessageInput {

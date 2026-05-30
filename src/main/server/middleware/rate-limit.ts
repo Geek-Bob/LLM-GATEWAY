@@ -8,6 +8,19 @@ interface RateEntry {
 export function createRateLimiter(maxPerMinute: number = 60): MiddlewareHandler {
   const store = new Map<string, RateEntry>()
 
+  // Periodic cleanup every 5 minutes
+  const cleanupInterval = setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of store) {
+      if (now > entry.resetAt) store.delete(key)
+    }
+  }, 300000)
+
+  // Allow cleanup in tests
+  if (typeof globalThis !== 'undefined') {
+    (globalThis as Record<string, unknown>).__rateLimitCleanup = () => clearInterval(cleanupInterval)
+  }
+
   return async (c, next) => {
     const key = c.get('apiKey') as { id: number; name: string } | undefined
     const clientId = key?.name ?? c.req.header('x-forwarded-for') ?? 'unknown'

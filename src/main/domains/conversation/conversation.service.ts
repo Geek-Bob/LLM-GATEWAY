@@ -37,7 +37,7 @@ export function createConversationService(db: Database) {
 
       const fieldMap: Record<string, string> = {
         title: 'title', model: 'model',
-        provider_id: 'provider_id', api_key_id: 'api_key_id'
+        providerId: 'provider_id', apiKeyId: 'api_key_id'
       }
       for (const [key, value] of Object.entries(input)) {
         const col = fieldMap[key]
