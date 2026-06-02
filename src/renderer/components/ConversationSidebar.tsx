@@ -1,12 +1,22 @@
+/**
+ * ConversationSidebar — 会话列表面板
+ *
+ * 功能:
+ * 1. 展示所有会话列表，支持按更新时间的相对日期显示（今天/昨天/N天前/月日）
+ * 2. 收起模式仅显示展开按钮；展开模式显示"新建"按钮和所有会话
+ * 3. 选中状态高亮，并在 active 时显示删除按钮
+ * 4. 动画：framer-motion layout 动画实现增删时的平滑过渡
+ *
+ * props:
+ * - conversations: 会话列表
+ * - activeId: 当前选中的会话 ID
+ * - collapsed: 是否收起
+ * - onSelect/onNew/onDelete/onToggleCollapse: 回调
+ */
+
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, PanelLeftClose, PanelLeft, Trash2 } from 'lucide-react'
-
-interface Conversation {
-  id: number
-  title: string
-  model: string
-  updated_at: string
-}
+import type { Conversation } from '@/lib/types'
 
 interface ConversationSidebarProps {
   conversations: Conversation[]
@@ -27,6 +37,7 @@ export function ConversationSidebar({
   collapsed,
   onToggleCollapse,
 }: ConversationSidebarProps) {
+  // 相对时间格式化：今天显示时分，昨天显示"昨天"，7天内显示"N天前"，更早显示月日
   const formatDate = (iso: string) => {
     const d = new Date(iso)
     const now = new Date()

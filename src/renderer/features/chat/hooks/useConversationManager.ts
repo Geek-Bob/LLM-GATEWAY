@@ -9,7 +9,6 @@ import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuidv4 } from 'uuid'
 import { api } from '@/lib/ipc'
 import { useConversations } from '@/lib/queries/conversations'
-import type { Conversation } from '@/lib/types'
 
 export const DEFAULT_CONVERSATION_TITLE = '新对话'
 
