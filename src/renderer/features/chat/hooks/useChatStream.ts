@@ -1,21 +1,20 @@
 /**
  * Chat 流式对话 Hook
  *
- * 职责：根据 providerType 分路由到标准代理端点，消费 LLM 的流式响应。
+ * 职责：调用标准代理端点 /v1/chat/completions，消费 OpenAI 格式的 SSE 流式响应。
+ * 后端 proxy 自动处理与上游供应商（Anthropic 等）的协议转换，前端无需感知。
  *
  * 架构说明：
  * - 这是唯一走 HTTP 请求的模块（非 IPC），因为 Chat 流需要经过本地 proxy 验证代理能力
- * - providerType='openai' → POST /v1/chat/completions → 解析 OpenAI SSE
- * - providerType='anthropic' → POST /v1/messages → 解析 Anthropic SSE
+ * - 统一 POST /v1/chat/completions → 解析 OpenAI SSE
  * - proxy 的 handleProxyRequest 负责透明协议转换（convertRequest + convertSSEEvent）
  * - 详见 .claude/rules/00-core.md "业务 CRUD 全部走 IPC，Chat 对话流走 HTTP" 的约定
  *
  * SSE 数据消费流程：
  * 1. 通过 fetch + ReadableStream 建立持久连接
  * 2. 每个 chunk 解码后按 '\n' 分割行
- * 3. 根据端点类型解析不同的 SSE 格式：
- *    - OpenAI: 过滤 'data: ' 前缀行 → JSON.parse → delta.content / delta.reasoning_content
- *    - Anthropic: 过滤 'event: ' / 'data: ' 前缀行 → 对应事件类型解析
+ * 3. 解析 OpenAI SSE 格式：
+ *    - 过滤 'data: ' 前缀行 → JSON.parse → delta.content / delta.reasoning_content
  * 4. content 累加到 contentAcc，thinking 累加到 thinkingAcc
  * 5. 每次更新都通过 onUpdate 回调通知父组件，父组件驱动 React 重渲染
  *
@@ -38,7 +37,7 @@ export interface StreamMessage {
 }
 
 interface UseChatStreamReturn {
-  send: (model: string, providerType: 'anthropic' | 'openai', messages: { role: string; content: string }[]) => Promise<void>
+  send: (model: string, messages: { role: string; content: string }[]) => Promise<void>
   abort: () => void
   isLoading: boolean
   error: string | null
@@ -63,21 +62,12 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
     setIsLoading(false)
   }, [])
 
-  /** 获取 SSE 端点路径 */
-  function getEndpoint(providerType: 'anthropic' | 'openai'): string {
-    return providerType === 'anthropic' ? '/v1/messages' : '/v1/chat/completions'
-  }
-
-  /** 构建请求体 — Anthropic 额外需要 max_tokens */
+  /** 构建请求体 */
   function buildRequestBody(
     model: string,
-    messages: { role: string; content: string }[],
-    providerType: 'anthropic' | 'openai'
+    messages: { role: string; content: string }[]
   ): string {
     const body: Record<string, any> = { model, messages, stream: true }
-    if (providerType === 'anthropic') {
-      body.max_tokens = 4096
-    }
     return JSON.stringify(body)
   }
 
@@ -94,7 +84,6 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
 
   const send = useCallback(async (
     model: string,
-    providerType: 'anthropic' | 'openai',
     messages: { role: string; content: string }[]
   ) => {
     const apiKey = getApiKey()
@@ -123,10 +112,10 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
     onUpdate(initialMsg)
 
     try {
-      const endpoint = getEndpoint(providerType)
+      const endpoint = '/v1/chat/completions'
       const response = await apiFetch(endpoint, {
         method: 'POST',
-        body: buildRequestBody(model, messages, providerType),
+        body: buildRequestBody(model, messages),
         signal: abortController.signal,
       })
 
@@ -154,8 +143,6 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
       let buffer = ''
       let contentAcc = ''
       let thinkingAcc = ''
-      // Anthropic SSE 使用命名事件，需追踪当前事件类型
-      let currentEvent = ''
 
       while (true) {
         const { done, value } = await reader.read()
@@ -167,119 +154,49 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
 
         for (const line of lines) {
           const trimmed = line.trim()
-          if (!trimmed) {
-            // 空行在 Anthropic SSE 中表示事件分隔
-            if (providerType === 'anthropic') currentEvent = ''
-            continue
+          if (!trimmed) continue
+
+          // --- OpenAI SSE 解析 ---
+          // 格式: data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}
+          // 格式: data: [DONE]
+          if (!trimmed.startsWith('data: ')) continue
+
+          const jsonStr = trimmed.slice(6)
+          if (jsonStr === '[DONE]') {
+            const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
+            messageRef.current = doneMsg
+            onUpdate(doneMsg)
+            return
           }
 
-          if (providerType === 'openai') {
-            // --- OpenAI SSE 解析 ---
-            // 格式: data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}
-            // 格式: data: [DONE]
-            if (!trimmed.startsWith('data: ')) continue
+          let parsed: any
+          try { parsed = JSON.parse(jsonStr) } catch { continue }
 
-            const jsonStr = trimmed.slice(6)
-            if (jsonStr === '[DONE]') {
-              const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
-              messageRef.current = doneMsg
-              onUpdate(doneMsg)
-              return
-            }
+          const delta = parsed.choices?.[0]?.delta
+          if (!delta) continue
 
-            let parsed: any
-            try { parsed = JSON.parse(jsonStr) } catch { continue }
+          if (delta.content) {
+            contentAcc += delta.content
+          }
+          if (delta.reasoning_content) {
+            thinkingAcc += delta.reasoning_content
+          }
 
-            const delta = parsed.choices?.[0]?.delta
-            if (!delta) continue
+          const updatedMsg: StreamMessage = {
+            ...messageRef.current!,
+            content: contentAcc,
+            thinking: thinkingAcc,
+            isThinking: !!delta.reasoning_content,
+          }
+          messageRef.current = updatedMsg
+          onUpdate(updatedMsg)
 
-            if (delta.content) {
-              contentAcc += delta.content
-            }
-            if (delta.reasoning_content) {
-              thinkingAcc += delta.reasoning_content
-            }
-
-            const updatedMsg: StreamMessage = {
-              ...messageRef.current!,
-              content: contentAcc,
-              thinking: thinkingAcc,
-              isThinking: !!delta.reasoning_content,
-            }
-            messageRef.current = updatedMsg
-            onUpdate(updatedMsg)
-
-            // finish_reason 出现表示这是最后一个有意义 chunk
-            if (parsed.choices?.[0]?.finish_reason) {
-              const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
-              messageRef.current = doneMsg
-              onUpdate(doneMsg)
-              return
-            }
-          } else {
-            // --- Anthropic SSE 解析 ---
-            // 格式: event: content_block_delta
-            //       data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"..."}}
-            if (trimmed.startsWith('event: ')) {
-              currentEvent = trimmed.slice(7).trim()
-              continue
-            }
-            if (!trimmed.startsWith('data: ')) continue
-
-            const jsonStr = trimmed.slice(6)
-            let data: any
-            try { data = JSON.parse(jsonStr) } catch { continue }
-
-            switch (currentEvent) {
-              case 'content_block_start': {
-                const block = data.content_block
-                if (block?.type === 'text' && block.text) {
-                  contentAcc += block.text
-                } else if (block?.type === 'thinking' && block.thinking) {
-                  thinkingAcc += block.thinking
-                }
-                if (contentAcc || thinkingAcc) {
-                  const updatedMsg: StreamMessage = {
-                    ...messageRef.current!,
-                    content: contentAcc,
-                    thinking: thinkingAcc,
-                    isThinking: block?.type === 'thinking',
-                  }
-                  messageRef.current = updatedMsg
-                  onUpdate(updatedMsg)
-                }
-                break
-              }
-              case 'content_block_delta': {
-                const delta = data.delta
-                if (delta?.type === 'text_delta' && delta.text) {
-                  contentAcc += delta.text
-                } else if (delta?.type === 'thinking_delta' && delta.thinking) {
-                  thinkingAcc += delta.thinking
-                }
-                if (contentAcc || thinkingAcc) {
-                  const updatedMsg: StreamMessage = {
-                    ...messageRef.current!,
-                    content: contentAcc,
-                    thinking: thinkingAcc,
-                    isThinking: delta?.type === 'thinking_delta',
-                  }
-                  messageRef.current = updatedMsg
-                  onUpdate(updatedMsg)
-                }
-                break
-              }
-              case 'message_delta': {
-                // stop_reason 出现，流即将结束 — 不做特殊处理
-                break
-              }
-              case 'message_stop': {
-                const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
-                messageRef.current = doneMsg
-                onUpdate(doneMsg)
-                return
-              }
-            }
+          // finish_reason 出现表示这是最后一个有意义 chunk
+          if (parsed.choices?.[0]?.finish_reason) {
+            const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
+            messageRef.current = doneMsg
+            onUpdate(doneMsg)
+            return
           }
         }
       }

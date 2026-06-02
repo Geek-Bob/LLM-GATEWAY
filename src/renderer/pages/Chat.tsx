@@ -1,3 +1,15 @@
+/**
+ * Chat 页面 — 多 LLM 供应商对话界面
+ *
+ * 数据流:
+ * 1. useProviders / useApiKeys / useConversations 通过 IPC 获取供应商、密钥和会话列表
+ * 2. 选择供应商/模型/API Key 后，输入消息触发 useChatStream（通过 HTTP 代理 8080 端口发送 SSE 流请求）
+ * 3. 流式响应逐块更新 messages 状态，完成后异步保存到数据库
+ * 4. 会话管理：新建/切换/删除会话均通过 IPC 操作数据库
+ *
+ * 路由：页面内工具栏（供应商/模型/Key 选择） + 对话列表 + 消息区域 + 输入框
+ */
+
 import { useState, useEffect, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -5,7 +17,7 @@ import { useQueryClient } from '@tanstack/react-query'
 
 import { MessageSquare, Square } from 'lucide-react'
 import { api } from '../lib/ipc'
-import { setApiKey, apiFetch } from '../shared/lib/api-client'
+import { setApiKey } from '../shared/lib/api-client'
 import { useChatStream } from '../features/chat/hooks/useChatStream'
 import type { StreamMessage } from '../features/chat/hooks/useChatStream'
 
@@ -25,15 +37,16 @@ import {
   SelectValue,
 } from '../components/ui/select'
 
+/** 单条消息的数据结构，覆盖用户消息、助手流式响应和错误状态 */
 interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
-  thinking?: string
-  isThinking?: boolean
-  model?: string
-  isStreaming?: boolean
-  error?: boolean
+  thinking?: string       /** 模型的思考过程（如 Anthropic 的 extended thinking） */
+  isThinking?: boolean    /** 模型正在思考中 */
+  model?: string          /** 使用的模型名称 */
+  isStreaming?: boolean   /** 是否正在接收流式响应 */
+  error?: boolean         /** 本次请求是否出错 */
 }
 
 export function ChatPage() {
@@ -65,11 +78,15 @@ export function ChatPage() {
 
   const ensureApiKey = async () => {
     if (!selectedApiKeyId) return
-    const keyPlaintext = await api.apiKeys.list().then(
-      (keys: Array<{ id: number; key_plaintext: string }>) =>
-        keys.find((k: { id: number }) => k.id === selectedApiKeyId)?.key_plaintext || ''
-    ).catch(() => '')
-    setApiKey(keyPlaintext)
+    try {
+      const keys: Array<{ id: number; key_plaintext: string }> = await api.apiKeys.list()
+      const match = keys.find((k) => k.id === selectedApiKeyId)
+      if (match?.key_plaintext) {
+        setApiKey(match.key_plaintext)
+      }
+    } catch {
+      // 保留当前 key，不清空
+    }
   }
 
   const handleStreamUpdate = (msg: StreamMessage) => {
@@ -99,20 +116,14 @@ export function ChatPage() {
 
     // Save assistant message to conversation when stream completes
     if (!msg.isStreaming && !msg.error && activeConversationId && msg.content) {
-      apiFetch(`/v1/admin/conversations/${activeConversationId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({ role: 'assistant', content: msg.content, thinking: msg.thinking || '' })
-      }).then(r => r.json()).then(() => {
-        apiFetch(`/v1/admin/conversations/${activeConversationId}`).then(r => r.json()).then(conv => {
+      api.conversations.addMessage(activeConversationId, 'assistant', msg.content, msg.thinking || '')
+        .then(() => api.conversations.get(activeConversationId))
+        .then((conv) => {
           if (conv && conv.title === '新对话') {
-            apiFetch(`/v1/admin/conversations/${activeConversationId}`, {
-              method: 'PUT',
-              body: JSON.stringify({ title: msg.content.slice(0, 30) || '新对话' })
-            })
+            api.conversations.update(activeConversationId!, { title: msg.content.slice(0, 30) || '新对话' })
           }
+          invalidateConversations()
         })
-        invalidateConversations()
-      })
         .catch(() => {})
     }
   }
@@ -124,43 +135,37 @@ export function ChatPage() {
 
     await ensureApiKey()
 
+    // 先显示用户消息到 UI，再异步保存到数据库
+    const userMessage: Message = { id: uuidv4(), role: 'user', content }
+    setMessages((prev) => [...prev, userMessage])
+
     let convId = activeConversationId
-    if (!convId) {
-      const conv = await apiFetch('/v1/admin/conversations', {
-        method: 'POST',
-        body: JSON.stringify({
+    try {
+      if (!convId) {
+        const conv = await api.conversations.create({
           title: content.slice(0, 30) || '新对话',
           model: selectedModel,
           providerId: selectedProviderId,
           apiKeyId: selectedApiKeyId,
         })
-      }).then(r => r.json())
-      convId = conv.id
-      setActiveConversationId(convId)
-      invalidateConversations()
-    }
+        convId = conv.id
+        setActiveConversationId(convId)
+        invalidateConversations()
+      }
 
-    // Sync conversation's model/provider/key selections
-    await apiFetch(`/v1/admin/conversations/${convId}`, {
-      method: 'PUT',
-      body: JSON.stringify({
+      await api.conversations.update(convId, {
         model: selectedModel,
         providerId: selectedProviderId,
         apiKeyId: selectedApiKeyId,
       })
-    })
 
-    // Save user message
-    await apiFetch(`/v1/admin/conversations/${convId}/messages`, {
-      method: 'POST',
-      body: JSON.stringify({ role: 'user', content })
-    })
-
-    const userMessage: Message = { id: uuidv4(), role: 'user', content }
-    setMessages((prev) => [...prev, userMessage])
+      await api.conversations.addMessage(convId, 'user', content)
+    } catch (err) {
+      console.error('[Chat] 保存消息失败:', err)
+    }
 
     const modelFull = `${selectedProvider.name}/${selectedModel}`
-    send(modelFull, selectedProvider.providerType, [
+    send(modelFull, [
       ...messages.map(m => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content }
     ])
@@ -179,7 +184,7 @@ export function ChatPage() {
     await ensureApiKey()
 
     const apiMessages = messages.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
-    send(`${selectedProvider.name}/${selectedModel}`, selectedProvider.providerType, apiMessages)
+    send(`${selectedProvider.name}/${selectedModel}`, apiMessages)
     setMessages((prev) => prev.slice(0, -1))
   }
 
@@ -187,8 +192,8 @@ export function ChatPage() {
     setActiveConversationId(id)
     setMessages([])
 
-    const msgs = await apiFetch(`/v1/admin/conversations/${id}/messages`).then(r => r.json())
-    setMessages(msgs.map(m => ({
+    const msgs = await api.conversations.messages(id)
+    setMessages(msgs.map((m: { role: string; content: string; thinking?: string }) => ({
       id: uuidv4(),
       role: m.role as 'user' | 'assistant',
       content: m.content,
@@ -197,43 +202,28 @@ export function ChatPage() {
       isStreaming: false,
     })))
 
-    const res = await apiFetch(`/v1/admin/conversations/${id}`)
-    if (res.ok) {
-      const conv = await res.json()
+    const conv = await api.conversations.get(id)
+    if (conv) {
       if (conv.provider_id) setSelectedProviderId(conv.provider_id)
       if (conv.model) setSelectedModel(conv.model)
       if (conv.api_key_id) setSelectedApiKeyId(conv.api_key_id)
     }
   }
 
-  const handleNewConversation = async () => {
+  const handleNewConversation = () => {
     abort()
     setMessages([])
     setActiveConversationId(null)
+    setSelectedProviderId(null)
+    setSelectedModel(null)
+    setSelectedApiKeyId(null)
     setInputKey(k => k + 1)
-
-    if (!selectedModel || !selectedProviderId || !selectedApiKeyId) return
-    try {
-      const conv = await apiFetch('/v1/admin/conversations', {
-        method: 'POST',
-        body: JSON.stringify({
-          title: '新对话',
-          model: selectedModel,
-          providerId: selectedProviderId,
-          apiKeyId: selectedApiKeyId,
-        })
-      }).then(r => r.json())
-      setActiveConversationId(conv.id)
-      invalidateConversations()
-    } catch {
-      // 创建失败，UI 已清空，用户可直接发消息创建新会话
-    }
   }
 
   const handleDeleteConversation = async (id: number) => {
     const conv = conversations.find(c => c.id === id)
     if (!confirm(`确定删除"${conv?.title || '此会话'}"？`)) return
-    await apiFetch(`/v1/admin/conversations/${id}`, { method: 'DELETE' })
+    await api.conversations.delete(id)
     if (activeConversationId === id) {
       setActiveConversationId(null)
       setMessages([])
@@ -266,10 +256,10 @@ export function ChatPage() {
         {/* Toolbar */}
         <Card className="p-3 mb-4 flex items-center gap-3 flex-wrap">
           <Select
-            value={selectedProviderId?.toString()}
+            value={selectedProviderId?.toString() ?? ''}
             onValueChange={(val) => {
-              const id = Number(val)
-              setSelectedProviderId(id || null)
+              if (!val) { setSelectedProviderId(null); setSelectedModel(null); return }
+              setSelectedProviderId(Number(val))
               setSelectedModel(null)
             }}
           >
@@ -284,7 +274,7 @@ export function ChatPage() {
           </Select>
 
           <Select
-            value={selectedModel ?? undefined}
+            value={selectedModel ?? ''}
             onValueChange={(val) => setSelectedModel(val || null)}
             disabled={!selectedProvider}
           >
@@ -299,8 +289,11 @@ export function ChatPage() {
           </Select>
 
           <Select
-            value={selectedApiKeyId?.toString()}
-            onValueChange={(val) => setSelectedApiKeyId(Number(val) || null)}
+            value={selectedApiKeyId?.toString() ?? ''}
+            onValueChange={(val) => {
+              if (!val) { setSelectedApiKeyId(null); return }
+              setSelectedApiKeyId(Number(val))
+            }}
           >
             <SelectTrigger className="flex-1 min-w-[140px]">
               <SelectValue placeholder="选择 API Key" />
