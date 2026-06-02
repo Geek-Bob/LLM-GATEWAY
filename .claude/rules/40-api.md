@@ -1,28 +1,21 @@
 ---
 paths:
-  - "src/main/domains/**"
-  - "src/main/server/**"
+  - "src/main/proxy/**"
 ---
 
-# API 约定
+# Proxy HTTP API 约定（仅 Chat 代理端点使用 Hono）
+
+> 业务 CRUD 全部走 IPC，不使用 Hono。以下仅适用 proxy 代理端点。
 
 ## URL 模式
-- 管理类：`/v1/admin/{resource}` + `/:id`
-- 功能类：`/v1/{action}`（如 `/v1/chat/completions`）
-- 代理类：`/v1/proxy/{provider}/{model}/*`
+- 代理类：`/v1/chat/completions`（OpenAI 格式）、`/v1/messages`（Anthropic 格式）
+- 工具类：`/v1/models`、`/health`
 
 ## 响应格式
 - 成功：直接返回 JSON 对象或数组（不包裹外层 envelope）
-- 列表：返回数组 `[{...}, {...}]`
-- 错误：`{ error: string, code?: string }` + 对应 HTTP 状态码
-- 创建：返回创建后的对象 + 201 状态码
-
-## 中间件
-- `auth.ts`：提取 Authorization Bearer token → 校验 gateway API key
-- `rate-limit.ts`：每个 API key 每分钟最多 60 次请求
-- 中间件失败返回 `{ error: "..." }` + 401/429 状态码
+- 错误：`{ error: string }` + 对应 HTTP 状态码
+- 流式：SSE（Server-Sent Events）
 
 ## 禁止
-- 路由文件超过 50 行
-- 在路由中直接操作数据库
+- proxy/server.ts 中写业务 CRUD 路由
 - 使用 Hono 之外的 HTTP 框架
