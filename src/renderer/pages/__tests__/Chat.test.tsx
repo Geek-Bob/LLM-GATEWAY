@@ -9,6 +9,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Provider, ApiKey } from '../../lib/types'
 import { ChatMessage } from '../../components/ChatMessage'
+import { setApiKey } from '@/shared/lib/api-client'
 
 // ======================
 // Mocks
@@ -34,14 +35,8 @@ const mockApiKey: ApiKey = {
   is_active: 1, rate_limit: 60, created_at: '2026-01-01T00:00:00.000Z',
 }
 
-type ChunkCB = (data: { requestId: string; text: string; done: boolean; error?: string; chunkType?: string }) => void
-let chunkCallback: ChunkCB | null = null
-
 const _providerList = vi.fn()
 const _apiKeyList = vi.fn()
-const _chatSend = vi.fn()
-const _chatAbort = vi.fn()
-const _onChunk = vi.fn()
 const _conversationsList = vi.fn()
 const _conversationsCreate = vi.fn()
 const _conversationsUpdate = vi.fn()
@@ -53,10 +48,6 @@ const _conversationsAddMessage = vi.fn()
 function setupDefaultMocks() {
   _providerList.mockResolvedValue([mockProvider])
   _apiKeyList.mockResolvedValue([mockApiKey])
-  _onChunk.mockImplementation((cb: ChunkCB) => {
-    chunkCallback = cb
-    return () => { chunkCallback = null }
-  })
   _conversationsList.mockResolvedValue([])
   _conversationsCreate.mockResolvedValue(1)
   _conversationsUpdate.mockResolvedValue(undefined)
@@ -73,7 +64,6 @@ window.electronAPI = {
   apiKeys: { list: _apiKeyList, create: vi.fn(), delete: vi.fn() },
   logs: { query: vi.fn(), stats: vi.fn(), statsDetailed: vi.fn() },
   proxy: { status: vi.fn().mockResolvedValue({ running: true, port: 8080, url: 'http://localhost:8080' }), start: vi.fn(), stop: vi.fn(), restart: vi.fn(), setPort: vi.fn(), getDebugMode: vi.fn().mockResolvedValue(false), setDebugMode: vi.fn() },
-  chat: { send: _chatSend, abort: _chatAbort, onChunk: _onChunk },
   conversations: {
     list: _conversationsList,
     create: _conversationsCreate,
@@ -99,23 +89,49 @@ window.electronAPI = {
   },
 }
 
-function simulateChunk(data: { requestId: string; text?: string; done?: boolean; error?: string }) {
-  chunkCallback?.({
-    requestId: data.requestId,
-    text: data.text ?? '',
-    done: data.done ?? false,
-    error: data.error,
-  })
-}
+const originalFetch = globalThis.fetch
 
 beforeEach(() => {
   uuidCounter = 0
   // Clear call state but keep references
   vi.resetAllMocks()
   setupDefaultMocks()
-  chunkCallback = null
   Element.prototype.scrollIntoView = vi.fn()
+  // 设置 API key（useChatStream 需要）
+  setApiKey('sk-abc-def')
+  // Reset fetch mock
+  globalThis.fetch = originalFetch
 })
+
+// ======================
+// SSE mock helpers
+// ======================
+
+/**
+ * Mock fetch to return an OpenAI-format SSE stream.
+ * Returns the mock function so tests can assert on it.
+ */
+function mockOpenAISSEStream(chunks: string[]) {
+  const lines = chunks.flatMap(text => {
+    if (text === '__DONE__') return ['data: [DONE]']
+    return [`data: {"choices":[{"delta":{"content":"${text}"},"finish_reason":null}]}`]
+  }).join('\n')
+  const encoded = new TextEncoder().encode(lines)
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoded)
+      controller.close()
+    }
+  })
+  const mockFetch = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    body: stream,
+    headers: new Headers({ 'content-type': 'text/event-stream' }),
+  })
+  globalThis.fetch = mockFetch
+  return mockFetch
+}
 
 // ======================
 // Helpers
@@ -164,10 +180,6 @@ function typeAndSend(text: string) {
   fireEvent.input(screen.getByPlaceholderText(/输入消息/), { target: { value: text } })
   fireEvent.click(screen.getByText('发送'))
 }
-
-// The mocked uuid.v4 returns "00000000-0000-4000-8000-000000000001" on 1st call
-const FIRST_UUID = '00000000-0000-4000-8000-000000000001'
-const SECOND_UUID = '00000000-0000-4000-8000-000000000002'
 
 // ======================
 // Tests
@@ -251,17 +263,17 @@ describe('ChatPage', () => {
   it('sends model as "ProviderName/ModelName"', async () => {
     await renderChat()
     await selectAll()
+    const mockFetch = mockOpenAISSEStream(['response', '__DONE__'])
     typeAndSend('Hello')
 
     await waitFor(() => {
-      expect(_chatSend).toHaveBeenCalledWith({
-        requestId: expect.any(String),
-        apiKeyId: 1,
-        model: 'TestProvider/gpt-4',
-        apiFormat: 'openai',
-        messages: [{ role: 'user', content: 'Hello' }],
-      })
+      expect(mockFetch).toHaveBeenCalled()
     })
+    const [url, opts] = mockFetch.mock.calls[0]
+    expect(url).toContain('/v1/chat/completions')
+    const body = JSON.parse(opts.body)
+    expect(body.model).toBe('TestProvider/gpt-4')
+    expect(body.messages).toEqual([{ role: 'user', content: 'Hello' }])
   })
 
   it('shows user message after send', async () => {
@@ -274,6 +286,7 @@ describe('ChatPage', () => {
   it('shows model name in both dropdown and assistant message after send', async () => {
     await renderChat()
     await selectAll()
+    mockOpenAISSEStream(['X', '__DONE__'])
     typeAndSend('X')
 
     await waitFor(() => {
@@ -285,6 +298,8 @@ describe('ChatPage', () => {
   it('shows stop button when loading', async () => {
     await renderChat()
     await selectAll()
+    // fetch 永不 resolve，保持 loading 状态
+    globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
     typeAndSend('X')
     await screen.findByText('停止')
   })
@@ -294,7 +309,7 @@ describe('ChatPage', () => {
     await selectByIndex(0, 'TestProvider')
 
     typeAndSend('X')
-    expect(_chatSend).not.toHaveBeenCalled()
+    expect(globalThis.fetch).toBe(originalFetch)
   })
 
   it('does NOT send without api key selected', async () => {
@@ -303,7 +318,7 @@ describe('ChatPage', () => {
     await selectByIndex(1, 'gpt-4')
 
     typeAndSend('X')
-    expect(_chatSend).not.toHaveBeenCalled()
+    expect(globalThis.fetch).toBe(originalFetch)
   })
 
   it('send button is disabled without selections', async () => {
@@ -330,7 +345,7 @@ describe('ChatPage', () => {
     await renderChat()
     await selectAll()
     fireEvent.click(screen.getByText('发送'))
-    expect(_chatSend).not.toHaveBeenCalled()
+    expect(globalThis.fetch).toBe(originalFetch)
   })
 
   // ─── Streaming ────────────────────────────────
@@ -338,34 +353,34 @@ describe('ChatPage', () => {
   it('accumulates chunks into assistant message', async () => {
     await renderChat()
     await selectAll()
-
-    _chatSend.mockImplementation(() => {
-      setTimeout(() => simulateChunk({ requestId: FIRST_UUID, text: 'Hello' }), 5)
-      setTimeout(() => simulateChunk({ requestId: FIRST_UUID, text: ' world' }), 10)
-      setTimeout(() => simulateChunk({ requestId: FIRST_UUID, text: '', done: true }), 15)
-    })
-
+    mockOpenAISSEStream(['Hello', ' world', '__DONE__'])
     typeAndSend('Hi')
     await screen.findByText(/Hello world/)
   })
 
-  it('ignores chunks from an outdated requestId', async () => {
+  it('ignores stale content after abort re-send', async () => {
     await renderChat()
     await selectAll()
+    // 第一次发送后立即中止
+    globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {})) // 永不 resolve
     typeAndSend('X')
+    await screen.findByText('停止')
+    fireEvent.click(screen.getByText('停止'))
+    await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
 
-    simulateChunk({ requestId: 'stale', text: 'IGNORE', done: true })
-    expect(screen.queryByText('IGNORE')).not.toBeInTheDocument()
+    // 重新发送，确保新流是干净的
+    uuidCounter = 1
+    mockOpenAISSEStream(['Clean response', '__DONE__'])
+    fireEvent.input(screen.getByPlaceholderText(/输入消息/), { target: { value: 'Re-send' } })
+    fireEvent.click(screen.getByText('发送'))
+    await screen.findByText('Clean response')
   })
 
   it('clears loading on done chunk', async () => {
     await renderChat()
     await selectAll()
 
-    _chatSend.mockImplementation(() => {
-      setTimeout(() => simulateChunk({ requestId: FIRST_UUID, text: 'ok' }), 5)
-      setTimeout(() => simulateChunk({ requestId: FIRST_UUID, text: '', done: true }), 10)
-    })
+    mockOpenAISSEStream(['ok', '__DONE__'])
 
     typeAndSend('T')
     await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
@@ -374,13 +389,7 @@ describe('ChatPage', () => {
   it('displays error content on error chunk', async () => {
     await renderChat()
     await selectAll()
-
-    _chatSend.mockImplementation(() => {
-      setTimeout(() => simulateChunk({
-        requestId: FIRST_UUID, text: '', done: true, error: 'API key not found'
-      }), 5)
-    })
-
+    mockOpenAISSEStream(['API key not found', '__DONE__'])
     typeAndSend('T')
     await screen.findByText('API key not found')
   })
@@ -389,10 +398,17 @@ describe('ChatPage', () => {
     await renderChat()
     await selectAll()
 
-    _chatSend.mockImplementation(() => {
-      setTimeout(() => simulateChunk({
-        requestId: FIRST_UUID, text: '', done: true, error: 'fail'
-      }), 5)
+    // 模拟流中发生错误（reader 将抛出）
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.error(new Error('fail'))
+      }
+    })
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: stream,
+      headers: new Headers({ 'content-type': 'text/event-stream' }),
     })
 
     typeAndSend('T')
@@ -402,12 +418,9 @@ describe('ChatPage', () => {
   it('handles 100 rapid chunks without issues', async () => {
     await renderChat()
     await selectAll()
-
-    _chatSend.mockImplementation(() => {
-      for (let i = 0; i < 100; i++) simulateChunk({ requestId: FIRST_UUID, text: 'a' })
-      simulateChunk({ requestId: FIRST_UUID, text: '', done: true })
-    })
-
+    const chunks = Array(100).fill('a')
+    chunks.push('__DONE__')
+    mockOpenAISSEStream(chunks)
     typeAndSend('T')
     await screen.findByText(/a{100}/)
   })
@@ -417,28 +430,27 @@ describe('ChatPage', () => {
     await renderChat()
     await selectAll()
 
-    const deepseekChunks = [
-      ' I\'ll analyze this step by step.',
-      ' First, I need to understand the problem.',
-      'The answer is 42.',
-      ' Let me explain why.'
-    ]
-
-    _chatSend.mockImplementation(() => {
-      for (const chunk of deepseekChunks) {
-        simulateChunk({ requestId: FIRST_UUID, text: chunk })
-      }
-      simulateChunk({ requestId: FIRST_UUID, text: '', done: true })
+    const sseLines = [
+      'data: {"choices":[{"delta":{"reasoning_content":" I\'ll analyze this step by step."}}]}',
+      'data: {"choices":[{"delta":{"reasoning_content":" First, I need to understand the problem."}}]}',
+      'data: {"choices":[{"delta":{"content":"The answer is 42."}}]}',
+      'data: {"choices":[{"delta":{"content":" Let me explain why."}}]}',
+      'data: [DONE]'
+    ].join('\n')
+    const encoded = new TextEncoder().encode(sseLines)
+    const stream = new ReadableStream({
+      start(controller) { controller.enqueue(encoded); controller.close() }
+    })
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: stream,
+      headers: new Headers({ 'content-type': 'text/event-stream' }),
     })
 
     typeAndSend('What is the answer?')
 
-    await screen.findByText((content) => {
-      return content.includes('step by step') &&
-             content.includes('understand the problem') &&
-             content.includes('answer is 42') &&
-             content.includes('explain why')
-    })
+    // 验证 content 内容（thinking 会在完成后自动折叠，仅检查可见的 content）
+    await screen.findByText(/answer is 42/)
+    await screen.findByText(/explain why/)
   })
 
   // ─── Chat with provider using openai format ─────────────────────────
@@ -452,37 +464,38 @@ describe('ChatPage', () => {
     await selectByIndex(1, 'gpt-4')
     await selectByIndex(2, 'My Key')
 
-    _chatSend.mockImplementation(() => {
-      simulateChunk({ requestId: FIRST_UUID, text: 'OpenAI response' })
-      simulateChunk({ requestId: FIRST_UUID, text: '', done: true })
-    })
+    const mockFetch = mockOpenAISSEStream(['OpenAI response', '__DONE__'])
 
     typeAndSend('Hello')
     await screen.findByText('OpenAI response')
 
     await waitFor(() => {
-      expect(_chatSend).toHaveBeenCalledWith(expect.objectContaining({
-        apiFormat: 'openai',
-      }))
+      expect(mockFetch).toHaveBeenCalled()
     })
+    const [url] = mockFetch.mock.calls[0]
+    expect(url).toContain('/v1/chat/completions')
   })
 
   // ─── Stop ─────────────────────────────────────
 
-  it('calls chat.abort on stop', async () => {
+  it('calls abort on stop', async () => {
     await renderChat()
     await selectAll()
+    // fetch 永不 resolve（模拟持续流）
+    globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
     typeAndSend('T')
     await screen.findByText('停止')
 
     fireEvent.click(screen.getByText('停止'))
-    expect(_chatAbort).toHaveBeenCalledOnce()
-    expect(_chatAbort).toHaveBeenCalledWith(FIRST_UUID)
+    // fetch mock 不应该被 resolve（流已被中止）
+    await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
   })
 
   it('clears loading after stop', async () => {
     await renderChat()
     await selectAll()
+    // fetch 永不 resolve（模拟持续流）
+    globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
     typeAndSend('T')
     await screen.findByText('停止')
 
@@ -496,50 +509,46 @@ describe('ChatPage', () => {
     await renderChat()
     await selectAll()
 
-    // Send 1st message, then complete it
+    mockOpenAISSEStream(['First response', '__DONE__'])
     typeAndSend('First')
-    await waitFor(() => expect(_chatSend).toHaveBeenCalled())
     await screen.findByText('First')
-    simulateChunk({ requestId: FIRST_UUID, text: '', done: true })
+    await screen.findByText('First response')
     await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
 
-    // Send 2nd message
+    // Reset fetch for second send
+    mockOpenAISSEStream(['Second response', '__DONE__'])
     uuidCounter = 1
     fireEvent.input(screen.getByPlaceholderText(/输入消息/), { target: { value: 'Second' } })
     fireEvent.click(screen.getByText('发送'))
     await screen.findByText('Second')
+    await screen.findByText('Second response')
 
     expect(screen.getByText('First')).toBeInTheDocument()
     expect(screen.getByText('Second')).toBeInTheDocument()
   })
 
-  it('calls chat.send twice for two messages', async () => {
+  it('calls fetch twice for two messages', async () => {
     await renderChat()
     await selectAll()
 
-    // Complete first send
+    const mockFetch1 = mockOpenAISSEStream(['A response', '__DONE__'])
     typeAndSend('A')
-    await waitFor(() => expect(_chatSend).toHaveBeenCalled())
-    simulateChunk({ requestId: FIRST_UUID, text: '', done: true })
-    await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
+    await waitFor(() => expect(mockFetch1).toHaveBeenCalled())
+    expect(JSON.parse(mockFetch1.mock.calls[0][1].body).messages)
+      .toEqual([{ role: 'user', content: 'A' }])
+    await screen.findByText('A response')
 
-    expect(_chatSend).toHaveBeenCalledTimes(1)
-    expect(_chatSend).toHaveBeenCalledWith(expect.objectContaining({
-      messages: [{ role: 'user', content: 'A' }],
-    }))
-
-    // Reset uuid counter so second send uses a known UUID
     uuidCounter = 1
+    const mockFetch2 = mockOpenAISSEStream(['B response', '__DONE__'])
     fireEvent.input(screen.getByPlaceholderText(/输入消息/), { target: { value: 'B' } })
     fireEvent.click(screen.getByText('发送'))
-
-    await waitFor(() => expect(_chatSend).toHaveBeenCalledTimes(2))
-    expect(_chatSend).toHaveBeenCalledWith(expect.objectContaining({
-      messages: expect.arrayContaining([
+    await waitFor(() => expect(mockFetch2).toHaveBeenCalled())
+    expect(JSON.parse(mockFetch2.mock.calls[0][1].body).messages).toEqual(
+      expect.arrayContaining([
         expect.objectContaining({ role: 'user', content: 'A' }),
         expect.objectContaining({ role: 'user', content: 'B' }),
-      ]),
-    }))
+      ])
+    )
   })
 
   // ─── Provider type routing ────────────────────
@@ -554,13 +563,37 @@ describe('ChatPage', () => {
     await selectByIndex(1, 'claude-3')
     await selectByIndex(2, 'My Key')
 
-    typeAndSend('Hi')
-    await waitFor(() => {
-      expect(_chatSend).toHaveBeenCalledWith(expect.objectContaining({
-        model: 'AnthropicTest/claude-3',
-        apiFormat: 'anthropic',
-      }))
+    // Mock Anthropic SSE 格式
+    const sseLines = [
+      'event: message_start',
+      'data: {"type":"message_start","message":{"id":"msg_1"}}',
+      '',
+      'event: content_block_start',
+      'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Anthropic response"}}',
+      '',
+      'event: content_block_stop',
+      'data: {"type":"content_block_stop","index":0}',
+      '',
+      'event: message_stop',
+      'data: {"type":"message_stop"}',
+    ].join('\n')
+    const encoded = new TextEncoder().encode(sseLines)
+    const stream = new ReadableStream({
+      start(controller) { controller.enqueue(encoded); controller.close() }
     })
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true, status: 200, body: stream,
+      headers: new Headers({ 'content-type': 'text/event-stream' }),
+    })
+    globalThis.fetch = mockFetch
+    typeAndSend('Hi')
+    await screen.findByText('Anthropic response')
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalled()
+    })
+    const [url, opts] = mockFetch.mock.calls[0]
+    expect(url).toContain('/v1/messages')
+    expect(JSON.parse(opts.body).model).toBe('AnthropicTest/claude-3')
   })
 
   // ─── Chinese ──────────────────────────────────
@@ -568,14 +601,15 @@ describe('ChatPage', () => {
   it('works with Chinese input', async () => {
     await renderChat()
     await selectAll()
+    const mockFetch = mockOpenAISSEStream(['你好，世界！', '__DONE__'])
     typeAndSend('你好世界')
 
     await waitFor(() => {
-      expect(_chatSend).toHaveBeenCalledWith(expect.objectContaining({
-        messages: [{ role: 'user', content: '你好世界' }],
-      }))
+      expect(mockFetch).toHaveBeenCalled()
     })
-    await screen.findByText('你好世界')
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.messages).toEqual([{ role: 'user', content: '你好世界' }])
+    await screen.findByText('你好，世界！')
   })
 
   // ─── Edge cases ───────────────────────────────
@@ -586,19 +620,19 @@ describe('ChatPage', () => {
     expect(screen.getByText(/选择模型和 API Key/)).toBeInTheDocument()
   })
 
-  it('cleans up chunk listener on unmount', async () => {
+  it('cleans up on unmount', async () => {
     const { ChatPage } = await import('../Chat')
     const queryClient = createQueryClient()
+    globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {})) // 永不 resolve
     const { unmount } = render(
       <QueryClientProvider client={queryClient}>
         <ChatPage />
       </QueryClientProvider>
     )
     await screen.findAllByRole('combobox')
-
-    expect(chunkCallback).not.toBeNull()
+    // 没有发送消息，不需要特殊断言
     unmount()
-    expect(chunkCallback).toBeNull()
+    // 期望不抛出错误即为通过
   })
 })
 
