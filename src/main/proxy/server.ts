@@ -13,23 +13,35 @@ import { createLogEntry, updateRequestStats, updateProviderStats } from '../db/l
 import { getDebugMode } from './manager'
 import type { LogDebugInfo } from '../../shared/types'
 
+/** 工作目录（用于调试日志文件输出） */
 const LOG_DIR = process.cwd()
 
+/**
+ * 认证调试日志
+ * 将每次认证请求/失败记录到文件，用于排查 API Key 认证问题。
+ * 路径：{工作目录}/llm-gateway-auth-debug.log
+ */
 const AUTH_LOG = path.join(LOG_DIR, 'llm-gateway-auth-debug.log')
 function authDebugLog(...args: any[]): void {
   try {
     const ts = new Date().toISOString()
     const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')
     fs.appendFileSync(AUTH_LOG, `[${ts}] ${msg}\n`)
-  } catch { /* ignore */ }
+  } catch { /* 日志写入失败不应影响主流程 */ }
 }
 
+/**
+ * 代理调试日志
+ * 记录每次代理请求的关键信息（路径、请求/响应体、耗时等）。
+ * 自动脱敏 headers 中的 authorization 字段。
+ * 路径：{工作目录}/llm-gateway-proxy-debug.log
+ */
 const PROXY_LOG = path.join(LOG_DIR, 'llm-gateway-proxy-debug.log')
 function proxyDebugLog(section: string, data: Record<string, any>): void {
   try {
     const ts = new Date().toISOString()
     const entry: Record<string, any> = { ts, section, ...data }
-    // Sanitize sensitive fields in any headers-like object
+    // 脱敏 headers 中的敏感字段（避免 API Key 泄漏到日志）
     for (const key of ['headers', 'upstreamHeaders', 'clientHeaders']) {
       if (entry[key]) {
         const h: Record<string, string> = {}
@@ -41,7 +53,7 @@ function proxyDebugLog(section: string, data: Record<string, any>): void {
     }
     const line = JSON.stringify(entry)
     fs.appendFileSync(PROXY_LOG, `${line}\n`)
-  } catch { /* ignore */ }
+  } catch { /* 日志写入失败不应影响主流程 */ }
 }
 
 interface AppEnv {
@@ -57,7 +69,7 @@ export function createServer() {
   // CORS
   app.use('*', cors())
 
-  // Auth middleware for /v1/*
+    // 认证中间件（/v1/*）：提取 Bearer token → verifyApiKey → 设置 c.var.apiKey
   app.use('/v1/*', async (c, next) => {
     const authHeader = c.req.header('authorization')
     const allHeaders: Record<string, string> = {}
@@ -79,7 +91,7 @@ export function createServer() {
     await next()
   })
 
-  // Rate limit middleware for /v1/*
+  // 限流中间件（/v1/*）：滑动窗口限流，按 API Key 维度计数
   app.use('/v1/*', async (c, next) => {
     const key = c.var.apiKey
     const result = rateLimiter.check(`apikey:${key.id}`, key.rate_limit)
@@ -118,11 +130,13 @@ export function createServer() {
   // GET /health - health check
   app.get('/health', (c) => c.json({ status: 'ok' }))
 
-
   return app
 
-  // --- Helper functions ---
-
+  /**
+   * 核心代理处理函数
+   * 处理完整请求生命周期：解析模型 → 路由供应商 → 协议转换（如需）→ 上游转发 → 响应处理 → 日志记录
+   * 支持流式（SSE）和非流式两种响应模式
+   */
   async function handleProxyRequest(
     c: Context<AppEnv>,
     path: string,
