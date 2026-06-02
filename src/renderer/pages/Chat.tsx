@@ -42,7 +42,7 @@ interface Message {
   id: string
   role: 'user' | 'assistant'
   content: string
-  thinking?: string       /** 模型的思考过程（如 Anthropic 的 extended thinking） */
+  thinking?: string       /** 模型的思考过程（如 extended thinking） */
   isThinking?: boolean    /** 模型正在思考中 */
   model?: string          /** 使用的模型名称 */
   isStreaming?: boolean   /** 是否正在接收流式响应 */
