@@ -133,6 +133,31 @@ function mockOpenAISSEStream(chunks: string[]) {
   return mockFetch
 }
 
+/**
+ * Mock fetch to return error SSE chunks.
+ */
+function mockOpenAISSEError(errorMessage: string) {
+  const lines = [
+    `data: {"choices":[{"delta":{"content":"${errorMessage}"},"finish_reason":null}]}`,
+    'data: [DONE]'
+  ].join('\n')
+  const encoded = new TextEncoder().encode(lines)
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoded)
+      controller.close()
+    }
+  })
+  const mockFetch = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    body: stream,
+    headers: new Headers({ 'content-type': 'text/event-stream' }),
+  })
+  globalThis.fetch = mockFetch
+  return mockFetch
+}
+
 // ======================
 // Helpers
 // ======================
