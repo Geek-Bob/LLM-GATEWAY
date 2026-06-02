@@ -74,11 +74,22 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
     messages: { role: string; content: string }[],
     providerType: 'anthropic' | 'openai'
   ): string {
-    const base: Record<string, any> = { model, messages, stream: true }
+    const body: Record<string, any> = { model, messages, stream: true }
     if (providerType === 'anthropic') {
-      base.max_tokens = 4096
+      body.max_tokens = 4096
     }
-    return JSON.stringify(base)
+    return JSON.stringify(body)
+  }
+
+  /** 构造流结束消息 */
+  function buildDoneMessage(content: string, thinking: string): StreamMessage {
+    return {
+      ...messageRef.current!,
+      content,
+      thinking,
+      isStreaming: false,
+      isThinking: false,
+    }
   }
 
   const send = useCallback(async (
@@ -170,13 +181,7 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
 
             const jsonStr = trimmed.slice(6)
             if (jsonStr === '[DONE]') {
-              const doneMsg: StreamMessage = {
-                ...messageRef.current!,
-                content: contentAcc,
-                thinking: thinkingAcc,
-                isStreaming: false,
-                isThinking: false,
-              }
+              const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
               messageRef.current = doneMsg
               onUpdate(doneMsg)
               return
@@ -206,13 +211,7 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
 
             // finish_reason 出现表示这是最后一个有意义 chunk
             if (parsed.choices?.[0]?.finish_reason) {
-              const doneMsg: StreamMessage = {
-                ...messageRef.current!,
-                content: contentAcc,
-                thinking: thinkingAcc,
-                isStreaming: false,
-                isThinking: false,
-              }
+              const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
               messageRef.current = doneMsg
               onUpdate(doneMsg)
               return
@@ -239,6 +238,16 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
                 } else if (block?.type === 'thinking' && block.thinking) {
                   thinkingAcc += block.thinking
                 }
+                if (contentAcc || thinkingAcc) {
+                  const updatedMsg: StreamMessage = {
+                    ...messageRef.current!,
+                    content: contentAcc,
+                    thinking: thinkingAcc,
+                    isThinking: block?.type === 'thinking',
+                  }
+                  messageRef.current = updatedMsg
+                  onUpdate(updatedMsg)
+                }
                 break
               }
               case 'content_block_delta': {
@@ -248,6 +257,16 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
                 } else if (delta?.type === 'thinking_delta' && delta.thinking) {
                   thinkingAcc += delta.thinking
                 }
+                if (contentAcc || thinkingAcc) {
+                  const updatedMsg: StreamMessage = {
+                    ...messageRef.current!,
+                    content: contentAcc,
+                    thinking: thinkingAcc,
+                    isThinking: delta?.type === 'thinking_delta',
+                  }
+                  messageRef.current = updatedMsg
+                  onUpdate(updatedMsg)
+                }
                 break
               }
               case 'message_delta': {
@@ -255,40 +274,18 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
                 break
               }
               case 'message_stop': {
-                const doneMsg: StreamMessage = {
-                  ...messageRef.current!,
-                  content: contentAcc,
-                  thinking: thinkingAcc,
-                  isStreaming: false,
-                  isThinking: false,
-                }
+                const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
                 messageRef.current = doneMsg
                 onUpdate(doneMsg)
                 return
               }
             }
-
-            // 每次有内容更新时通知 UI
-            const updatedMsg: StreamMessage = {
-              ...messageRef.current!,
-              content: contentAcc,
-              thinking: thinkingAcc,
-              isThinking: currentEvent === 'content_block_delta' && data.delta?.type === 'thinking_delta',
-            }
-            messageRef.current = updatedMsg
-            onUpdate(updatedMsg)
           }
         }
       }
 
       // 流自然结束但未收到明确终止信号（兜底）
-      const doneMsg: StreamMessage = {
-        ...messageRef.current!,
-        content: contentAcc,
-        thinking: thinkingAcc,
-        isStreaming: false,
-        isThinking: false,
-      }
+      const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
       messageRef.current = doneMsg
       onUpdate(doneMsg)
     } catch (err) {
@@ -309,6 +306,7 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
       }
     } finally {
       abortRef.current = null
+      readerRef.current?.cancel()?.catch(() => {})
       readerRef.current = null
       setIsLoading(false)
     }
