@@ -1,3 +1,18 @@
+/**
+ * ChatMessage — 单条聊天消息气泡
+ *
+ * props:
+ * - role: 'user'（右对齐）或 'assistant'（左对齐）
+ * - content: Markdown 文本内容（assistant 消息通过 Markdown 组件渲染）
+ * - thinking: 模型的思考过程（extended thinking），可折叠
+ * - isThinking: 模型正在思考中（显示闪烁指示点）
+ * - isStreaming: 是否正在流式输出（末尾显示光标）
+ * - error: 请求失败（显示红色样式）
+ * - onRegenerate: 重新生成回调（仅在最后一条助手消息时显示）
+ *
+ * 操作：复制内容、重新生成（仅助手消息）
+ */
+
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronDown, Copy, RefreshCw } from 'lucide-react'
@@ -8,18 +23,19 @@ import { ErrorBoundary } from './ErrorBoundary'
 interface ChatMessageProps {
   role: 'user' | 'assistant'
   content: string
-  thinking?: string
-  isThinking?: boolean
-  model?: string
-  isStreaming?: boolean
-  error?: boolean
-  onRegenerate?: () => void
+  thinking?: string          /** 模型的思考过程文本 */
+  isThinking?: boolean       /** 是否处于思考中（流式场景，thinking 段尚未完成） */
+  model?: string             /** 模型名称，显示在气泡顶部 */
+  isStreaming?: boolean      /** 是否正在流式输出 */
+  error?: boolean            /** 是否出错 */
+  onRegenerate?: () => void  /** 重新生成按钮回调 */
 }
 
 export function ChatMessage({ role, content, thinking, isThinking, model, isStreaming, error, onRegenerate }: ChatMessageProps) {
   const isUser = role === 'user'
   const [thinkingExpanded, setThinkingExpanded] = useState(true)
 
+  // 思考完成时自动折叠 thinking 区域，以节省屏幕空间
   useEffect(() => {
     if (!isThinking && thinking) {
       setThinkingExpanded(false)
