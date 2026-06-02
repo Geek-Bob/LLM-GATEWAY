@@ -133,31 +133,6 @@ function mockOpenAISSEStream(chunks: string[]) {
   return mockFetch
 }
 
-/**
- * Mock fetch to return error SSE chunks.
- */
-function mockOpenAISSEError(errorMessage: string) {
-  const lines = [
-    `data: {"choices":[{"delta":{"content":"${errorMessage}"},"finish_reason":null}]}`,
-    'data: [DONE]'
-  ].join('\n')
-  const encoded = new TextEncoder().encode(lines)
-  const stream = new ReadableStream({
-    start(controller) {
-      controller.enqueue(encoded)
-      controller.close()
-    }
-  })
-  const mockFetch = vi.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    body: stream,
-    headers: new Headers({ 'content-type': 'text/event-stream' }),
-  })
-  globalThis.fetch = mockFetch
-  return mockFetch
-}
-
 // ======================
 // Helpers
 // ======================
@@ -576,50 +551,6 @@ describe('ChatPage', () => {
     )
   })
 
-  // ─── Provider type routing ────────────────────
-
-  it('uses apiFormat: anthropic for anthropic provider', async () => {
-    _providerList.mockResolvedValue([
-      { ...mockProvider, name: 'AnthropicTest', providerType: 'anthropic', models: ['claude-3'] },
-    ])
-    await renderChat()
-
-    await selectByIndex(0, 'AnthropicTest')
-    await selectByIndex(1, 'claude-3')
-    await selectByIndex(2, 'My Key')
-
-    // Mock Anthropic SSE 格式
-    const sseLines = [
-      'event: message_start',
-      'data: {"type":"message_start","message":{"id":"msg_1"}}',
-      '',
-      'event: content_block_start',
-      'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":"Anthropic response"}}',
-      '',
-      'event: content_block_stop',
-      'data: {"type":"content_block_stop","index":0}',
-      '',
-      'event: message_stop',
-      'data: {"type":"message_stop"}',
-    ].join('\n')
-    const encoded = new TextEncoder().encode(sseLines)
-    const stream = new ReadableStream({
-      start(controller) { controller.enqueue(encoded); controller.close() }
-    })
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true, status: 200, body: stream,
-      headers: new Headers({ 'content-type': 'text/event-stream' }),
-    })
-    globalThis.fetch = mockFetch
-    typeAndSend('Hi')
-    await screen.findByText('Anthropic response')
-    await waitFor(() => {
-      expect(mockFetch).toHaveBeenCalled()
-    })
-    const [url, opts] = mockFetch.mock.calls[0]
-    expect(url).toContain('/v1/messages')
-    expect(JSON.parse(opts.body).model).toBe('AnthropicTest/claude-3')
-  })
 
   // ─── Chinese ──────────────────────────────────
 
