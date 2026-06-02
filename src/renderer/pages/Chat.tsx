@@ -140,7 +140,7 @@ export function ChatPage() {
     const userMessage: Message = { id: uuidv4(), role: 'user', content }
     setMessages((prev) => [...prev, userMessage])
 
-    saveUserMessage(content, selectedProviderId, selectedModel, selectedApiKeyId)
+    saveUserMessage(content, selectedProvider.id, selectedModel, selectedApiKeyId)
       .catch(() => {})
 
     const modelFull = `${selectedProvider.name}/${selectedModel}`
@@ -148,7 +148,7 @@ export function ChatPage() {
       ...messages.map(m => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content },
     ])
-  }, [selectedModel, selectedApiKeyId, selectedProvider, selectedProviderId, ensureApiKey, saveUserMessage, send, messages])
+  }, [selectedModel, selectedApiKeyId, selectedProvider, ensureApiKey, saveUserMessage, send, messages])
 
   // ─── 其他操作 ───
   const handleStop = useCallback(() => { abort() }, [abort])
