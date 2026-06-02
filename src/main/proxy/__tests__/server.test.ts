@@ -479,4 +479,5 @@ describe('Hono Proxy Server', () => {
       globalThis.fetch = originalFetch
     })
   })
+
 })
