@@ -27,6 +27,14 @@ import { setupUpdateIpcHandlers } from '../update/ipc'
 
 const logger = createLogger('ipc')
 
+/**
+ * 注册所有 IPC handler，连接渲染进程请求与 domain service 层
+ *
+ * 遵循 domain 模式：每个 handler 委托到对应 domain service，
+ * 不直接调用 db/ 数据访问层。domain service 通过 getDb() 注入数据库实例。
+ *
+ * @param updateManager - 自动更新管理器实例，用于注册更新相关 IPC handler
+ */
 export function setupIpcHandlers(updateManager: UpdateManager): void {
   // 通过 getDb() 注入数据库实例，创建所有 domain service
   const db = getDb()
