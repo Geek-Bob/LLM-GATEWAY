@@ -49,11 +49,17 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     return providerService.list()
   })
 
-  ipcMain.handle('provider:create', async (_event, data) => {
+  ipcMain.handle('provider:create', async (_event, data: {
+    name: string
+    providerType: 'anthropic' | 'openai'
+    baseUrl: string
+    apiKey: string
+    models: string[]
+  }) => {
     return providerService.create(data)
   })
 
-  ipcMain.handle('provider:update', async (_event, id: number, data) => {
+  ipcMain.handle('provider:update', async (_event, id: number, data: Record<string, unknown>) => {
     return providerService.update(id, data)
   })
 
@@ -75,7 +81,7 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
   })
 
   // ====== 日志查询与统计 ======
-  ipcMain.handle('logs:query', async (_event, params) => {
+  ipcMain.handle('logs:query', async (_event, params: Record<string, unknown>) => {
     return logsService.query(params)
   })
 
@@ -153,7 +159,12 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     apiKeyId?: number | null
   }) => {
     const id = await conversationService.create(data)
-    return conversationService.getById(id)
+    const conv = await conversationService.getById(id)
+    // 防御性检查：极端的并发/WAL 延迟场景下刚插入的记录可能查不到
+    if (!conv) {
+      throw new Error(`Created conversation ${id} not found`)
+    }
+    return conv
   })
 
   ipcMain.handle('conversation:update', async (_event, id: number, data: {
