@@ -117,4 +117,50 @@ describe('UpdateConfigManager', () => {
 
     warnSpy.mockRestore()
   })
+
+  it('应该延迟读取配置文件（构造时不触发 fs.existsSync）', () => {
+    vi.clearAllMocks()
+    existsSyncMock.mockReturnValue(true)
+    readFileSyncMock.mockReturnValue(JSON.stringify({ autoCheck: false }))
+
+    // 构造时不应触发任何 fs 调用
+    const mgr = new UpdateConfigManager()
+    expect(existsSyncMock).not.toHaveBeenCalled()
+    expect(readFileSyncMock).not.toHaveBeenCalled()
+
+    // 首次 getConfig() 才触发读取
+    const config = mgr.getConfig()
+    expect(existsSyncMock).toHaveBeenCalled()
+    expect(config.autoCheck).toBe(false)
+  })
+
+  it('应该缓存首次读取的结果，后续调用不重复 I/O', () => {
+    vi.clearAllMocks()
+    existsSyncMock.mockReturnValue(true)
+    readFileSyncMock.mockReturnValue(JSON.stringify({ autoCheck: false }))
+
+    const mgr = new UpdateConfigManager()
+    mgr.getConfig() // 首次 — 触发 I/O
+    expect(readFileSyncMock).toHaveBeenCalledTimes(1)
+
+    mgr.getConfig() // 第二次 — 命中缓存
+    expect(readFileSyncMock).toHaveBeenCalledTimes(1) // 仍为 1
+  })
+
+  it('应该缓存 fallback 默认值，不重复读取损坏文件', () => {
+    vi.clearAllMocks()
+    existsSyncMock.mockReturnValue(true)
+    readFileSyncMock.mockReturnValue('{ invalid json !!!')
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const mgr = new UpdateConfigManager()
+
+    mgr.getConfig() // 首次 — 损坏，fallback
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+
+    mgr.getConfig() // 第二次 — 缓存命中，不重复读取
+    expect(warnSpy).toHaveBeenCalledTimes(1)
+
+    warnSpy.mockRestore()
+  })
 })
