@@ -13,5 +13,10 @@ export const createProviderSchema = z.object({
   models: z.array(z.string()).min(1)
 })
 
-/** 更新供应商的输入校验 schema — 所有字段可选 */
-export const updateProviderSchema = createProviderSchema.partial()
+/**
+ * 更新供应商的输入校验 schema
+ * 所有字段可选，额外支持 isActive 开关（0=停用, 1=激活）
+ */
+export const updateProviderSchema = createProviderSchema.extend({
+  isActive: z.number().int().min(0).max(1).optional()
+}).partial()
