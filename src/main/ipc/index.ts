@@ -22,6 +22,9 @@ import { createConversationService } from '../domains/conversation/conversation.
 import { createLogsService } from '../domains/logs/logs.service'
 import { createStatsService } from '../domains/stats/stats.service'
 import { getProxyConfig, startProxy, stopProxy, restartProxy, setProxyPort, getDebugMode, setDebugMode } from '../proxy/manager'
+import { createProviderSchema, updateProviderSchema } from '../domains/provider/provider.schema'
+import { createApiKeySchema } from '../domains/apikey/apikey.schema'
+import { createConversationSchema, updateConversationSchema, addMessageSchema } from '../domains/conversation/conversation.schema'
 import { UpdateManager } from '../update/manager'
 import { setupUpdateIpcHandlers } from '../update/ipc'
 
@@ -56,11 +59,13 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     apiKey: string
     models: string[]
   }) => {
-    return providerService.create(data)
+    const input = createProviderSchema.parse(data)
+    return providerService.create(input)
   })
 
   ipcMain.handle('provider:update', async (_event, id: number, data: Record<string, unknown>) => {
-    return providerService.update(id, data)
+    const input = updateProviderSchema.parse(data)
+    return providerService.update(id, input)
   })
 
   ipcMain.handle('provider:delete', async (_event, id: number) => {
@@ -73,7 +78,8 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
   })
 
   ipcMain.handle('apikey:create', async (_event, name: string, rateLimit?: number) => {
-    return apiKeyService.create({ name, rateLimit })
+    const input = createApiKeySchema.parse({ name, rateLimit })
+    return apiKeyService.create(input)
   })
 
   ipcMain.handle('apikey:delete', async (_event, id: number) => {
@@ -158,7 +164,8 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     providerId?: number | null
     apiKeyId?: number | null
   }) => {
-    const id = await conversationService.create(data)
+    const input = createConversationSchema.parse(data)
+    const id = await conversationService.create(input)
     const conv = await conversationService.getById(id)
     // 防御性检查：极端的并发/WAL 延迟场景下刚插入的记录可能查不到
     if (!conv) {
@@ -173,7 +180,8 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     model?: string
     apiKeyId?: number | null
   }) => {
-    return conversationService.update(id, data)
+    const input = updateConversationSchema.parse(data)
+    return conversationService.update(id, input)
   })
 
   ipcMain.handle('conversation:delete', async (_event, id: number) => {
@@ -189,7 +197,8 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
   })
 
   ipcMain.handle('conversation:addMessage', async (_event, conversationId: number, role: 'user' | 'assistant', content: string, thinking?: string) => {
-    return conversationService.addMessage({ conversationId, role, content, thinking })
+    const input = addMessageSchema.parse({ conversationId, role, content, thinking })
+    return conversationService.addMessage(input)
   })
 
   // ====== 自动更新 ======
