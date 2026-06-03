@@ -1,6 +1,12 @@
+/**
+ * Electron 主进程入口
+ *
+ * 负责应用生命周期管理：创建窗口、系统托盘、初始化数据库、
+ * 启动 HTTP 代理服务器、注册 IPC 处理器和自动更新管理器。
+ */
+
 import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron'
 import path from 'path'
-import fs from 'fs'
 import { initDatabase, closeDatabase } from './db/connection'
 import { createTables } from './db/schema'
 import { initLogsDir } from './db/logs'
@@ -10,10 +16,19 @@ import { UpdateManager } from './update/manager'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+/**
+ * 代理服务器端口号（仅监听 localhost，供 Chat 对话流使用）
+ */
 export const PROXY_PORT = 8080
 const isDev = !app.isPackaged
+/** 后端服务（数据库 + 代理）是否已初始化完成 */
+let backendReady = false
 ;(globalThis as any).appIsQuitting = false
 
+/**
+ * 获取应用图标路径
+ * 开发模式从项目资源目录读取，生产模式从打包后的 resources 目录读取
+ */
 function getIconPath(): string {
   const iconName = 'icon.png'
   if (isDev) {
@@ -22,6 +37,10 @@ function getIconPath(): string {
   return path.join(process.resourcesPath, iconName)
 }
 
+/**
+ * 加载系统托盘图标
+ * 图标加载失败时返回空图标，避免应用崩溃
+ */
 function loadIcon(): Electron.NativeImage {
   try {
     const iconPath = getIconPath()
@@ -33,6 +52,14 @@ function loadIcon(): Electron.NativeImage {
   return nativeImage.createEmpty()
 }
 
+/**
+ * 创建主窗口
+ *
+ * - 无边框窗口 + 自定义标题栏（titleBarStyle: 'hidden'）
+ * - 关闭按钮默认隐藏窗口而非退出（minimize to tray）
+ * - 开发模式自动打开 DevTools
+ * - 渲染进程控制台日志转发到主进程输出
+ */
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -64,6 +91,11 @@ function createWindow(): void {
       mainWindow?.webContents.openDevTools()
     }
 
+    // 如果后端已经初始化完成（极快启动场景），立即通知渲染进程
+    if (backendReady) {
+      mainWindow?.webContents.send('backend:ready')
+    }
+
     // 窗口加载完成后再延迟检查更新，避免阻塞启动
     if (!isDev) {
       setTimeout(() => {
@@ -93,6 +125,10 @@ function createWindow(): void {
   })
 }
 
+/**
+ * 创建系统托盘
+ * 提供打开管理面板和退出的快捷菜单，点击托盘图标切换窗口显示
+ */
 function createTray(): void {
   const icon = loadIcon()
   tray = new Tray(icon)
@@ -118,23 +154,13 @@ function createTray(): void {
   )
 }
 
-function cleanupDebugLogs(): void {
-  const debugFiles = [
-    'llm-gateway-chat-debug.log',
-    'llm-gateway-auth-debug.log',
-    'llm-gateway-proxy-debug.log'
-  ]
-  for (const file of debugFiles) {
-    try {
-      const fp = path.join(process.cwd(), file)
-      if (fs.existsSync(fp)) fs.unlinkSync(fp)
-    } catch { /* ignore */ }
-  }
-}
-
+/**
+ * 启动后端服务
+ *
+ * 按顺序初始化：数据库连接 → 建表 → 日志目录 → HTTP 代理服务器
+ * 数据目录使用 Electron 的 userData 路径，确保跨平台兼容
+ */
 async function startServer(): Promise<void> {
-  cleanupDebugLogs()
-
   const dataDir = app.getPath('userData')
   await initDatabase(path.join(dataDir, 'config.db'))
   createTables()
@@ -143,24 +169,40 @@ async function startServer(): Promise<void> {
   const logsDir = path.join(dataDir, 'logs')
   initLogsDir(logsDir)
 
-  // Start proxy via manager
+  // Start unified server (proxy + admin API on single port)
   setProxyPort(PROXY_PORT)
   startProxy()
 }
 
 let updateManager: UpdateManager
 
-app.whenReady().then(async () => {
-  await startServer()
+/** 通知渲染进程后端已就绪，如窗口未加载完毕则等待 did-finish-load 后再发 */
+function notifyBackendReady(): void {
+  backendReady = true
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('backend:ready')
+  }
+}
 
-  // 初始化更新管理器（在 createWindow 之前，确保 did-finish-load 回调可访问）
+/**
+ * 应用就绪后的启动流程
+ *
+ * 优化策略：立即创建窗口让用户看到界面，后端初始化异步执行。
+ * 旧流程：init DB → start proxy → create window（用户等待 100-500ms+）❌
+ * 新流程：create window → init DB/Proxy（后台，渲染进程显示 loading）✅
+ */
+app.whenReady().then(async () => {
+  // 阶段 1: 同步初始化（不依赖数据库/代理）
   updateManager = new UpdateManager()
   setupIpcHandlers(updateManager)
 
+  // 阶段 2: 立即显示窗口（用户感知延迟降低到 0）
   createWindow()
   createTray()
 
-  // 更新检查已移至 did-finish-load 回调中，由事件驱动而非固定延迟
+  // 阶段 3: 异步初始化后端服务
+  await startServer()
+  notifyBackendReady()
 })
 
 app.on('window-all-closed', () => {

@@ -1,15 +1,88 @@
+/**
+ * preload 脚本（contextBridge）
+ *
+ * 安全职责：
+ * - 渲染进程（不可信）通过 window.electronAPI 调用受限的主进程能力
+ * - 不暴露 ipcRenderer 本身，只暴露经过白名单的方法
+ * - 所有 invoke 调用是请求-响应模式（返回 Promise），send 调用是单向通知
+ *
+ * IPC 通道命名约定：{domain}:{action}
+ *   例：provider:list, conversation:create, proxy:status
+ *
+ * 更新事件监听：
+ *   使用 ipcRenderer.on() 监听主进程推送的事件（update:available 等），
+ *   返回 removeListener 清理函数，由调用方在组件卸载时取消订阅。
+ */
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  // 调试日志通道：渲染进程通过此通道将日志发送到主进程统一处理
   debug: {
     log: (...args: unknown[]) => ipcRenderer.send('renderer:log', args),
   },
+  /** 后端就绪事件监听，用于启动 loading 状态管理 */
+  backend: {
+    onReady: (callback: () => void) => {
+      const handler = () => callback()
+      ipcRenderer.on('backend:ready', handler)
+      return () => ipcRenderer.removeListener('backend:ready', handler)
+    },
+  },
+  /**
+   * 供应商 CRUD
+   * 管理 LLM 供应商配置（名称、类型、地址、密钥、模型列表）
+   */
+  providers: {
+    list: () => ipcRenderer.invoke('provider:list'),
+    create: (data: { name: string; providerType: string; baseUrl: string; apiKey: string; models: string[] }) =>
+      ipcRenderer.invoke('provider:create', data),
+    update: (id: number, data: Record<string, unknown>) =>
+      ipcRenderer.invoke('provider:update', id, data),
+    delete: (id: number) => ipcRenderer.invoke('provider:delete', id),
+  },
+  /**
+   * API Key CRUD
+   * 管理网关自身的 API Key（用于外部客户端调用代理时的身份认证）
+   */
   apiKeys: {
     list: () => ipcRenderer.invoke('apikey:list'),
     create: (name: string, rateLimit?: number) =>
       ipcRenderer.invoke('apikey:create', name, rateLimit),
     delete: (id: number) => ipcRenderer.invoke('apikey:delete', id)
   },
+  /**
+   * 日志与统计
+   * query: 按条件查询日志条目（支持分页、过滤）
+   * stats: 聚合统计概览数据
+   * statsDetailed: 按供应商/模型维度的明细统计数据
+   */
+  logs: {
+    query: (params: Record<string, unknown>) => ipcRenderer.invoke('logs:query', params),
+    stats: (range: string) => ipcRenderer.invoke('logs:stats', range),
+    statsDetailed: (range: '24h' | '30d') => ipcRenderer.invoke('logs:statsDetailed', range),
+  },
+  /**
+   * 对话 CRUD + 消息管理
+   * 对话记录保存在本地 SQLite 数据库中
+   * messages: 获取指定对话的所有消息
+   * addMessage: 添加消息并记录思考过程（thinking 字段用于 Anthropic 扩展思维）
+   */
+  conversations: {
+    list: () => ipcRenderer.invoke('conversation:list'),
+    create: (data: { title: string; model: string; providerId?: number | null; apiKeyId?: number | null }) =>
+      ipcRenderer.invoke('conversation:create', data),
+    update: (id: number, data: Record<string, unknown>) =>
+      ipcRenderer.invoke('conversation:update', id, data),
+    delete: (id: number) => ipcRenderer.invoke('conversation:delete', id),
+    get: (id: number) => ipcRenderer.invoke('conversation:get', id),
+    messages: (conversationId: number) => ipcRenderer.invoke('conversation:messages', conversationId),
+    addMessage: (conversationId: number, role: 'user' | 'assistant', content: string, thinking?: string) =>
+      ipcRenderer.invoke('conversation:addMessage', conversationId, role, content, thinking),
+  },
+  /**
+   * 代理服务器生命周期管理
+   * 控制 Hono HTTP 代理的启动/停止/重启，查询状态和调试模式
+   */
   proxy: {
     status: () => ipcRenderer.invoke('proxy:status'),
     start: (port?: number) => ipcRenderer.invoke('proxy:start', port),
@@ -19,11 +92,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getDebugMode: () => ipcRenderer.invoke('proxy:getDebugMode'),
     setDebugMode: (enabled: boolean) => ipcRenderer.invoke('proxy:setDebugMode', enabled)
   },
+  /**
+   * 窗口控制（Electron 窗口最小化/最大化/关闭）
+   * 使用 ipcRenderer.send（单向通知），不需要等待主进程响应
+   */
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),
     maximize: () => ipcRenderer.send('window:maximize'),
     close: () => ipcRenderer.send('window:close')
   },
+  /**
+   * 自动更新
+   * check/download/install：手动触发更新流程
+   * skipVersion：跳过特定版本
+   * onAvailable/onProgress/onDownloaded/onError：事件监听器，返回值是取消订阅函数
+   */
   update: {
     check: () => ipcRenderer.invoke('update:check'),
     download: () => ipcRenderer.invoke('update:download'),

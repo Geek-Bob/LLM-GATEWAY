@@ -1,3 +1,15 @@
+/**
+ * ApiKeys 页面 — 网关访问密钥管理
+ *
+ * 数据流:
+ * 1. useApiKeys 通过 IPC 获取所有密钥
+ * 2. useCreateApiKey / useDeleteApiKey 创建和删除密钥
+ * 3. 创建流程为两步向导：Step1 填写名称/速率限制 → Step2 展示生成的明文密钥（仅此一次）
+ * 4. 表格中密钥只显示前缀，可通过 Popover 查看完整值或复制
+ *
+ * 注意：明文密钥仅在创建时展示一次，关闭后无法再次查看完整值
+ */
+
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Trash2, Eye, EyeOff, Copy, Check, Key } from 'lucide-react'

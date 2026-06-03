@@ -1,3 +1,15 @@
+/**
+ * Logs 页面 — 代理请求日志查看
+ *
+ * 数据流:
+ * 1. useLogs 通过 IPC 分页获取日志列表
+ * 2. useDebugMode / useSetDebugMode 控制是否记录详细的请求/响应体
+ * 3. 点击一行在右侧滑出详情面板（仅当一个请求对应的 debug 字段非空时展示完整链路）
+ * 4. Debug 模式开启后新请求会记录完整调试信息，历史日志只显示基础数据
+ *
+ * 内嵌 DebugSection / DebugKV / DebugJSON 三个辅助组件用于格式化呈现调试信息
+ */
+
 import { useState } from 'react'
 import { X, Bug } from 'lucide-react'
 import { motion } from 'framer-motion'

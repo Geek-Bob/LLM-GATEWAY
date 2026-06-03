@@ -1,0 +1,14 @@
+# 所有文本文件统一使用 LF，无论平台
+* text=auto eol=lf
+
+# 二进制文件不转换
+*.png binary
+*.ico binary
+*.icns binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.svg binary
+*.db binary
+*.sqlite binary

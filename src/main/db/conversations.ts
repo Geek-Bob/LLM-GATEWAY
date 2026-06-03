@@ -1,3 +1,17 @@
+/**
+ * 会话与消息数据访问层
+ *
+ * 管理两个相关联的表：
+ * - conversations：会话元信息（标题、关联供应商、模型、API Key）
+ * - messages：会话内的消息记录（按 id ASC 排序保证时序）
+ *
+ * 关键设计：
+ * - 会话列表始终按 updated_at 降序，最近活动的排最前
+ * - 添加消息时会自动更新父会话的 updated_at
+ * - messages.thinking 字段用于存储 Anthropic 的思考过程（streaming 模式）
+ * - provider_id 可为 null，兼容未选择供应商的历史会话
+ */
+
 import { getDb } from './connection'
 
 export interface ConversationRow {
@@ -19,11 +33,13 @@ export interface MessageRow {
   created_at: string
 }
 
+/** 列出所有会话，按最近更新时间降序排列。 */
 export function listConversations(): ConversationRow[] {
   const db = getDb()
   return db.prepare('SELECT * FROM conversations ORDER BY updated_at DESC').all() as unknown as ConversationRow[]
 }
 
+/** 创建新会话，关联可选的供应商和 API 密钥。返回新会话的自增主键 ID。 */
 export function createConversation(
   title: string,
   model: string,
@@ -45,6 +61,11 @@ export function createConversation(
   return result.lastInsertRowid
 }
 
+/**
+ * 部分更新会话字段（标题、供应商、模型、API Key）。
+ * 使用 undefined 判断而非 falsy 判断，以便支持将字段显式设为 null。
+ * 每次更新自动刷新 updated_at 时间戳。
+ */
 export function updateConversation(
   id: number,
   data: {
@@ -80,11 +101,13 @@ export function updateConversation(
   ).run(params)
 }
 
+/** 删除会话。注意：不会级联删除关联的消息（SQLite 外键默认行为），需待 schema 层 CASCADE 支持。 */
 export function deleteConversation(id: number): void {
   const db = getDb()
   db.prepare('DELETE FROM conversations WHERE id = ?').run(id)
 }
 
+/** 按 ID 获取单个会话，找不到返回 undefined。 */
 export function getConversation(id: number): ConversationRow | undefined {
   const db = getDb()
   return db
@@ -92,6 +115,7 @@ export function getConversation(id: number): ConversationRow | undefined {
     .get(id) as ConversationRow | undefined
 }
 
+/** 获取某会话的所有消息，按 id ASC 升序（即对话发生的自然时序）。 */
 export function listMessages(conversationId: number): MessageRow[] {
   const db = getDb()
   return db
@@ -101,6 +125,12 @@ export function listMessages(conversationId: number): MessageRow[] {
     .all(conversationId) as unknown as MessageRow[]
 }
 
+/**
+ * 向会话中添加消息。
+ * - role 仅允许 'user' 或 'assistant'
+ * - thinking 字段用于存储模型推理的中间思考文本（Anthropic 特有），默认为空字符串
+ * - 新消息插入后自动更新父会话的 updated_at，确保会话列表按最新消息活动排序
+ */
 export function addMessage(
   conversationId: number,
   role: 'user' | 'assistant',
@@ -120,6 +150,7 @@ export function addMessage(
       thinking: thinking || ''
     })
 
+  // 新消息添加后刷新父会话时间戳，以便排序
   db.prepare(
     "UPDATE conversations SET updated_at = datetime('now') WHERE id = ?"
   ).run(conversationId)

@@ -1,3 +1,13 @@
+/**
+ * StatsCharts — 统计图表组件
+ *
+ * HourlyBarChart: 24 小时柱状图，缺失时段补 0
+ * DailyAreaChart: 30 天面积图，带渐变填充
+ *
+ * 均使用 recharts 的 ResponsiveContainer 自适应父容器宽度
+ * 颜色通过 CSS 变量 hsl(var(--primary)) 引用主题色
+ */
+
 import { BarChart, Bar, XAxis, YAxis, Tooltip, AreaChart, Area, ResponsiveContainer } from 'recharts'
 import type { StatsDataPoint } from '../lib/types'
 
@@ -7,7 +17,7 @@ interface HourlyBarChartProps {
 }
 
 export function HourlyBarChart({ data, height = 100 }: HourlyBarChartProps) {
-  // Fill missing hours with 0
+  // 补齐 24 小时中缺失的时段，确保柱状图连贯
   const filled = Array.from({ length: 24 }, (_, i) => {
     const existing = data.find((d) => d.period === i)
     return { hour: `${i}:00`, requests: existing?.requests ?? 0, tokensIn: existing?.tokensIn ?? 0, tokensOut: existing?.tokensOut ?? 0 }
@@ -34,6 +44,7 @@ interface DailyAreaChartProps {
 }
 
 export function DailyAreaChart({ data, height = 100 }: DailyAreaChartProps) {
+  // 将 period 截取为 MM-DD 格式用于横轴标签
   const filled = data.map((d) => ({
     date: typeof d.period === 'string' ? d.period.slice(5) : String(d.period),
     requests: d.requests,

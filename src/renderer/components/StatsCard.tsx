@@ -1,3 +1,15 @@
+/**
+ * StatsCard — 仪表盘统计卡片
+ *
+ * 显示一个指标（请求数/Token/供应商数/延迟），带图标和数值
+ * hover 时轻微上移 + 阴影变化，顶部出现渐变色装饰条
+ *
+ * props:
+ * - title: 指标名称
+ * - value: 指标数值（可带单位，如 "120ms"）
+ * - icon: 图标 ReactNode
+ */
+
 import { Card, CardContent } from './ui/card'
 import { motion } from 'framer-motion'
 

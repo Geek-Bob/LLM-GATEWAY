@@ -1,3 +1,14 @@
+/**
+ * Dashboard 页面 — 系统概览与服务状态
+ *
+ * 数据流:
+ * 1. useProviders / useDashboardStats / useHourlyStats / useDailyStats 通过 IPC 获取数据
+ * 2. useProxyStatus / useToggleProxy 控制 HTTP 代理服务的启停
+ * 3. 顶部显示代理开关及 4 个统计卡片（请求数、Token、供应商、延迟）
+ * 4. 中部表格展示各供应商/模型的调用汇总（逐日统计）
+ * 5. 底部手风琴展示单个模型 24h 柱状图和 30 天面积图
+ */
+
 import { useState } from 'react'
 import { useProviders } from '../lib/queries/providers'
 import { useDashboardStats, useHourlyStats, useDailyStats } from '../lib/queries/stats'

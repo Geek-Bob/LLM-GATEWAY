@@ -1,3 +1,15 @@
+/**
+ * ErrorBoundary — React 错误边界
+ *
+ * 使用 class component 实现（React 错误边界只能由 class component 实现）
+ * 捕获子组件渲染过程中的 JS 错误，显示 fallback UI 而非白屏
+ * 主要用于包裹 Markdown 渲染等可能抛异常的组件
+ *
+ * props:
+ * - children: 需要被保护的子组件
+ * - fallback: 可选的自定义错误 UI，默认显示红色错误提示
+ */
+
 import { Component, type ReactNode } from 'react'
 
 interface ErrorBoundaryProps {

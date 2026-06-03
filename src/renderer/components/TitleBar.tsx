@@ -1,3 +1,11 @@
+/**
+ * TitleBar — Electron 无边框窗口的标题栏
+ *
+ * 提供三个窗口控制按钮：最小化、最大化、关闭
+ * 通过 api.window.* IPC 调用主进程对应方法
+ * div.drag 和 div.no-drag 区分拖拽区域和按钮区域（由 preload 中的 CSS 类控制）
+ */
+
 import { api } from '../lib/ipc'
 import { Minus, Square, X } from 'lucide-react'
 import { cn } from '../lib/utils'

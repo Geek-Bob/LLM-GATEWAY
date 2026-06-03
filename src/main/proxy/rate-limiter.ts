@@ -1,3 +1,19 @@
+/**
+ * 滑动窗口限流器
+ *
+ * 基于内存的滑动窗口算法，以 API Key 为粒度限制每分钟最大请求数。
+ * 每个 key 维护一个时间戳数组，落在窗口外的时间戳自动过期。
+ *
+ * 关键设计：
+ * - 使用 Map 而非 Redis/外部存储，适合单进程桌面应用
+ * - 滑动窗口比固定窗口更平滑，避免流量毛刺
+ * - 限流上限来自 ApiKeyRow.rate_limit 字段，默认 60 次/分钟
+ * - 被限流的 key 通过 setTimeout 延迟清理，避免内存泄漏
+ *
+ * resetAt 计算：
+ * - 如果已满了，返回最早时间戳 + 窗口时长（即何时可恢复）
+ * - 如果未满，返回窗口开始时间 + 窗口时长
+ */
 export interface RateLimitResult {
   allowed: boolean
   remaining: number
@@ -18,13 +34,13 @@ export class RateLimiter {
 
     let timestamps = this.windows.get(key) || []
 
-    // Remove timestamps outside the current sliding window
+    // 移除窗口外的时间戳（滑动窗口）
     timestamps = timestamps.filter(ts => ts > windowStart)
 
     if (timestamps.length >= limit) {
       const resetAt = timestamps[0] + this.windowMs
 
-      // Schedule automatic cleanup of this key once the window passes
+      // 延迟清理该 key 的缓存，避免内存泄漏
       setTimeout(() => {
         this.windows.delete(key)
       }, this.windowMs)
@@ -32,7 +48,7 @@ export class RateLimiter {
       return { allowed: false, remaining: 0, resetAt }
     }
 
-    // Record the current request timestamp
+    // 记录当前请求时间戳
     timestamps.push(now)
     this.windows.set(key, timestamps)
 

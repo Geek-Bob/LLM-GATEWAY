@@ -1,3 +1,17 @@
+/**
+ * ChatInput — 聊天消息输入框
+ *
+ * 功能:
+ * 1. 自动扩展高度的 textarea（最大 200px）
+ * 2. Enter 发送，Shift+Enter 换行
+ * 3. disabled 状态解除时自动聚焦（使用 requestAnimationFrame 确保 Electron 渲染器稳定后再聚焦）
+ *    这是为了解决 Electron 中 confirm() 对话框关闭后焦点不归还的问题
+ *
+ * props:
+ * - onSend: 发送回调，传入 trimmed 后的文本
+ * - disabled: 流式请求中禁用输入
+ */
+
 import { useRef, useEffect } from 'react'
 import { Button } from './ui/button'
 import { Send } from 'lucide-react'
@@ -11,6 +25,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // disabled 解除时自动聚焦，解决 Electron confirm() 对话框焦点不归还问题
+  // 当 handleSend 中的 confirm() 弹窗关闭后，textarea 失去焦点，需手动恢复
   useEffect(() => {
     if (!disabled && inputRef.current) {
       // requestAnimationFrame 确保 Electron 渲染器在 DOM 变更后稳定下来再聚焦

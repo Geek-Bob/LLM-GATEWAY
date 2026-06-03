@@ -4,20 +4,28 @@ import type {
   CreateConversationInput, UpdateConversationInput, AddMessageInput
 } from './conversation.types'
 
+/**
+ * 创建会话业务服务
+ * 管理会话（conversations）及其消息（messages）的 CRUD 操作
+ * 一个会话包含多条消息，按创建时间正序排列
+ */
 export function createConversationService(db: Database) {
   return {
+    /** 获取所有会话，按更新时间降序排列（最近使用的排前面） */
     list: async (): Promise<ConversationResponse[]> => {
       return db.prepare(
         'SELECT * FROM conversations ORDER BY updated_at DESC'
-      ).all() as ConversationResponse[]
+      ).all() as unknown as ConversationResponse[]
     },
 
+    /** 根据 ID 获取单个会话 */
     getById: async (id: number): Promise<ConversationResponse | undefined> => {
       return db.prepare(
         'SELECT * FROM conversations WHERE id = ?'
       ).get(id) as ConversationResponse | undefined
     },
 
+    /** 创建新会话，若未指定 providerId/apiKeyId 则存为 null */
     create: async (input: CreateConversationInput): Promise<number> => {
       const result = db.prepare(`
         INSERT INTO conversations (title, model, provider_id, api_key_id)
@@ -31,10 +39,12 @@ export function createConversationService(db: Database) {
       return Number(result.lastInsertRowid)
     },
 
+    /** 更新会话信息，动态构建 SET 子句，仅更新传入的非 undefined 字段 */
     update: async (id: number, input: UpdateConversationInput): Promise<void> => {
       const setClauses: string[] = []
       const params: Record<string, unknown> = { id }
 
+      // camelCase 输入 -> snake_case 数据库列
       const fieldMap: Record<string, string> = {
         title: 'title', model: 'model',
         providerId: 'provider_id', apiKeyId: 'api_key_id'
@@ -47,20 +57,24 @@ export function createConversationService(db: Database) {
       }
 
       if (setClauses.length === 0) return
+      // 自动更新 updated_at 时间戳
       setClauses.push("updated_at = datetime('now')")
       db.prepare(`UPDATE conversations SET ${setClauses.join(', ')} WHERE id = @id`).run(params)
     },
 
+    /** 根据 ID 删除会话 */
     remove: async (id: number): Promise<void> => {
       db.prepare('DELETE FROM conversations WHERE id = ?').run(id)
     },
 
+    /** 获取指定会话的全部消息，按创建时间正序排列 */
     messages: async (conversationId: number): Promise<MessageResponse[]> => {
       return db.prepare(
         'SELECT * FROM messages WHERE conversation_id = ? ORDER BY created_at ASC'
-      ).all(conversationId) as MessageResponse[]
+      ).all(conversationId) as unknown as MessageResponse[]
     },
 
+    /** 向指定会话添加一条消息，同时更新会话的 updated_at（由调用方负责） */
     addMessage: async (input: AddMessageInput): Promise<number> => {
       const result = db.prepare(`
         INSERT INTO messages (conversation_id, role, content, thinking)
@@ -69,6 +83,7 @@ export function createConversationService(db: Database) {
         conversationId: input.conversationId,
         role: input.role,
         content: input.content,
+        // 用户消息没有 thinking 字段，默认空字符串
         thinking: input.thinking || ''
       })
       return Number(result.lastInsertRowid)

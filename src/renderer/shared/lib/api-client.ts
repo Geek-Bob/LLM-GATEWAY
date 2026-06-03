@@ -1,3 +1,20 @@
+/**
+ * HTTP API 客户端（仅用于 Chat 流式对话）
+ *
+ * 职责：封装对本地 Hono 代理（localhost:8080）的 HTTP 请求。
+ *
+ * 架构约束：
+ * - **仅用于 Chat 对话流**：通过 proxy 验证 LLM 代理能力，使用 SSE（Server-Sent Events）
+ * - **严禁用于业务 CRUD**：业务数据的增删改查必须走 IPC（preload → ipcMain.handle）
+ * - 详见 .claude/rules/00-core.md 和 .claude/rules/20-directory.md 中的约定
+ *
+ * 模块状态：
+ * - baseUrl：代理服务器地址，默认 localhost:8080
+ * - apiKey：通过 setApiKey 注入，自动附加 Authorization header
+ *
+ * ApiError：非 2xx 响应时抛出，携带 status 和解析后的 JSON body
+ * header 归一化：统一 Headers 对象 / 元组数组 / 普通对象三种输入格式为 Record<string, string>
+ */
 let baseUrl = 'http://localhost:8080'
 let apiKey = ''
 
@@ -11,6 +28,18 @@ export function setApiKey(key: string) {
 
 export function getApiKey(): string {
   return apiKey
+}
+
+export class ApiError extends Error {
+  status: number
+  body: Record<string, unknown>
+
+  constructor(status: number, message: string, body: Record<string, unknown>) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.body = body
+  }
 }
 
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
@@ -33,8 +62,15 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     headers['Authorization'] = `Bearer ${apiKey}`
   }
 
-  return fetch(`${baseUrl}${path}`, {
+  const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers
   })
+
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
+    throw new ApiError(response.status, body?.error || response.statusText, body)
+  }
+
+  return response
 }

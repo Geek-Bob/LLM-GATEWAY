@@ -1,3 +1,17 @@
+/**
+ * Markdown 渲染组件
+ *
+ * 职责：将 LLM 返回的 Markdown 文本渲染为带 UI 的富文本展示
+ *
+ * 渲染策略说明（streaming vs complete）：
+ * - 流式（isStreaming=true）：仅渲染纯文本和内联代码，跳过 Mermaid 图表和 Shiki 语法高亮
+ *   原因：流式过程中内容不完整，语法高亮和图表渲染会频繁触发，导致性能问题甚至崩溃
+ * - 完整（isStreaming=false/false）：启用全部渲染能力，包括 Mermaid 图表和 Shiki 代码高亮
+ * - code 组件的三级降级策略：
+ *   1) mermaid 代码块且非流式 → MermaidBlock（图表/代码双视图）
+ *   2) 流式中或无语言标注 → 纯文本 <code>
+ *   3) 已完成 + 有语言标注 → CodeBlock（Shiki 异步高亮）
+ */
 import { memo, useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -7,7 +21,13 @@ import { cn } from '@/lib/utils'
 import { Mermaid } from './mermaid'
 import { highlightCode } from '@/shared/lib/shiki'
 
-/** 剥离行内样式中 hardcoded color/background，防止深色文字在深色主题下不可见 */
+/**
+ * rehype 插件：剥离 HTML 中 hardcoded 的 color/background 样式
+ *
+ * 某些 LLM 输出包含硬编码的浅色文字颜色，在深色主题下几乎不可见。
+ * 此插件在 HAST 树层面移除 color/background/background-color 属性，
+ * 让文字颜色交由 Tailwind prose-invert 类控制。
+ */
 function rehypeStripColorStyle() {
   return (tree: Root) => {
     walk(tree)

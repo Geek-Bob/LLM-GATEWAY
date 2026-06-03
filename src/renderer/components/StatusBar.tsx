@@ -1,3 +1,11 @@
+/**
+ * StatusBar — 代理服务状态栏
+ *
+ * 展示 HTTP 代理是否运行、监听地址和端口
+ * 提供"复制 URL"按钮方便用户复制到客户端配置
+ * 使用 useProxyStatus 轮询代理状态
+ */
+
 import { useState } from 'react'
 import { useProxyStatus } from '../lib/queries/proxy'
 import { Card, CardContent } from './ui/card'

@@ -1,3 +1,14 @@
+/**
+ * Layout — 应用主布局
+ *
+ * 包含:
+ * 1. TitleBar：Electron 无边框窗口的标题栏（拖拽区域 + 窗口控制按钮）
+ * 2. 左侧导航栏：跟随鼠标悬停自动展开/收起（macOS 风格），使用 NavLink 高亮当前路由
+ * 3. 右侧内容区：通过 React Router 的 Outlet 渲染子页面
+ *
+ * 导航项定义在 navItems 数组中，涵盖仪表盘/供应商/API Keys/日志/Chat/设置
+ */
+
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { motion } from 'framer-motion'

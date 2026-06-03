@@ -1,21 +1,37 @@
+/**
+ * 数据库表结构定义模块
+ *
+ * 负责创建应用所需的所有 SQLite 表，包括供应商、API 密钥、
+ * 请求统计、对话历史等核心数据模型。
+ * 在应用启动时由 startServer() 调用。
+ */
+
 import { getDb } from './connection'
 
+/**
+ * 创建所有数据库表（幂等）
+ * 使用 CREATE TABLE IF NOT EXISTS 确保多次调用安全。
+ * 创建完成后执行增量迁移，为新旧版本兼容提供支持。
+ */
 export function createTables(): void {
   const db = getDb()
 
   db.exec(`
+    -- 供应商表：存储 LLM 供应商的连接信息（API 地址、密钥、可用模型列表）
     CREATE TABLE IF NOT EXISTS providers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL UNIQUE,
       provider_type TEXT NOT NULL CHECK(provider_type IN ('anthropic', 'openai')),
       base_url TEXT NOT NULL,
       api_key TEXT NOT NULL,
-      models TEXT NOT NULL DEFAULT '[]',
+      models TEXT NOT NULL DEFAULT '[]',       -- JSON 数组，如 ["claude-3-opus","gpt-4"]
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- API 密钥表：用于代理认证的本地 API 密钥
+    -- key_hash 用于快速查找比对，key_prefix 用于界面显示
     CREATE TABLE IF NOT EXISTS api_keys (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
@@ -23,10 +39,12 @@ export function createTables(): void {
       key_hash TEXT NOT NULL UNIQUE,
       key TEXT NOT NULL DEFAULT '',
       is_active INTEGER NOT NULL DEFAULT 1,
-      rate_limit INTEGER NOT NULL DEFAULT 60,
+      rate_limit INTEGER NOT NULL DEFAULT 60,  -- 每分钟最大请求数
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- 请求统计表（按小时聚合）：记录所有供应商的总请求量
+    -- 复合主键确保每小时唯一记录，避免重复统计
     CREATE TABLE IF NOT EXISTS request_stats (
       stat_date TEXT NOT NULL,
       stat_hour INTEGER NOT NULL,
@@ -38,6 +56,8 @@ export function createTables(): void {
       PRIMARY KEY (stat_date, stat_hour)
     );
 
+    -- 请求统计表（按供应商+模型粒度）：比 request_stats 维度更细
+    -- 用于仪表盘按供应商和模型下钻分析流量分布
     CREATE TABLE IF NOT EXISTS request_stats_provider (
       stat_date TEXT NOT NULL,
       stat_hour INTEGER NOT NULL,
@@ -51,6 +71,7 @@ export function createTables(): void {
       PRIMARY KEY (stat_date, stat_hour, provider_id, model)
     );
 
+    -- 对话表：存储聊天会话元信息（主题、使用的模型和供应商）
     CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL DEFAULT '新对话',
@@ -61,6 +82,9 @@ export function createTables(): void {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    -- 消息表：存储对话中的每条用户/助手消息
+    -- conversation_id 设置级联删除，删除对话时自动清理关联消息
+    -- thinking 字段存放 deepseek 的内部推理过程（Anthropic 格式兼容）
     CREATE TABLE IF NOT EXISTS messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       conversation_id INTEGER NOT NULL,
@@ -72,10 +96,10 @@ export function createTables(): void {
     );
   `)
 
-  // Migration: add key to existing databases
+  // 增量迁移：为旧版本数据库补充 key 列（早期建表语句缺少此列）
   try {
     db.exec(`ALTER TABLE api_keys ADD COLUMN key TEXT NOT NULL DEFAULT ''`)
   } catch {
-    // Column already exists — ignore
+    // 列已存在则忽略，保证增量迁移的幂等性
   }
 }

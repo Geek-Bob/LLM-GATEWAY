@@ -1,3 +1,16 @@
+/**
+ * Providers 页面 — AI 供应商 CRUD 管理
+ *
+ * 数据流:
+ * 1. useProviders 通过 IPC 获取所有供应商列表
+ * 2. useCreateProvider / useUpdateProvider / useDeleteProvider 处理增删改
+ * 3. 弹出 Dialog 中编辑名称/类型/Base URL/API Key/模型列表
+ * 4. 切换供应商类型时自动填充默认 Base URL
+ * 5. 表格行支持查看/复制 API Key（Popover 展示）
+ *
+ * 模型列表通过输入框 + Enter 或「添加」按钮逐步构建
+ */
+
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Plus, Pencil, Trash2, Eye, EyeOff, Copy, Check, X } from 'lucide-react'

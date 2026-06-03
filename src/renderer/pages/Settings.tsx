@@ -1,3 +1,15 @@
+/**
+ * Settings 页面 — 应用配置和版本管理
+ *
+ * 数据流:
+ * 1. useUpdateConfig 通过 IPC 读取当前更新配置（autoCheck / allowPrerelease）
+ * 2. useUpdateConfigMutation 修改配置并持久化到本地存储
+ * 3. useCurrentVersion 获取当前应用版本号
+ * 4. UpdateButton 组件调用主进程的更新检查逻辑
+ *
+ * 目前包含：自动更新开关、预发布版本开关、手动检查更新、应用信息
+ */
+
 import { motion } from 'framer-motion'
 import { Settings as SettingsIcon, Info } from 'lucide-react'
 import { toast } from 'sonner'
