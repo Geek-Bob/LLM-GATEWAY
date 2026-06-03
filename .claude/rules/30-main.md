@@ -8,14 +8,15 @@ paths:
 ## 文件结构
 domain/{name}/
 ├── {name}.service.ts   # 业务逻辑，唯一入口
-├── {name}.schema.ts    # Zod 校验（可选）
-└── {name}.types.ts     # 类型定义（可选）
+├── {name}.schema.ts    # Zod 校验（create/update handler 必须）
+└── {name}.types.ts     # 类型定义
 
 ## service.ts 模板
 ```typescript
-import { getDatabase } from '../../core/database'
+import type { Database } from '../../db/database'
 
-export function create{Name}Service(db: ReturnType<typeof getDatabase>) {
+// 模式 A：需要数据库注入（如 provider、conversation）
+export function create{Name}Service(db: Database) {
   return {
     list: async () => { ... },
     getById: async (id: number) => { ... },
@@ -25,15 +26,37 @@ export function create{Name}Service(db: ReturnType<typeof getDatabase>) {
   }
 }
 
+// 模式 B：无状态 service（如 apikey、logs、stats），内部通过模块级 import 访问 db
+export function create{Name}Service() {
+  return {
+    list: async () => { ... },
+    // ...
+  }
+}
+
 export type {Name}Service = ReturnType<typeof create{Name}Service>
 ```
 
 ## IPC handler 注册（ipc/index.ts）
 ```typescript
+// 简单 CRUD：直接委托
 ipcMain.handle('{name}:list', async () => service.list())
-ipcMain.handle('{name}:create', async (_event, data) => service.create(data))
-ipcMain.handle('{name}:update', async (_event, id, data) => service.update(id, data))
 ipcMain.handle('{name}:delete', async (_event, id) => service.remove(id))
+
+// create 带验证 + 返回完整对象（推荐模式）
+ipcMain.handle('{name}:create', async (_event, data) => {
+  const input = create{Name}Schema.parse(data)  // 入口验证
+  const id = await service.create(input)
+  const item = await service.getById(id)
+  if (!item) throw new Error(`Created {name} ${id} not found`)
+  return item
+})
+
+// update 带验证
+ipcMain.handle('{name}:update', async (_event, id, data) => {
+  const input = update{Name}Schema.parse(data)
+  return service.update(id, input)
+})
 ```
 
 # Proxy 路由约定（仅 Chat 代理端点使用 Hono）
