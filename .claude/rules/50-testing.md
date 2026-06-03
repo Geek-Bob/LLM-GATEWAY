@@ -12,7 +12,7 @@ paths:
 
 # 编写原则
 - 每个 service.ts 必须有对应的 service.test.ts
-- 每个 router.ts 必须有对应的 router.test.ts（用 Hono test client）
+- 每个 schema.ts 必须有对应的 schema.test.ts（合法输入接受 + 非法输入拒绝）
 - 组件测试：测试交互行为，不测试实现细节
 - TDD 流程：Red（写失败测试）→ Green（最小实现）→ Refactor（优化）
 
