@@ -105,3 +105,13 @@ export interface ConversationMessageEntity {
   thinking: string
   created_at: string
 }
+
+// ====== SSE 事件类型（主进程/渲染进程共享） ======
+
+/** 解析后的 SSE 行结构 */
+export interface ParsedSSELine {
+  /** SSE 事件类型（event: 字段），如 'message_start'、'content_block_delta' 等 */
+  event: string | null
+  /** SSE 数据体（data: 字段的 JSON 字符串值） */
+  data: string | null
+}
