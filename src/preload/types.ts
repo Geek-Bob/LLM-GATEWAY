@@ -1,24 +1,11 @@
-export interface Provider {
-  id: number
-  name: string
-  providerType: 'anthropic' | 'openai'
-  baseUrl: string
-  apiKey: string
-  models: string[]
-  isActive: number
-  createdAt: string
-  updatedAt: string
-}
+import type { ProviderEntity, ApiKeyEntity, UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig } from '../shared/types'
+export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig }
 
-export interface ApiKey {
-  id: number
-  name: string
-  key_prefix: string
-  key_plaintext: string
-  is_active: number
-  rate_limit: number
-  created_at: string
-}
+/** Provider 对外类型（preload 层与 db 层结构一致） */
+export type Provider = ProviderEntity
+
+/** API Key 对外类型 */
+export type ApiKey = ApiKeyEntity
 
 export interface LogEntry {
   id: number
@@ -41,9 +28,6 @@ export interface DashboardStats {
   avg_duration_ms: number
   total_errors: number
 }
-
-import type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig } from '../shared/types'
-export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig }
 
 export interface ElectronAPI {
   providers: {

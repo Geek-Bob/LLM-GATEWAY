@@ -5,33 +5,15 @@
  * 与主进程共享的类型放在 src/shared/types.ts 中。
  */
 
-/** LLM 供应商配置（对应 main/db 中的 providers 表） */
-export interface Provider {
-  id: number
-  name: string
-  providerType: 'anthropic' | 'openai'
-  baseUrl: string
-  apiKey: string
-  models: string[]
-  isActive: number
-  createdAt: string
-  updatedAt: string
-}
-
-/** 网关 API Key（用于外部客户端访问代理的身份认证） */
-export interface ApiKey {
-  id: number
-  name: string
-  key_prefix: string
-  key_plaintext: string
-  is_active: number
-  rate_limit: number
-  created_at: string
-}
-
-import type { LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress } from '../../shared/types'
+import type { ProviderEntity, ApiKeyEntity, LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress } from '../../shared/types'
 
 export type { LogDebugInfo }
+
+/** UI 层 Provider 类型：不含 apiKey 敏感字段 */
+export type Provider = Omit<ProviderEntity, 'apiKey'>
+
+/** UI 层 ApiKey 类型 */
+export type ApiKey = ApiKeyEntity
 
 /** 请求日志条目（记录了每次代理请求的详细信息） */
 export interface LogEntry {
@@ -96,6 +78,9 @@ declare global {
     electronAPI: {
       debug: {
         log: (...args: any[]) => void
+      }
+      backend: {
+        onReady: (callback: () => void) => () => void
       }
       providers: {
         list: () => Promise<Provider[]>
