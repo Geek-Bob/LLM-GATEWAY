@@ -6,8 +6,8 @@ import { resolveProvider, getAllModels } from './router'
 import { buildProxyUrl, buildProxyHeaders } from './forwarder'
 import { convertRequest, convertResponse, convertSSEEvent, createStreamContext, type StreamContext } from './converter'
 import { verifyApiKey } from '../db/api-keys'
-import * as fs from 'fs'
 import * as path from 'path'
+import { createLogger } from '../core/logger'
 
 import { createLogEntry, updateRequestStats, updateProviderStats } from '../db/logs'
 import { getDebugMode } from './manager'
@@ -15,46 +15,8 @@ import type { LogDebugInfo } from '../../shared/types'
 
 /** 工作目录（用于调试日志文件输出） */
 const LOG_DIR = process.cwd()
-
-/**
- * 认证调试日志
- * 将每次认证请求/失败记录到文件，用于排查 API Key 认证问题。
- * 路径：{工作目录}/llm-gateway-auth-debug.log
- */
-const AUTH_LOG = path.join(LOG_DIR, 'llm-gateway-auth-debug.log')
-function authDebugLog(...args: any[]): void {
-  try {
-    const ts = new Date().toISOString()
-    const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')
-    fs.appendFileSync(AUTH_LOG, `[${ts}] ${msg}\n`)
-  } catch { /* 日志写入失败不应影响主流程 */ }
-}
-
-/**
- * 代理调试日志
- * 记录每次代理请求的关键信息（路径、请求/响应体、耗时等）。
- * 自动脱敏 headers 中的 authorization 字段。
- * 路径：{工作目录}/llm-gateway-proxy-debug.log
- */
-const PROXY_LOG = path.join(LOG_DIR, 'llm-gateway-proxy-debug.log')
-function proxyDebugLog(section: string, data: Record<string, any>): void {
-  try {
-    const ts = new Date().toISOString()
-    const entry: Record<string, any> = { ts, section, ...data }
-    // 脱敏 headers 中的敏感字段（避免 API Key 泄漏到日志）
-    for (const key of ['headers', 'upstreamHeaders', 'clientHeaders']) {
-      if (entry[key]) {
-        const h: Record<string, string> = {}
-        for (const [k, v] of Object.entries(entry[key] as Record<string, string>)) {
-          h[k] = k === 'authorization' ? 'Bearer gtwy-...' : v
-        }
-        entry[key] = h
-      }
-    }
-    const line = JSON.stringify(entry)
-    fs.appendFileSync(PROXY_LOG, `${line}\n`)
-  } catch { /* 日志写入失败不应影响主流程 */ }
-}
+const authLog = createLogger('proxy:auth', { file: path.join(LOG_DIR, 'llm-gateway-auth-debug.log') })
+const proxyLog = createLogger('proxy:debug', { file: path.join(LOG_DIR, 'llm-gateway-proxy-debug.log') })
 
 interface AppEnv {
   Variables: {
@@ -74,7 +36,7 @@ export function createServer() {
     const authHeader = c.req.header('authorization')
     const allHeaders: Record<string, string> = {}
     c.req.raw.headers.forEach((v, k) => { allHeaders[k] = k === 'authorization' ? v.slice(0, 20) + '...' : v })
-    authDebugLog('REQUEST', { path: c.req.path, method: c.req.method, allHeaders })
+    authLog.info('REQUEST', { path: c.req.path, method: c.req.method, allHeaders })
     const token = authMiddleware(authHeader) || c.req.header('x-api-key') || null
     if (!token) {
       logAuthFailure(c, `missing authorization header`)
@@ -82,11 +44,11 @@ export function createServer() {
     }
     const apiKey = verifyApiKey(token)
     if (!apiKey) {
-      authDebugLog('AUTH FAIL: invalid key', { tokenPrefix: token.slice(0, 10) + '...' })
+      authLog.warn('AUTH FAIL: invalid key', { tokenPrefix: token.slice(0, 10) + '...' })
       logAuthFailure(c, `invalid api key`)
       return c.json({ error: 'unauthorized' }, 401)
     }
-    authDebugLog('AUTH OK', { keyId: apiKey.id, keyName: apiKey.name })
+    authLog.info('AUTH OK', { keyId: apiKey.id, keyName: apiKey.name })
     c.set('apiKey', apiKey)
     await next()
   })
@@ -153,7 +115,7 @@ export function createServer() {
       const body = await c.req.json()
       const model = body.model
 
-      proxyDebugLog('CLIENT_REQUEST', {
+      proxyLog.info('CLIENT_REQUEST', {
         apiFormat,
         path,
         clientModel: model,
@@ -177,7 +139,7 @@ export function createServer() {
       const route = resolveProvider(model)
       const decryptedKey = route.provider.apiKey
 
-      proxyDebugLog('ROUTE_RESOLVED', {
+      proxyLog.info('ROUTE_RESOLVED', {
         providerName: route.provider.name,
         providerType: route.provider.providerType,
         providerBaseUrl: route.provider.baseUrl,
@@ -202,7 +164,7 @@ export function createServer() {
       if (needsConversion) {
         try {
           const converted = convertRequest(proxyBody, apiFormat, route.provider.providerType as 'openai' | 'anthropic')
-          proxyDebugLog('CONVERSION', {
+          proxyLog.info('CONVERSION', {
             from: apiFormat,
             to: route.provider.providerType,
             originalPath: proxyPath,
@@ -225,7 +187,7 @@ export function createServer() {
             }
           }
         } catch (convErr: any) {
-          proxyDebugLog('CONVERSION_ERROR', { error: convErr.message })
+          proxyLog.info('CONVERSION_ERROR', { error: convErr.message })
           return c.json({ error: `protocol_conversion_failed: ${convErr.message}` }, 502)
         }
       }
@@ -255,7 +217,7 @@ export function createServer() {
         originalHeaders
       )
 
-      proxyDebugLog('UPSTREAM_REQUEST', {
+      proxyLog.info('UPSTREAM_REQUEST', {
         url,
         method: 'POST',
         headers: proxyHeaders,
@@ -269,7 +231,7 @@ export function createServer() {
         body: JSON.stringify(proxyBody)
       })
 
-      proxyDebugLog('UPSTREAM_RESPONSE', {
+      proxyLog.info('UPSTREAM_RESPONSE', {
         status: response.status,
         ok: response.ok,
         headers: Object.fromEntries(response.headers.entries()),
@@ -293,7 +255,7 @@ export function createServer() {
           errorText = `(failed to read error body: ${response.status})`
         }
 
-        proxyDebugLog('UPSTREAM_ERROR_BODY', { status: response.status, body: errorText.slice(0, 4000) })
+        proxyLog.info('UPSTREAM_ERROR_BODY', { status: response.status, body: errorText.slice(0, 4000) })
 
         // Try to parse as JSON, but fall back to plain text
         let errorBody: any
@@ -370,7 +332,7 @@ export function createServer() {
 
       // Handle non-streaming
       const responseBody = await response.json()
-      proxyDebugLog('UPSTREAM_SUCCESS_BODY', { body: JSON.stringify(responseBody).slice(0, 4000) })
+      proxyLog.info('UPSTREAM_SUCCESS_BODY', { body: JSON.stringify(responseBody).slice(0, 4000) })
       const convertedBody = needsConversion
         ? convertResponse(responseBody, route.provider.providerType as 'openai' | 'anthropic', apiFormat)
         : responseBody
@@ -520,7 +482,7 @@ export function createServer() {
 
           controller.close()
         } catch (err) {
-          proxyDebugLog('SSE_CONVERSION_ERROR', {
+          proxyLog.info('SSE_CONVERSION_ERROR', {
             error: err instanceof Error ? err.message : String(err),
             stack: err instanceof Error ? err.stack?.slice(0, 1000) : undefined,
             streamDone,
@@ -544,7 +506,7 @@ export function createServer() {
     apiFormat: 'anthropic' | 'openai'
   ): Response {
     const message = err instanceof Error ? err.message : String(err)
-    proxyDebugLog('PROXY_ERROR', { error: message, stack: err instanceof Error ? err.stack?.slice(0, 1000) : undefined })
+    proxyLog.info('PROXY_ERROR', { error: message, stack: err instanceof Error ? err.stack?.slice(0, 1000) : undefined })
     let status: number = 502
 
     if (
@@ -603,14 +565,14 @@ export function createServer() {
     c.req.text().then(text => {
       try {
         const body = JSON.parse(text)
-        authDebugLog('AUTH FAIL body', { model: body.model })
+        authLog.info('AUTH FAIL body', { model: body.model })
         createLogEntry({
           model: body.model || 'unknown',
           apiFormat: c.req.path.includes('/v1/chat/completions') ? 'openai' : 'anthropic',
           statusCode: 401,
           error
         })
-      } catch { authDebugLog('AUTH FAIL body unparseable', { textLen: text?.length }) }
+      } catch { authLog.info('AUTH FAIL body unparseable', { textLen: text?.length }) }
     }).catch(() => {})
   }
 
