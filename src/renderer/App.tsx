@@ -1,25 +1,63 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './components/Layout'
-import { Dashboard } from './pages/Dashboard'
-import { ProvidersPage } from './pages/Providers'
-import { ApiKeysPage } from './pages/ApiKeys'
-import { LogsPage } from './pages/Logs'
-import { ChatPage } from './pages/Chat'
-import { SettingsPage } from './pages/Settings'
+// 路由级代码分割：每个页面独立 chunk，按需加载
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const ProvidersPage = lazy(() => import('./pages/Providers'))
+const ApiKeysPage = lazy(() => import('./pages/ApiKeys'))
+const LogsPage = lazy(() => import('./pages/Logs'))
+const ChatPage = lazy(() => import('./pages/Chat'))
+const SettingsPage = lazy(() => import('./pages/Settings'))
 import { Sonner } from './components/ui/sonner'
 import { UpdateDialog } from './components/update/UpdateDialog'
 import { useSkipVersion } from './lib/queries/update'
 import { toast } from 'sonner'
 
+/**
+ * 应用根组件
+ *
+ * 职责：
+ * 1. HashRouter 路由分发 — Electron 必须用 HashRouter（文件协议不支持 BrowserRouter）
+ * 2. 自动更新生命周期管理 — 监听主进程推送的更新事件，控制 UpdateDialog 显隐
+ * 3. 布局容器 Layout 包裹所有页面，统一导航栏
+ *
+ * 路由结构：
+ *   / → Dashboard（仪表盘）
+ *   /providers → 供应商管理
+ *   /api-keys → API Key 管理
+ *   /logs → 日志查询
+ *   /chat → AI 聊天（走 HTTP 代理）
+ *   /settings → 设置
+ *
+ * 更新流程：
+ *   onAvailable → 展示 UpdateDialog → 用户确认 → download → onProgress → onDownloaded → install
+ */
+/** 路由切换时的轻量 fallback，避免引入额外依赖 */
+function PageLoading() {
+  return <div className="flex items-center justify-center h-full text-muted-foreground p-6">加载中...</div>
+}
+
 function App() {
+  const [backendReady, setBackendReady] = useState(false)
   const [updateAvailable, setUpdateAvailable] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseNotes?: string | null } | null>(null)
   const [currentVersion, setCurrentVersion] = useState('dev')
 
   const skipVersion = useSkipVersion()
 
-  // 通过 IPC 获取真实版本号
+  // 监听主进程推送的 backend:ready 事件，用于启动 loading 状态管理
+  useEffect(() => {
+    const api = window.electronAPI
+    if (!api) {
+      // 非 Electron 环境（浏览器调试等）：直接标记为就绪
+      setBackendReady(true)
+      return
+    }
+    const unsubscribe = api.backend.onReady(() => setBackendReady(true))
+    return unsubscribe
+  }, [])
+
+  // 通过 IPC 从主进程获取 Electron 应用的 package.json 版本号，用于 UpdateDialog 显示
   useEffect(() => {
     const api = window.electronAPI?.update
     if (!api) return
@@ -27,6 +65,9 @@ function App() {
     api.getCurrentVersion().then((v) => setCurrentVersion(v)).catch(() => {})
   }, [])
 
+  // 注册主进程推送的更新事件监听
+  // onAvailable / onProgress / onDownloaded / onError 分别对应 auto-updater 的生命周期事件
+  // 每个 on* 返回取消订阅函数，在组件卸载时清理，防止内存泄漏
   useEffect(() => {
     const api = window.electronAPI?.update
     if (!api) return
@@ -75,19 +116,33 @@ function App() {
     await skipVersion.mutateAsync(version)
   }
 
+  // 后端未就绪时显示启动 loading 界面，避免空白等待
+  if (!backendReady) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-900 text-slate-400 select-none">
+        <div className="text-center">
+          <div className="text-2xl font-bold text-white mb-3">LLM Gateway</div>
+          <div className="animate-pulse">正在初始化服务...</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <>
       <HashRouter>
-        <Routes>
-          <Route element={<Layout />}>
-            <Route index element={<Dashboard />} />
-            <Route path="providers" element={<ProvidersPage />} />
-            <Route path="api-keys" element={<ApiKeysPage />} />
-            <Route path="logs" element={<LogsPage />} />
-            <Route path="chat" element={<ChatPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
-        </Routes>
+        <Suspense fallback={<PageLoading />}>
+          <Routes>
+            <Route element={<Layout />}>
+              <Route index element={<Dashboard />} />
+              <Route path="providers" element={<ProvidersPage />} />
+              <Route path="api-keys" element={<ApiKeysPage />} />
+              <Route path="logs" element={<LogsPage />} />
+              <Route path="chat" element={<ChatPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+          </Routes>
+        </Suspense>
       </HashRouter>
       <Sonner />
 
