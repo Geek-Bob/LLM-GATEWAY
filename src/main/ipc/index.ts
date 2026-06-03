@@ -1,26 +1,26 @@
+/**
+ * IPC 处理器注册模块
+ *
+ * 注册主进程所有 IPC handler，连接渲染进程请求与后端数据层。
+ * 遵循 domain 模式：IPC handler 委托到 domain service，不直接调用 db/ 层。
+ *
+ * 分类：
+ * - Provider / API Key CRUD
+ * - Conversation / Message CRUD
+ * - 日志查询与统计
+ * - 代理控制
+ * - 窗口控制
+ * - 自动更新
+ */
+
 import { ipcMain, BrowserWindow } from 'electron'
+import { getDb } from '../db/connection'
 import { createLogger } from '../core/logger'
-import {
-  listProviders,
-  createProvider,
-  updateProvider,
-  deleteProvider
-} from '../db/providers'
-import {
-  listApiKeys,
-  createApiKey,
-  deleteApiKey
-} from '../db/api-keys'
-import { queryLogs, getLogStats, getDetailedStats } from '../db/logs'
-import {
-  listConversations,
-  createConversation,
-  updateConversation,
-  deleteConversation,
-  getConversation,
-  listMessages,
-  addMessage
-} from '../db/conversations'
+import { createProviderService } from '../domains/provider/provider.service'
+import { createApiKeyService } from '../domains/apikey/apikey.service'
+import { createConversationService } from '../domains/conversation/conversation.service'
+import { createLogsService } from '../domains/logs/logs.service'
+import { createStatsService } from '../domains/stats/stats.service'
 import { getProxyConfig, startProxy, stopProxy, restartProxy, setProxyPort, getDebugMode, setDebugMode } from '../proxy/manager'
 import { UpdateManager } from '../update/manager'
 import { setupUpdateIpcHandlers } from '../update/ipc'
@@ -28,121 +28,58 @@ import { setupUpdateIpcHandlers } from '../update/ipc'
 const logger = createLogger('ipc')
 
 export function setupIpcHandlers(updateManager: UpdateManager): void {
-  // --- Provider handlers ---
+  // 通过 getDb() 注入数据库实例，创建所有 domain service
+  const db = getDb()
+  const providerService = createProviderService(db)
+  const apiKeyService = createApiKeyService()
+  const conversationService = createConversationService(db)
+  const logsService = createLogsService()
+  const statsService = createStatsService()
+
+  // ====== 供应商 CRUD ======
   ipcMain.handle('provider:list', async () => {
-    return listProviders()
+    return providerService.list()
   })
 
   ipcMain.handle('provider:create', async (_event, data) => {
-    return createProvider({
-      name: data.name,
-      providerType: data.providerType,
-      baseUrl: data.baseUrl,
-      apiKey: data.apiKey,
-      models: data.models
-    })
+    return providerService.create(data)
   })
 
   ipcMain.handle('provider:update', async (_event, id: number, data) => {
-    return updateProvider(id, data)
+    return providerService.update(id, data)
   })
 
   ipcMain.handle('provider:delete', async (_event, id: number) => {
-    return deleteProvider(id)
+    return providerService.remove(id)
   })
 
-  // --- API Key handlers ---
+  // ====== API 密钥 CRUD ======
   ipcMain.handle('apikey:list', async () => {
-    return listApiKeys()
+    return apiKeyService.list()
   })
 
-  ipcMain.handle(
-    'apikey:create',
-    async (_event, name: string, rateLimit?: number) => {
-      return createApiKey(name, rateLimit)
-    }
-  )
+  ipcMain.handle('apikey:create', async (_event, name: string, rateLimit?: number) => {
+    return apiKeyService.create({ name, rateLimit })
+  })
 
   ipcMain.handle('apikey:delete', async (_event, id: number) => {
-    return deleteApiKey(id)
+    return apiKeyService.remove(id)
   })
 
-  // --- Log handlers ---
+  // ====== 日志查询与统计 ======
   ipcMain.handle('logs:query', async (_event, params) => {
-    return queryLogs(params)
+    return logsService.query(params)
   })
 
   ipcMain.handle('logs:stats', async (_event, range: string) => {
-    return getLogStats({ range })
+    return statsService.summary(range)
   })
 
   ipcMain.handle('logs:statsDetailed', async (_event, range: '24h' | '30d') => {
-    const rows = getDetailedStats(range)
-    const providers = listProviders()
-
-    const providerMap = new Map<number, {
-      providerId: number
-      providerName: string
-      models: Map<string, {
-        model: string
-        totalRequests: number
-        totalTokensIn: number
-        totalTokensOut: number
-        totalErrors: number
-        dataPoints: { period: number | string; requests: number; tokensIn: number; tokensOut: number }[]
-      }>
-    }>()
-
-    for (const row of rows) {
-      const pid = row.provider_id as number
-      const model = row.model as string
-      if (!providerMap.has(pid)) {
-        const p = providers.find((pr) => pr.id === pid)
-        providerMap.set(pid, {
-          providerId: pid,
-          providerName: p?.name ?? `Provider #${pid}`,
-          models: new Map()
-        })
-      }
-      const pm = providerMap.get(pid)!
-      if (!pm.models.has(model)) {
-        pm.models.set(model, {
-          model,
-          totalRequests: 0,
-          totalTokensIn: 0,
-          totalTokensOut: 0,
-          totalErrors: 0,
-          dataPoints: []
-        })
-      }
-      const mm = pm.models.get(model)!
-      mm.totalRequests += row.total_requests as number
-      mm.totalTokensIn += row.total_tokens_in as number
-      mm.totalTokensOut += row.total_tokens_out as number
-      mm.totalErrors += row.total_errors as number
-      mm.dataPoints.push({
-        period: row.period as number | string,
-        requests: row.total_requests as number,
-        tokensIn: row.total_tokens_in as number,
-        tokensOut: row.total_tokens_out as number
-      })
-    }
-
-    return Array.from(providerMap.values()).map((p) => ({
-      providerId: p.providerId,
-      providerName: p.providerName,
-      models: Array.from(p.models.values()).map((m) => ({
-        model: m.model,
-        totalRequests: m.totalRequests,
-        totalTokensIn: m.totalTokensIn,
-        totalTokensOut: m.totalTokensOut,
-        totalErrors: m.totalErrors,
-        dataPoints: m.dataPoints
-      }))
-    }))
+    return logsService.detailedStats(range)
   })
 
-  // --- Window control handlers ---
+  // ====== 窗口控制 ======
   ipcMain.on('window:minimize', (event) => {
     const win = BrowserWindow.fromWebContents(event.sender)
     win?.minimize()
@@ -162,7 +99,7 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     win?.close()
   })
 
-  // --- Proxy control handlers ---
+  // ====== 代理控制 ======
   ipcMain.handle('proxy:status', async () => {
     return getProxyConfig()
   })
@@ -191,14 +128,14 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     setDebugMode(enabled)
   })
 
-  // --- Renderer debug log handler ---
+  // ====== 渲染进程调试日志转发 ======
   ipcMain.on('renderer:log', (_event, args: unknown[]) => {
     logger.debug('renderer', { args })
   })
 
-  // --- Conversation handlers ---
+  // ====== 对话 CRUD ======
   ipcMain.handle('conversation:list', async () => {
-    return listConversations()
+    return conversationService.list()
   })
 
   ipcMain.handle('conversation:create', async (_event, data: {
@@ -207,7 +144,8 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     providerId?: number | null
     apiKeyId?: number | null
   }) => {
-    return createConversation(data.title, data.model, data.providerId, data.apiKeyId)
+    const id = await conversationService.create(data)
+    return conversationService.getById(id)
   })
 
   ipcMain.handle('conversation:update', async (_event, id: number, data: {
@@ -216,31 +154,25 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     model?: string
     apiKeyId?: number | null
   }) => {
-    return updateConversation(id, {
-      title: data.title,
-      provider_id: data.providerId,
-      model: data.model,
-      api_key_id: data.apiKeyId
-    })
+    return conversationService.update(id, data)
   })
 
   ipcMain.handle('conversation:delete', async (_event, id: number) => {
-    return deleteConversation(id)
+    return conversationService.remove(id)
   })
 
   ipcMain.handle('conversation:get', async (_event, id: number) => {
-    return getConversation(id) || null
+    return conversationService.getById(id) || null
   })
 
-  // --- Message handlers ---
   ipcMain.handle('conversation:messages', async (_event, conversationId: number) => {
-    return listMessages(conversationId)
+    return conversationService.messages(conversationId)
   })
 
   ipcMain.handle('conversation:addMessage', async (_event, conversationId: number, role: 'user' | 'assistant', content: string, thinking?: string) => {
-    return addMessage(conversationId, role, content, thinking)
+    return conversationService.addMessage({ conversationId, role, content, thinking })
   })
 
-  // --- Update handlers ---
+  // ====== 自动更新 ======
   setupUpdateIpcHandlers(updateManager)
 }
