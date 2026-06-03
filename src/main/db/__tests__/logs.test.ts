@@ -241,6 +241,76 @@ describe('NDJSON Log Sharding', () => {
     })
   })
 
+  describe('logs-meta persistence', () => {
+    let logDir: string
+
+    beforeEach(() => {
+      logDir = tmpLogDir()
+      initLogsDir(logDir)
+    })
+
+    afterEach(() => {
+      rmDir(logDir)
+    })
+
+    it('should create logs-meta.json after first entry is written', () => {
+      createLogEntry({ model: 'gpt-4', apiFormat: 'openai' })
+
+      const metaPath = path.join(logDir, 'logs-meta.json')
+      expect(fs.existsSync(metaPath)).toBe(true)
+
+      const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8'))
+      expect(meta.entryCounter).toBe(1)
+      expect(meta.currentFileNumber).toBe(1)
+      expect(typeof meta.currentFileLines).toBe('number')
+    })
+
+    it('should restore counter state from logs-meta.json on re-init', () => {
+      // 写入 50 条日志
+      for (let i = 0; i < 50; i++) {
+        createLogEntry({ model: 'gpt-4', apiFormat: 'openai' })
+      }
+
+      // 重新初始化（模拟进程重启）
+      initLogsDir(logDir)
+
+      // 再写 1 条，ID 应该从 51 开始
+      createLogEntry({ model: 'claude-3', apiFormat: 'anthropic' })
+
+      const files = fs.readdirSync(logDir).filter((f) => f.endsWith('.ndjson'))
+      const content = fs.readFileSync(path.join(logDir, files[0]), 'utf-8')
+      const lines = content.trim().split('\n')
+      // 总共应该有 51 行
+      expect(lines.length).toBe(51)
+      // 最后一条的 ID 应该是 51
+      const lastEntry = JSON.parse(lines[lines.length - 1])
+      expect(lastEntry.id).toBe(51)
+    })
+
+    it('should fall back to full scan when logs-meta.json is missing (old version upgrade)', () => {
+      // 手动创建 NDJSON 文件（模拟旧版本升级）
+      const line = JSON.stringify({ model: 'gpt-4', apiFormat: 'openai', created_at: new Date().toISOString() }) + '\n'
+      const content = line.repeat(100)
+      fs.writeFileSync(path.join(logDir, 'logs-0001.ndjson'), content, 'utf-8')
+
+      // 删除元数据文件（如果存在）
+      const metaPath = path.join(logDir, 'logs-meta.json')
+      if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath)
+
+      // 重新初始化应该通过扫描恢复状态
+      initLogsDir(logDir)
+
+      // 写入 1 条，ID 应该从 101 开始
+      createLogEntry({ model: 'claude-3', apiFormat: 'anthropic' })
+
+      const files = fs.readdirSync(logDir).filter((f) => f.endsWith('.ndjson'))
+      const content2 = fs.readFileSync(path.join(logDir, files[0]), 'utf-8')
+      const lines2 = content2.trim().split('\n')
+      const lastEntry = JSON.parse(lines2[lines2.length - 1])
+      expect(lastEntry.id).toBe(101)
+    })
+  })
+
   describe('file rolling', () => {
     it('should roll to a new file after 10000 entries', () => {
       // Insert MAX_LINES entries
