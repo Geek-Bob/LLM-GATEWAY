@@ -99,13 +99,13 @@ describe('UpdateManager', () => {
 
   it('应该安装更新', async () => {
     const { autoUpdater } = await import('electron-updater')
-    updateManager.installUpdate()
+    await updateManager.installUpdate()
     expect(autoUpdater.quitAndInstall).toHaveBeenCalledWith(false, true)
   })
 
   it('应该设置允许预发布版本', async () => {
     const { autoUpdater } = await import('electron-updater')
-    updateManager.setAllowPrerelease(true)
+    await updateManager.setAllowPrerelease(true)
     expect(autoUpdater.allowPrerelease).toBe(true)
   })
 
@@ -118,8 +118,15 @@ describe('UpdateManager', () => {
     }
     vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([mockWin as any])
 
-    // 触发 update-available 事件回调来间接测试 notifyRenderer
     const { autoUpdater } = await import('electron-updater')
+    // 先触发 ensureAutoUpdater（注册事件监听）
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue({
+      updateInfo: { version: '2.0.0' },
+      downloadPromise: Promise.resolve()
+    } as any)
+    await updateManager.checkForUpdates()
+
+    // 触发 update-available 事件回调来间接测试 notifyRenderer
     const updateAvailableHandler = vi.mocked(autoUpdater.on).mock.calls.find(
       (call) => call[0] === 'update-available'
     )?.[1] as ((info: any) => void) | undefined
@@ -143,6 +150,13 @@ describe('UpdateManager', () => {
     vi.mocked(BrowserWindow.getAllWindows).mockReturnValue([destroyedWin as any])
 
     const { autoUpdater } = await import('electron-updater')
+    // 先触发 ensureAutoUpdater（注册事件监听）
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue({
+      updateInfo: { version: '2.0.0' },
+      downloadPromise: Promise.resolve()
+    } as any)
+    await updateManager.checkForUpdates()
+
     const updateAvailableHandler = vi.mocked(autoUpdater.on).mock.calls.find(
       (call) => call[0] === 'update-available'
     )?.[1] as ((info: any) => void) | undefined
