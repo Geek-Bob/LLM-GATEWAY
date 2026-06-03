@@ -1,7 +1,7 @@
 # LLM Gateway 架构技术手册
 
 > 技术细节手册 — 覆盖完整目录结构、数据流、模块职责和设计约定。
-> 编写日期: 2026-05-30 | Electron 42 + TypeScript 6.0 + React 19.2
+> 编写日期: 2026-05-30 | 最后更新: 2026-06-03 | Electron 42 + TypeScript 6.0 + React 19.2
 
 ---
 
@@ -54,7 +54,7 @@ e:\code\llm-gateway\
 │   │   │   ├── api-keys.ts              # API Key CRUD + 生成/校验
 │   │   │   ├── conversations.ts         # 对话/消息 CRUD
 │   │   │   └── logs.ts                  # NDJSON 日志写入/查询/统计
-│   │   ├── domains/                     # 业务逻辑层（domain 模式）
+│   │   ├── domains/                     # 业务逻辑层（domain 模式，无 router）
 │   │   │   ├── provider/
 │   │   │   │   ├── provider.types.ts    # Provider 类型定义
 │   │   │   │   └── provider.service.ts  # Provider 业务逻辑
@@ -82,7 +82,8 @@ e:\code\llm-gateway\
 │   │       └── ipc.ts                   # 更新相关 IPC handler
 │   │
 │   ├── preload/
-│   │   └── index.ts                     # contextBridge 暴露 IPC 到渲染进程
+│   │   ├── index.ts                     # contextBridge 暴露 IPC 到渲染进程
+│   │   └── types.ts                     # 预加载层类型定义（ElectronAPI 接口）
 │   │
 │   ├── renderer/                        # React 渲染进程
 │   │   ├── main.tsx                     # 入口：QueryClientProvider 初始化
@@ -111,8 +112,11 @@ e:\code\llm-gateway\
 │   │   │   └── update/                  # 更新 UI 组件
 │   │   ├── features/
 │   │   │   └── chat/
+│   │   │       ├── components/
+│   │   │       │   └── ChatToolbar.tsx   # Provider/Model/API Key 选择器
 │   │   │       └── hooks/
-│   │   │           └── useChatStream.ts  # 聊天 SSE 流读取 hook
+│   │   │           ├── useChatStream.ts  # 聊天 SSE 流读取 hook
+│   │   │           └── useConversationManager.ts # 会话 CRUD 逻辑 hook
 │   │   ├── shared/
 │   │   │   └── lib/
 │   │   │       ├── api-client.ts        # HTTP 统一封装（仅 Chat 使用）
@@ -291,9 +295,10 @@ closeDatabase()    → 保存 + 关闭
 - **分片策略：** 每个 NDJSON 文件最多 10,000 行，最多保留 10 个文件
 - 文件命名：`logs-0001.ndjson`、`logs-0002.ndjson` ...
 - 循环覆盖：超过 10 个文件时删除最旧的
-- `createLogEntry(entry)` → 追加一行 NDJSON
+- **元数据持久化（logs-meta.json）：** `entryCounter`、`currentFileNumber`、`currentFileLines` 三个计数器通过 `loadMeta()` / `saveMeta()` 持久化到 `logs-meta.json`（~100 字节 JSON），避免启动时全量扫描 NDJSON 文件恢复状态。兼容旧版本：元数据文件缺失时回退到全量扫描一次 → 立即写入元数据
+- `createLogEntry(entry)` → 追加一行 NDJSON → 调用 `saveMeta()` 持久化计数器
 - `queryLogs(query)` → 读取所有文件 → 过滤 → 分页
-- `getLogStats(range)` → 从 SQLite `request_stats` 表聚合（24h/7d/30d）
+- `getLogStats(range)` → 从 SQLite `request_stats` 表聚合（24h/7d/30d），不依赖 NDJSON 扫描
 - `getDetailedStats(range)` → 按供应商/模型分组统计
 - `normalizeEntry()` 处理新旧字段名兼容
 
@@ -339,8 +344,14 @@ closeDatabase()    → 保存 + 关闭
 - `buildProxyUrl()` → 检测并去重重叠路径（如 `baseUrl` 以 `/v1` 结尾，path 以 `/v1` 开头）
 - `buildProxyHeaders()` → 注入 Authorization 请求头，Anthropic 额外添加 `anthropic-version`
 
-**converter.ts** — 协议转换（关键复杂模块）：
-- 支持 OpenAI ↔ Anthropic 双向转换（请求、响应、SSE）
+**converter/ 目录** — 协议转换（关键复杂模块，拆分为 5 文件）：
+- `types.ts` — StreamContext、ProtocolFormat 等共享类型
+- `request.ts` — `convertRequest()` 双向请求转换（OpenAI ↔ Anthropic 请求体）
+- `response.ts` — `convertResponse()` 非流式响应转换
+- `sse.ts` — `convertSSEEvent()`、`createStreamContext()`、双方向 SSE 状态机
+- `index.ts` — barrel export，保持向前兼容
+
+支持 OpenAI ↔ Anthropic 双向转换（请求、响应、SSE）：
 - **请求体转换：** `convertRequest(body, from, to)`
   - OpenAI → Anthropic：系统消息提取、角色交替合并、tools → tool_use、response_format → tools
   - Anthropic → OpenAI：system 块提取、thinking → reasoning_content、tool_use → tool_calls
@@ -364,12 +375,15 @@ closeDatabase()    → 保存 + 关闭
 
 ### 5.3 业务域层 (src/main/domains/)
 
-Domain 模式：每个业务域一个目录，包含 `*.types.ts` 和 `*.service.ts`。
+Domain 模式：每个业务域一个目录，包含 `*.types.ts`、`*.service.ts`、`*.schema.ts`（可选，Zod 校验）。
+
+**IPC → service → db 三层已激活**：`ipc/index.ts` 全部 handler 委托到 domain service，不再直调 `db/` 函数。
 
 设计原则：
-- **service 是纯数据层** — 不操作 Request/Response，只接收/返回 JS 数据
+- **service 是业务逻辑层** — 封装数据转换和聚合，不操作 Request/Response
 - **每个 domain 只有一个 service**
-- **service 注入 Database 实例**（函数式工厂 `createXxxService(db)`）
+- **service 注入 Database 实例**（函数式工厂 `createXxxService(db)`，无状态 service 不需要 db）
+- **schema 在 IPC 入口验证输入** — Zod `.parse()` 拦截非法数据，保护 service 层
 
 **provider domain：**
 - `provider.service.ts` 封装对 `db/providers.ts` 的调用，转为 Domain 类型
@@ -433,6 +447,7 @@ Domain 模式：每个业务域一个目录，包含 `*.types.ts` 和 `*.service
 
 ```
 electronAPI = {
+  backend.onReady(),              # 监听后端就绪事件（启动 loading 门控）
   debug.log(),                    # 调试日志转发
   providers.list/create/update/delete(),
   apiKeys.list/create/delete(),
@@ -455,6 +470,8 @@ electronAPI = {
 - Query 错误日志自动订阅
 
 **App.tsx** — 根组件：
+- **启动门控：** 通过 IPC 监听主进程 `backend:ready` 事件，后端未就绪时显示 "正在初始化服务..." loading 界面，避免窗口出现后白屏等待
+- **路由级代码分割：** 6 个页面组件（Dashboard/Providers/ApiKeys/Logs/Chat/Settings）使用 `React.lazy(() => import(...))` 动态加载，`Suspense` 包裹路由出口提供轻量 fallback。主 bundle 从 ~4.4MB 降至 ~2.3MB
 - HashRouter + Routes 路由配置
 - 更新事件监听（available/progress/downloaded/error）
 - UpdateDialog 自动弹出
@@ -503,6 +520,7 @@ electronAPI = {
 - 仅支持 5 种语言高亮：ts/js/python/json/bash
 
 **Mermaid 图表渲染（mermaid.tsx）：**
+- **动态导入：** mermaid 库（~4MB）通过 `import('mermaid')` 在 `useEffect` 中按需异步加载，不阻塞主 bundle 首屏加载。Vite 自动拆分为独立 chunk
 - `serializedRender()` 串行化 `mermaid.render()` 调用，避免并发 DOM 操作冲突
 - 三态渲染：loading → ready（SVG） / error（错误提示）
 - 使用独立 div 引用（svgRef），避免 innerHTML 替换 React 子节点导致协调冲突
@@ -512,12 +530,14 @@ electronAPI = {
 ### 5.7 更新模块 (src/main/update/)
 
 **manager.ts** — `electron-updater` 封装：
-- `setupAutoUpdater()`：注册 update-available/download-progress/update-downloaded/error 事件
+- **延迟导入：** 使用 `import type { UpdateInfo }`（编译擦除，零运行时成本）+ `ensureAutoUpdater()` 首次调用时动态 `await import('electron-updater')` 加载 ~976KB 包体，避免主进程模块解析阶段阻塞
+- `ensureAutoUpdater()`：首次调用时动态导入 → 注册 update-available/download-progress/update-downloaded/error 事件 → 返回缓存实例
 - 事件通过 `webContents.send()` 广播给所有渲染进程窗口
 - `checkForUpdates()`：检查更新 → 跳过已忽略版本 → 比较版本号
 - `downloadUpdate()` / `installUpdate()` → 委托给 autoUpdater
 
-**config.ts** — 配置持久化：
+**config.ts** — 配置持久化（懒加载）：
+- **构造函数延迟读取：** 构造函数只记录 `configPath`，`this.config` 初始化为 `null`，`loadConfig()` 首次调用时才从磁盘读取 `update-config.json`，后续命中缓存
 - JSON 文件存储在 `userData/update-config.json`
 - 字段：autoCheck / checkInterval / allowPrerelease / skipVersion
 
@@ -544,10 +564,11 @@ electronAPI = {
 
 ### 6.1 Domain 模式
 
-每个 `src/main/domains/{name}/` 目录遵循：
+每个 `src/main/domains/{name}/` 目录遵循（已移除 router.ts，IPC handler 直接注册在 `ipc/index.ts`，增加了 Zod schema 文件）：
 ```
 {name}.types.ts    — 类型定义（输入/输出 DTO）
 {name}.service.ts  — 业务逻辑工厂函数 create{Name}Service(db)
+{name}.schema.ts   — Zod 输入校验（可选，create/update handler 入口使用）
                    └─ 方法: list / getById / create / update / remove
 ```
 
