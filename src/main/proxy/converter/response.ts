@@ -32,7 +32,10 @@ import { mapFinishReason } from './types'
 function anthropicToOpenAIResponse(
   anthropicBody: Record<string, any>
 ): Record<string, any> {
-  if (anthropicBody.type === 'error') {
+  // 兼容两种错误格式：
+  // Anthropic 原生: {"type": "error", "error": {"message": "..."}}
+  // OpenAI 格式（部分供应商如 DeepSeek 在 Anthropic 端点返回）: {"error": {"message": "..."}}
+  if (anthropicBody.type === 'error' || anthropicBody.error) {
     const err = anthropicBody.error ?? {}
     return { error: { type: err.type ?? '', message: err.message ?? '', code: null } }
   }

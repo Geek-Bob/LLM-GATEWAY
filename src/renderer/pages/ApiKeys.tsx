@@ -96,7 +96,6 @@ export function ApiKeysPage() {
   }
 
   const handleDelete = async (key: ApiKey) => {
-    if (!window.confirm(`确认删除 API Key「${key.name}」？此操作不可撤销。`)) return
     try {
       await deleteMutation.mutateAsync(key.id)
       toast.success(`API Key「${key.name}」已删除`)

@@ -66,9 +66,8 @@ export function useConversationManager({ activeConversationId, setActiveConversa
     return { providerId: null, model: null, apiKeyId: null }
   }
 
-  /** 删除会话 — confirm 弹窗 + IPC delete。返回 true 表示已删除 */
-  async function deleteConversation(id: number, title?: string): Promise<boolean> {
-    if (!confirm(`确定删除"${title || '此会话'}"？`)) return false
+  /** 删除会话 — 直接 IPC delete，返回 true 表示已删除 */
+  async function deleteConversation(id: number, _title?: string): Promise<boolean> {
     await api.conversations.delete(id)
     if (activeConversationId === id) {
       setActiveConversationId(null)

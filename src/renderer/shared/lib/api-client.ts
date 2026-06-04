@@ -69,7 +69,11 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
-    throw new ApiError(response.status, body?.error || response.statusText, body)
+    // 兼容两种错误格式：{"error": "msg"} 或 {"error": {"message": "msg"}}
+    const errorMsg = typeof body?.error === 'string'
+      ? body.error
+      : body?.error?.message || response.statusText
+    throw new ApiError(response.status, errorMsg, body)
   }
 
   return response

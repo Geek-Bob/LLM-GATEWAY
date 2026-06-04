@@ -100,6 +100,11 @@ export function ProvidersPage() {
 
   const handleSave = async () => {
     if (!form.name.trim()) return
+    // 前置校验：至少添加一个模型（避免 Zod 英文错误信息直接暴露给用户）
+    if (form.models.length === 0) {
+      toast.error('请至少添加一个模型')
+      return
+    }
     setSaving(true)
     try {
       if (editingId !== null) {
@@ -123,14 +128,25 @@ export function ProvidersPage() {
       setModalOpen(false)
       toast.success(editingId !== null ? '供应商已更新' : '供应商已创建')
     } catch (e) {
-      toast.error(`保存失败: ${e instanceof Error ? e.message : String(e)}`)
+      const raw = e instanceof Error ? e.message : String(e)
+      // 解析 Zod 序列化错误，提取字段名和错误类型做中文映射
+      const fieldMatch = raw.match(/"path":\s*\["(\w+)"\]/)
+      const field = fieldMatch?.[1]
+      const fieldNames: Record<string, string> = {
+        name: '名称', providerType: '供应商类型', baseUrl: 'Base URL',
+        apiKey: 'API Key', models: '模型列表',
+      }
+      if (field && fieldNames[field]) {
+        toast.error(`保存失败: ${fieldNames[field]} 格式不正确`)
+      } else {
+        toast.error(`保存失败: ${raw}`)
+      }
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (p: Provider) => {
-    if (!window.confirm(`确认删除供应商「${p.name}」？此操作不可撤销。`)) return
     try {
       await deleteMutation.mutateAsync(p.id)
       toast.success(`供应商「${p.name}」已删除`)
@@ -354,6 +370,9 @@ export function ProvidersPage() {
             <div>
               <label className="block text-sm font-medium mb-1.5 text-muted-foreground">模型列表</label>
               <div className="space-y-1.5 mb-2">
+                {form.models.length === 0 && (
+                  <p className="text-xs text-destructive">请至少添加一个模型</p>
+                )}
                 {form.models.map((m, i) => (
                   <div
                     key={i}
@@ -416,7 +435,7 @@ export function ProvidersPage() {
             <Button variant="ghost" onClick={() => setModalOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleSave} disabled={saving || !form.name.trim()}>
+            <Button onClick={handleSave} disabled={saving || !form.name.trim() || form.models.length === 0}>
               {saving ? '保存中...' : '保存'}
             </Button>
           </DialogFooter>

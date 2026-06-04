@@ -219,8 +219,8 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     return modelsService.createModelMapping(input)
   })
 
-  ipcMain.handle('models:mapping:update', async (_event, id: number, data) => {
-    const input = updateModelMappingSchema.parse(data)
+  ipcMain.handle('models:mapping:update', async (_event, { id, updates }: { id: number; updates: Record<string, unknown> }) => {
+    const input = updateModelMappingSchema.parse(updates)
     return modelsService.updateModelMapping(id, input)
   })
 

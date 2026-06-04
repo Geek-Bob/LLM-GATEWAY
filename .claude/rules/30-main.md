@@ -1,6 +1,5 @@
 ---
-paths:
-  - "src/main/**"
+description: 主进程 domain 模式 + proxy 路由约定，始终加载
 ---
 
 # Domain Pattern（每个 domain 必须遵循）

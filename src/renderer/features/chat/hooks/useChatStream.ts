@@ -24,7 +24,7 @@
  * - DOMException AbortError 在 catch 中被静默忽略，不触发错误状态
  */
 import { useState, useRef, useCallback } from 'react'
-import { apiFetch, getApiKey } from '@/shared/lib/api-client'
+import { apiFetch, getApiKey, ApiError } from '@/shared/lib/api-client'
 
 export interface StreamMessage {
   id: string
@@ -113,27 +113,12 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
 
     try {
       const endpoint = '/v1/chat/completions'
+      // apiFetch 非 2xx 时会抛出 ApiError，错误在 catch 块中统一处理
       const response = await apiFetch(endpoint, {
         method: 'POST',
         body: buildRequestBody(model, messages),
         signal: abortController.signal,
       })
-
-      // 处理 HTTP 层面的错误（如 401/403/500）
-      if (!response.ok) {
-        const errorText = await response.text()
-        const errorMsg: StreamMessage = {
-          ...messageRef.current!,
-          content: `Error ${response.status}: ${errorText}`,
-          isStreaming: false,
-          isThinking: false,
-          error: true,
-        }
-        messageRef.current = errorMsg
-        onUpdate(errorMsg)
-        setError(errorText)
-        return
-      }
 
       const reader = response.body?.getReader()
       if (!reader) throw new Error('No response body')
@@ -208,7 +193,17 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
     } catch (err) {
       // AbortError 是主动中止的正常行为，不视为错误
       if (err instanceof DOMException && err.name === 'AbortError') return
-      const message = err instanceof Error ? err.message : String(err)
+      // ApiError 包含上游返回的完整错误信息，优先提取 error.message
+      let message: string
+      if (err instanceof ApiError) {
+        const body = err.body as Record<string, any>
+        const upstream = body?.error
+        message = typeof upstream === 'string'
+          ? upstream
+          : upstream?.message || err.message
+      } else {
+        message = err instanceof Error ? err.message : String(err)
+      }
       setError(message)
       if (messageRef.current) {
         const errorMsg: StreamMessage = {

@@ -26,6 +26,8 @@ interface Logger {
 export interface FileTransportOptions {
   /** 日志文件绝对路径 */
   file: string
+  /** 启动时清空日志文件（避免日志文件无限增长） */
+  truncate?: boolean
 }
 
 /**
@@ -61,6 +63,10 @@ export function createLogger(moduleName: string, opts?: FileTransportOptions): L
     const dir = path.dirname(opts.file)
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true })
+    }
+    // 启动时清空日志文件，避免无限增长
+    if (opts.truncate) {
+      try { fs.writeFileSync(opts.file, '', 'utf-8') } catch { /* 静默忽略 */ }
     }
   }
 

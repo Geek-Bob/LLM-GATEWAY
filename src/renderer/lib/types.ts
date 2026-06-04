@@ -6,6 +6,7 @@
  */
 
 import type { ProviderEntity, ApiKeyEntity, LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress } from '../../shared/types'
+import type { ModelMapping, ModelInfo } from '../../main/domains/models/models.types'
 
 export type { LogDebugInfo }
 
@@ -80,6 +81,7 @@ declare global {
         log: (...args: any[]) => void
       }
       backend: {
+        isReady: () => Promise<boolean>
         onReady: (callback: () => void) => () => void
       }
       providers: {
@@ -133,6 +135,17 @@ declare global {
         onProgress: (callback: (progress: UpdateProgress) => void) => () => void
         onDownloaded: (callback: (info: UpdateInfo) => void) => () => void
         onError: (callback: (error: { message: string }) => void) => () => void
+      }
+      /** 模型列表与映射 CRUD */
+      models: {
+        list: () => Promise<ModelInfo[]>
+        mapping: {
+          find: (params: { providerType: string; sourceModel: string }) => Promise<ModelMapping | null>
+          list: () => Promise<ModelMapping[]>
+          create: (input: { providerType: string; sourceModel: string; targetModel: string }) => Promise<ModelMapping>
+          update: (id: number, updates: { providerType?: string; sourceModel?: string; targetModel?: string }) => Promise<ModelMapping>
+          delete: (id: number) => Promise<void>
+        }
       }
     }
   }

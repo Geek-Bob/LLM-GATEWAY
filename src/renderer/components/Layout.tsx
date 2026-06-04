@@ -12,7 +12,7 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { LayoutDashboard, Building2, Key, ScrollText, MessageSquare, Settings } from 'lucide-react'
+import { LayoutDashboard, Building2, Key, ScrollText, MessageSquare, ArrowLeftRight, Settings } from 'lucide-react'
 import { TitleBar } from './TitleBar'
 import { cn } from '../lib/utils'
 
@@ -22,6 +22,7 @@ const navItems = [
   { to: '/api-keys', label: 'API Keys', icon: Key },
   { to: '/logs', label: '请求日志', icon: ScrollText },
   { to: '/chat', label: 'Chat', icon: MessageSquare },
+  { to: '/model-mappings', label: '模型映射', icon: ArrowLeftRight },
   { to: '/settings', label: '设置', icon: Settings },
 ]
 

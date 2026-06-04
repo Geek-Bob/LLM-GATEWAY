@@ -9,6 +9,7 @@ const ApiKeysPage = lazy(() => import('./pages/ApiKeys').then(m => ({ default: m
 const LogsPage = lazy(() => import('./pages/Logs').then(m => ({ default: m.LogsPage })))
 const ChatPage = lazy(() => import('./pages/Chat').then(m => ({ default: m.ChatPage })))
 const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.SettingsPage })))
+const ModelMappingsPage = lazy(() => import('./pages/ModelMappings').then(m => ({ default: m.ModelMappingsPage })))
 import { Sonner } from './components/ui/sonner'
 import { UpdateDialog } from './components/update/UpdateDialog'
 import { useSkipVersion } from './lib/queries/update'
@@ -145,6 +146,7 @@ function App() {
               <Route path="api-keys" element={<ApiKeysPage />} />
               <Route path="logs" element={<LogsPage />} />
               <Route path="chat" element={<ChatPage />} />
+              <Route path="model-mappings" element={<ModelMappingsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Routes>

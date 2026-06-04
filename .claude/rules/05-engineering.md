@@ -1,12 +1,8 @@
----
-description: 软件工程原则与架构思维，全局适用，无条件加载
----
-
 # 架构先行
 - 任何功能开发前，先明确模块职责、接口契约、数据流方向
 - 高层模块定义"做什么"，低层模块决定"怎么做"（依赖倒置）
-- 避免补丁式开发：修复问题时先理解根因，从架构层面解决，而非堆砌 workaround
-- 避免缝合怪：新功能必须融入现有架构，而非独立存在
+- 修复问题时先理解根因，从架构层面解决，不堆砌 workaround
+- 方案设计前必须先读相关代码文件，理解现有逻辑，不凭空设计
 
 # 解耦与抽象
 - 单一职责：每个模块/函数只做一件事
@@ -29,3 +25,63 @@ description: 软件工程原则与架构思维，全局适用，无条件加载
 - 修改前先理解：读取相关代码、理解调用链路、确认影响范围
 - 一致性：新代码必须与周围代码风格一致（命名、结构、错误处理）
 - 向后兼容：接口变更必须考虑已有调用方，必要时提供迁移路径
+
+# 正反示例
+
+## 嵌套过深 → 用 early return
+
+❌ 禁止（嵌套 4 层）：
+```typescript
+function processUser(user) {
+  if (user) {
+    if (user.isActive) {
+      if (user.role === 'admin') {
+        doAdminStuff(user)
+      }
+    }
+  }
+}
+```
+
+✅ 正确（early return）：
+```typescript
+function processUser(user) {
+  if (!user) return
+  if (!user.isActive) return
+  if (user.role !== 'admin') return
+  doAdminStuff(user)
+}
+```
+
+## 函数过长 → 拆分子函数
+
+❌ 禁止（80 行的"上帝函数"）：
+```typescript
+async function handleRequest(req) {
+  // 20 行验证
+  // 20 行业务逻辑
+  // 20 行数据转换
+  // 20 行响应构建
+}
+```
+
+✅ 正确（拆分为 4 个函数）：
+```typescript
+async function handleRequest(req) {
+  const input = validateInput(req)
+  const result = await processBusinessLogic(input)
+  const transformed = transformData(result)
+  return buildResponse(transformed)
+}
+```
+
+## 空值处理 → 显式策略
+
+❌ 禁止（忽略 null 风险）：
+```typescript
+const name = user.profile.name  // user 或 profile 可能为 null
+```
+
+✅ 正确（显式处理）：
+const name = user?.profile?.name ?? 'Unknown'
+```

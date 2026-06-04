@@ -34,7 +34,7 @@ describe('createLogger with file transport', () => {
   const tmpDir = path.join(os.tmpdir(), 'llm-gateway-logger-test')
 
   afterEach(() => {
-    try { fs.rmSync(tmpDir, { recursive: true }) } catch {}
+    try { fs.rmSync(tmpDir, { recursive: true }) } catch { /* 目录不存在时忽略 */ }
   })
 
   it('should write log messages to specified file', async () => {

@@ -1,6 +1,5 @@
 ---
-paths:
-  - "src/renderer/**"
+description: 渲染进程 feature 模式，始终加载
 ---
 
 # Feature Pattern（每个 feature 必须遵循）
