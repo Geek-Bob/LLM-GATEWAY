@@ -27,6 +27,8 @@ import { createApiKeySchema } from '../domains/apikey/apikey.schema'
 import { createConversationSchema, updateConversationSchema, addMessageSchema } from '../domains/conversation/conversation.schema'
 import { UpdateManager } from '../update/manager'
 import { setupUpdateIpcHandlers } from '../update/ipc'
+import { createModelsService } from '../domains/models/models.service'
+import { createModelMappingSchema, updateModelMappingSchema } from '../domains/models/models.schema'
 
 const logger = createLogger('ipc')
 
@@ -200,6 +202,31 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
     const input = addMessageSchema.parse({ conversationId, role, content, thinking })
     return conversationService.addMessage(input)
   })
+
+  // ====== 模型映射 ======
+  const modelsService = createModelsService()
+
+  ipcMain.handle('models:list', async () => modelsService.getAllModels())
+
+  ipcMain.handle('models:mapping:find', async (_event, { providerType, sourceModel }: { providerType: string; sourceModel: string }) =>
+    modelsService.findModelMapping(providerType, sourceModel)
+  )
+
+  ipcMain.handle('models:mapping:list', async () => modelsService.listModelMappings())
+
+  ipcMain.handle('models:mapping:create', async (_event, data) => {
+    const input = createModelMappingSchema.parse(data)
+    return modelsService.createModelMapping(input)
+  })
+
+  ipcMain.handle('models:mapping:update', async (_event, id: number, data) => {
+    const input = updateModelMappingSchema.parse(data)
+    return modelsService.updateModelMapping(id, input)
+  })
+
+  ipcMain.handle('models:mapping:delete', async (_event, id: number) =>
+    modelsService.deleteModelMapping(id)
+  )
 
   // ====== 自动更新 ======
   setupUpdateIpcHandlers(updateManager)
