@@ -4,6 +4,9 @@
  * 负责创建应用所需的所有 SQLite 表，包括供应商、API 密钥、
  * 请求统计、对话历史等核心数据模型。
  * 在应用启动时由 startServer() 调用。
+ *
+ * 注意：此文件只定义当前版本的表结构，不包含增量迁移逻辑。
+ * 旧版本数据库迁移请使用 scripts/migrate-db.mjs 独立脚本。
  */
 
 import { getDb } from './connection'
@@ -11,7 +14,7 @@ import { getDb } from './connection'
 /**
  * 创建所有数据库表（幂等）
  * 使用 CREATE TABLE IF NOT EXISTS 确保多次调用安全。
- * 创建完成后执行增量迁移，为新旧版本兼容提供支持。
+ * 仅适用于新安装或已迁移后的数据库。
  */
 export function createTables(): void {
   const db = getDb()
@@ -28,6 +31,18 @@ export function createTables(): void {
       is_active INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- 模型映射表：将客户端请求的 source_model 转换为目标供应商的实际 model
+    -- provider_type 决定映射适用的协议方向，UNIQUE 约束确保每个源模型只有一条活跃映射
+    CREATE TABLE IF NOT EXISTS model_mappings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      provider_type TEXT NOT NULL CHECK(provider_type IN ('anthropic', 'openai')),
+      source_model TEXT NOT NULL,
+      target_model TEXT NOT NULL,
+      is_active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(provider_type, source_model)
     );
 
     -- API 密钥表：用于代理认证的本地 API 密钥
@@ -95,11 +110,4 @@ export function createTables(): void {
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
     );
   `)
-
-  // 增量迁移：为旧版本数据库补充 key 列（早期建表语句缺少此列）
-  try {
-    db.exec(`ALTER TABLE api_keys ADD COLUMN key TEXT NOT NULL DEFAULT ''`)
-  } catch {
-    // 列已存在则忽略，保证增量迁移的幂等性
-  }
 }
