@@ -137,5 +137,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.on('update:error', handler)
       return () => ipcRenderer.removeListener('update:error', handler)
     }
-  }
+  },
+  /**
+   * 模型映射
+   * list: 获取所有已配置供应商的模型列表
+   * mapping: 模型映射 CRUD（sourceModel → targetModel 的转换规则）
+   */
+  models: {
+    list: () => ipcRenderer.invoke('models:list'),
+    mapping: {
+      find: (params: { providerType: string; sourceModel: string }) =>
+        ipcRenderer.invoke('models:mapping:find', params),
+      list: () => ipcRenderer.invoke('models:mapping:list'),
+      create: (input: { providerType: string; sourceModel: string; targetModel: string }) =>
+        ipcRenderer.invoke('models:mapping:create', input),
+      update: (id: number, updates: { providerType?: string; sourceModel?: string; targetModel?: string }) =>
+        ipcRenderer.invoke('models:mapping:update', { id, updates }),
+      delete: (id: number) => ipcRenderer.invoke('models:mapping:delete', id),
+    }
+  },
 })
