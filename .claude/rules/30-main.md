@@ -67,8 +67,13 @@ ipcMain.handle('{name}:update', async (_event, id, data) => {
 - 工具类：`/v1/models`、`/health`
 - 响应格式：成功直接返回 JSON，错误 `{ error: string }` + HTTP 状态码，流式 SSE
 
+# 必须
+- 每个 domain 有且仅一个 `service.ts` 作为业务入口
+- 代理层/IPC 层禁止 `fs.appendFileSync` / `fs.readFileSync` — 统一用 `core/logger.ts` 的 file transport
+
 # 禁止
 - IPC handler 中直接操作数据库（必须走 service）
+- IPC handler 中写业务逻辑（Map 聚合、数据转换等）— 委托给 domain service
 - service 中直接操作 Request/Response（纯数据层）
 - domain 目录中包含 Hono 路由文件（仅 proxy/server.ts 使用 Hono）
 - IPC handler 的 data 参数使用隐式 any（必须有显式类型标注）

@@ -8,3 +8,4 @@ dist/
 new-api-main/
 *.log
 *.tsbuildinfo
+.claude/settings.local.json

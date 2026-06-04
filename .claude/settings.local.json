@@ -1,4 +1,11 @@
 {
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "tp-c19hdbir93rwu8j7m5ua2osogg8d83e5cvxchooo49hffogh",
+    "ANTHROPIC_BASE_URL": "https://token-plan-cn.xiaomimimo.com/anthropic",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "mimo-v2.5-pro[1m]",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "mimo-v2.5-pro[1m]",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "mimo-v2.5-pro[1m]"
+  },
   "permissions": {
     "allow": [
       "Bash(bash *)",

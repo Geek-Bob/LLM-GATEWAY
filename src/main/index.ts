@@ -5,7 +5,7 @@
  * 启动 HTTP 代理服务器、注册 IPC 处理器和自动更新管理器。
  */
 
-import { app, BrowserWindow, Tray, Menu, nativeImage } from 'electron'
+import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron'
 import path from 'path'
 import { initDatabase, closeDatabase } from './db/connection'
 import { createTables } from './db/schema'
@@ -161,7 +161,16 @@ function createTray(): void {
  * 数据目录使用 Electron 的 userData 路径，确保跨平台兼容
  */
 async function startServer(): Promise<void> {
-  const dataDir = app.getPath('userData')
+  // 修复 dev 模式路径：npx electron 启动时 userData 默认为 %APPDATA%/Electron
+  // 强制使用 %APPDATA%/llm-gateway，确保 dev 和 production 共享同一个数据库
+  let dataDir: string
+  if (app.isPackaged) {
+    dataDir = app.getPath('userData')
+  } else {
+    const appData = process.env.APPDATA || path.join(process.env.HOME || '', '.config')
+    dataDir = path.join(appData, 'llm-gateway')
+    console.log('[DEV] Using data dir:', dataDir)
+  }
   await initDatabase(path.join(dataDir, 'config.db'))
   createTables()
 
@@ -184,6 +193,9 @@ function notifyBackendReady(): void {
   }
 }
 
+// 注册 backend:isReady 查询 handler（解决渲染进程挂载晚于 notifyBackendReady 的时序问题）
+ipcMain.handle('backend:isReady', () => backendReady)
+
 /**
  * 应用就绪后的启动流程
  *
@@ -194,15 +206,20 @@ function notifyBackendReady(): void {
 app.whenReady().then(async () => {
   // 阶段 1: 同步初始化（不依赖数据库/代理）
   updateManager = new UpdateManager()
-  setupIpcHandlers(updateManager)
 
   // 阶段 2: 立即显示窗口（用户感知延迟降低到 0）
   createWindow()
   createTray()
 
-  // 阶段 3: 异步初始化后端服务
-  await startServer()
-  notifyBackendReady()
+  // 阶段 3: 先初始化后端服务（数据库 + 代理），再注册 IPC handler
+  // setupIpcHandlers 内部会访问数据库，必须在 startServer() 之后
+  try {
+    await startServer()
+    setupIpcHandlers(updateManager)
+    notifyBackendReady()
+  } catch (err) {
+    console.error('[STARTUP] Failed to initialize backend:', err)
+  }
 })
 
 app.on('window-all-closed', () => {

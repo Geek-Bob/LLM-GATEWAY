@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   /** 后端就绪事件监听，用于启动 loading 状态管理 */
   backend: {
+    /** 主动查询后端是否已就绪（解决事件监听注册晚于事件发送的时序问题） */
+    isReady: () => ipcRenderer.invoke('backend:isReady'),
     onReady: (callback: () => void) => {
       const handler = () => callback()
       ipcRenderer.on('backend:ready', handler)

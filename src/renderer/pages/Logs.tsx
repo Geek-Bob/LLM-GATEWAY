@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Skeleton } from '../components/ui/skeleton'
+import { Pagination } from '../components/ui/pagination'
 import type { LogEntry } from '../lib/types'
 
 const PAGE_SIZE = 10
@@ -85,8 +86,10 @@ export function LogsPage() {
   const total = data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
 
-  const goToPrev = () => { if (page > 1) { setSelectedLog(null); setPage((p) => p - 1) } }
-  const goToNext = () => { if (page < totalPages) { setSelectedLog(null); setPage((p) => p + 1) } }
+  const handlePageChange = (newPage: number) => {
+    setSelectedLog(null)
+    setPage(newPage)
+  }
 
   const handleToggleDebug = (checked: boolean) => {
     setDebugMode.mutate(checked)
@@ -127,6 +130,7 @@ export function LogsPage() {
             <Table>
               <TableHeader>
                 <TableRow className="border-border/50 hover:bg-transparent">
+                  <TableHead className="text-muted-foreground">ID</TableHead>
                   <TableHead className="text-muted-foreground">时间</TableHead>
                   <TableHead className="text-muted-foreground">模型</TableHead>
                   <TableHead className="text-muted-foreground">格式</TableHead>
@@ -145,6 +149,9 @@ export function LogsPage() {
                       className={`cursor-pointer border-border/50 ${selectedLog?.id === entry.id ? 'bg-muted/50' : ''}`}
                       onClick={() => setSelectedLog(selectedLog?.id === entry.id ? null : entry)}
                     >
+                      <TableCell>
+                        <span className="font-mono text-sm text-muted-foreground">{entry.id}</span>
+                      </TableCell>
                       <TableCell>
                         <span className="text-sm whitespace-nowrap text-muted-foreground">{formatDate(entry.created_at)}</span>
                       </TableCell>
@@ -201,30 +208,13 @@ export function LogsPage() {
           </div>
 
           {/* Pagination */}
-          <div className="flex items-center justify-between mt-4 px-1">
-            <span className="text-sm text-muted-foreground">共 {total} 条</span>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={goToPrev}
-                disabled={page <= 1}
-                className="text-xs text-muted-foreground"
-              >
-                上一页
-              </Button>
-              <span className="text-sm tabular-nums text-muted-foreground">{page} / {totalPages}</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={goToNext}
-                disabled={page >= totalPages}
-                className="text-xs text-muted-foreground"
-              >
-                下一页
-              </Button>
-            </div>
-          </div>
+          <Pagination
+            page={page}
+            totalPages={totalPages}
+            total={total}
+            pageSize={PAGE_SIZE}
+            onPageChange={handlePageChange}
+          />
         </>
       )}
 

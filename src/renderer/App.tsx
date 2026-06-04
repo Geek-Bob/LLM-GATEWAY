@@ -2,12 +2,13 @@ import { useEffect, useState, lazy, Suspense } from 'react'
 import { HashRouter, Routes, Route } from 'react-router-dom'
 import { Layout } from './components/Layout'
 // 路由级代码分割：每个页面独立 chunk，按需加载
-const Dashboard = lazy(() => import('./pages/Dashboard'))
-const ProvidersPage = lazy(() => import('./pages/Providers'))
-const ApiKeysPage = lazy(() => import('./pages/ApiKeys'))
-const LogsPage = lazy(() => import('./pages/Logs'))
-const ChatPage = lazy(() => import('./pages/Chat'))
-const SettingsPage = lazy(() => import('./pages/Settings'))
+// 页面使用命名导出（export function），需要 .then(m => m.Xxx) 提取
+const Dashboard = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })))
+const ProvidersPage = lazy(() => import('./pages/Providers').then(m => ({ default: m.ProvidersPage })))
+const ApiKeysPage = lazy(() => import('./pages/ApiKeys').then(m => ({ default: m.ApiKeysPage })))
+const LogsPage = lazy(() => import('./pages/Logs').then(m => ({ default: m.LogsPage })))
+const ChatPage = lazy(() => import('./pages/Chat').then(m => ({ default: m.ChatPage })))
+const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default: m.SettingsPage })))
 import { Sonner } from './components/ui/sonner'
 import { UpdateDialog } from './components/update/UpdateDialog'
 import { useSkipVersion } from './lib/queries/update'
@@ -45,7 +46,7 @@ function App() {
 
   const skipVersion = useSkipVersion()
 
-  // 监听主进程推送的 backend:ready 事件，用于启动 loading 状态管理
+  // 监听主进程推送的 backend:ready 事件 + 主动查询（解决时序竞态）
   useEffect(() => {
     const api = window.electronAPI
     if (!api) {
@@ -53,7 +54,12 @@ function App() {
       setBackendReady(true)
       return
     }
+    // 先注册事件监听（后续 ready 事件走这条路）
     const unsubscribe = api.backend.onReady(() => setBackendReady(true))
+    // 再主动查询一次（防止事件在监听器注册前就已发出）
+    api.backend.isReady().then((ready) => {
+      if (ready) setBackendReady(true)
+    }).catch(() => {})
     return unsubscribe
   }, [])
 

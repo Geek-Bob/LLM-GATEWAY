@@ -312,9 +312,9 @@ describe('NDJSON Log Sharding', () => {
   })
 
   describe('file rolling', () => {
-    it('should roll to a new file after 10000 entries', () => {
+    it('should roll to a new file after 500 entries', () => {
       // Insert MAX_LINES entries
-      for (let i = 0; i < 10000; i++) {
+      for (let i = 0; i < 500; i++) {
         createLogEntry({ model: 'gpt-4', apiFormat: 'openai' })
       }
 
@@ -334,11 +334,11 @@ describe('NDJSON Log Sharding', () => {
       expect(files).toHaveLength(2)
     })
 
-    it('should delete oldest file when exceeding 10 files', () => {
-      // Pre-populate 10 files with 10000 lines each via direct writes
+    it('should delete oldest file when exceeding 20 files', () => {
+      // Pre-populate 20 files with 500 lines each via direct writes
       const line = JSON.stringify({ model: 'gpt-4', apiFormat: 'openai', createdAt: new Date().toISOString() }) + '\n'
-      const content = line.repeat(10000)
-      for (let i = 1; i <= 10; i++) {
+      const content = line.repeat(500)
+      for (let i = 1; i <= 20; i++) {
         fs.writeFileSync(
           path.join(logDir, `logs-${String(i).padStart(4, '0')}.ndjson`),
           content,
@@ -348,16 +348,16 @@ describe('NDJSON Log Sharding', () => {
       // Re-init to pick up state
       initLogsDir(logDir)
 
-      // One more entry triggers roll → deletes oldest (logs-0001), creates logs-0011
+      // One more entry triggers roll → deletes oldest (logs-0001), creates logs-0021
       createLogEntry({ model: 'gpt-4', apiFormat: 'openai' })
 
       const files = fs
         .readdirSync(logDir)
         .filter((f) => f.endsWith('.ndjson'))
         .sort()
-      expect(files).toHaveLength(10)
+      expect(files).toHaveLength(20)
       expect(files[0]).toBe('logs-0002.ndjson')
-      expect(files[files.length - 1]).toBe('logs-0011.ndjson')
+      expect(files[files.length - 1]).toBe('logs-0021.ndjson')
     })
   })
 
@@ -371,10 +371,10 @@ describe('NDJSON Log Sharding', () => {
     })
 
     it('should delete oldest files when over limit', () => {
-      // Create 11 files directly
+      // Create 21 files directly
       const line = JSON.stringify({ model: 'gpt-4', apiFormat: 'openai', createdAt: new Date().toISOString() }) + '\n'
-      const content = line.repeat(10000)
-      for (let i = 1; i <= 11; i++) {
+      const content = line.repeat(500)
+      for (let i = 1; i <= 21; i++) {
         fs.writeFileSync(
           path.join(logDir, `logs-${String(i).padStart(4, '0')}.ndjson`),
           content,
@@ -390,7 +390,7 @@ describe('NDJSON Log Sharding', () => {
         .readdirSync(logDir)
         .filter((f) => f.endsWith('.ndjson'))
         .sort()
-      expect(files).toHaveLength(10)
+      expect(files).toHaveLength(20)
 
       // Cleanup shouldn't reduce further
       cleanupOldLogs()
@@ -398,7 +398,7 @@ describe('NDJSON Log Sharding', () => {
         .readdirSync(logDir)
         .filter((f) => f.endsWith('.ndjson'))
         .sort()
-      expect(files).toHaveLength(10)
+      expect(files).toHaveLength(20)
     })
   })
 })
