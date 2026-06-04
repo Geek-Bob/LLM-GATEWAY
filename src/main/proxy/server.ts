@@ -26,14 +26,15 @@ import { createLogger } from '../core/logger'
 
 import { createLogEntry, updateRequestStats, updateProviderStats } from '../db/logs'
 import { getDebugMode } from './manager'
+import { createModelsService } from '../domains/models/models.service'
 import type { LogDebugInfo } from '../../shared/types'
 
 /** 工作目录（用于调试日志文件输出） */
 const LOG_DIR = process.cwd()
-/** 认证相关调试日志（API Key 验证、认证失败等） */
-const authLog = createLogger('proxy:auth', { file: path.join(LOG_DIR, 'llm-gateway-auth-debug.log') })
-/** 代理请求全链路调试日志（路由、转换、上游请求/响应等） */
-const proxyLog = createLogger('proxy:debug', { file: path.join(LOG_DIR, 'llm-gateway-proxy-debug.log') })
+/** 认证相关调试日志（API Key 验证、认证失败等，启动时清空） */
+const authLog = createLogger('proxy:auth', { file: path.join(LOG_DIR, 'llm-gateway-auth-debug.log'), truncate: true })
+/** 代理请求全链路调试日志（路由、转换、上游请求/响应等，启动时清空） */
+const proxyLog = createLogger('proxy:debug', { file: path.join(LOG_DIR, 'llm-gateway-proxy-debug.log'), truncate: true })
 
 /**
  * Hono 路由环境类型
@@ -62,6 +63,8 @@ interface AppEnv {
 export function createServer() {
   const app = new Hono<AppEnv>()
   const rateLimiter = new RateLimiter()
+  /** 模型映射 service 实例，供 handleProxyRequest 中查找映射使用 */
+  const modelsService = createModelsService()
 
   // CORS 全局中间件：允许所有跨域请求
   app.use('*', cors())
@@ -189,8 +192,17 @@ export function createServer() {
         debugInfo.client.apiFormat = apiFormat
       }
 
-      // 路由解析：根据 model 名称匹配供应商 + 解析出上游实际模型名
-      const route = resolveProvider(model)
+      // 模型映射：根据 apiFormat + sourceModel 查找活跃映射，有则替换为 targetModel，无则透传原始模型名
+      const mapping = modelsService.findModelMapping(apiFormat, model)
+      const resolvedModel = mapping ? mapping.targetModel : model
+
+      // 记录映射结果（调试模式）
+      if (debugInfo && mapping) {
+        proxyLog.info('MODEL_MAPPING', { sourceModel: model, targetModel: mapping.targetModel })
+      }
+
+      // 路由解析：根据 resolvedModel 名称匹配供应商 + 解析出上游实际模型名
+      const route = resolveProvider(resolvedModel)
       const decryptedKey = route.provider.apiKey
 
       // 记录路由解析结果
