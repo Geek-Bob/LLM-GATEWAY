@@ -11,7 +11,7 @@
  */
 
 import type { Provider } from '../db/providers'
-import { getProviderByName, listActiveProviders } from '../db/providers'
+import { getProviderByName } from '../db/providers'
 
 export interface ModelRoute {
   prefix: string
@@ -59,22 +59,4 @@ export function resolveProvider(modelId: string): ModelRoute {
   }
 
   return { prefix, modelName, provider }
-}
-
-/** 生成所有活跃供应商的模型列表，用于 /v1/models 端点返回可用的模型清单。 */
-export function getAllModels(): { id: string; provider: string; providerType: string }[] {
-  const providers = listActiveProviders()
-  const result: { id: string; provider: string; providerType: string }[] = []
-
-  for (const p of providers) {
-    for (const model of p.models) {
-      result.push({
-        id: `${p.name}/${model}`,
-        provider: p.name,
-        providerType: p.providerType
-      })
-    }
-  }
-
-  return result
 }

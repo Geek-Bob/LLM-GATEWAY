@@ -17,7 +17,7 @@ import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import { authMiddleware } from './middleware'
 import { RateLimiter } from './rate-limiter'
-import { resolveProvider, getAllModels } from './router'
+import { resolveProvider } from './router'
 import { buildProxyUrl, buildProxyHeaders } from './forwarder'
 import { convertRequest, convertResponse, convertSSEEvent, createStreamContext, type StreamContext } from './converter'
 import { verifyApiKey } from '../db/api-keys'
@@ -120,9 +120,9 @@ export function createServer() {
     return handleProxyRequest(c, '/v1/messages', 'anthropic')
   })
 
-  // GET /v1/models — 列出所有已配置供应商的可用模型
+  // GET /v1/models — 列出所有已配置供应商的可用模型（委托给 modelsService）
   app.get('/v1/models', (c) => {
-    const models = getAllModels()
+    const models = modelsService.getAllModels()
     return c.json({
       data: models.map((m) => ({
         id: m.id,
