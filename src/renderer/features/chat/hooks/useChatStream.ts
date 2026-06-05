@@ -144,9 +144,10 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
           // --- OpenAI SSE 解析 ---
           // 格式: data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}
           // 格式: data: [DONE]
-          if (!trimmed.startsWith('data: ')) continue
+          // 兼容 "data: " 和 "data:"（无空格）两种格式
+          if (!trimmed.startsWith('data:')) continue
 
-          const jsonStr = trimmed.slice(6)
+          const jsonStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed.slice(5)
           if (jsonStr === '[DONE]') {
             const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
             messageRef.current = doneMsg

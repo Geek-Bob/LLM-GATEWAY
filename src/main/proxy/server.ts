@@ -776,11 +776,13 @@ export function createServer() {
     let tokensOut = 0
 
     if (apiFormat === 'openai') {
-      // OpenAI：遍历所有 data: 行，提取 usage 字段
+      // OpenAI：遍历所有 data: 行，提取 usage 字段（兼容有空格和无空格）
       for (const line of text.split('\n')) {
-        if (!line.startsWith('data: ') || line.includes('[DONE]')) continue
+        if (!line.startsWith('data:')) continue
+        const jsonStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
+        if (!jsonStr || jsonStr === '[DONE]') continue
         try {
-          const data = JSON.parse(line.slice(6))
+          const data = JSON.parse(jsonStr)
           if (data.usage) {
             tokensIn = data.usage.prompt_tokens ?? tokensIn
             tokensOut = data.usage.completion_tokens ?? tokensOut
@@ -788,14 +790,15 @@ export function createServer() {
         } catch { /* 跳过格式错误的 JSON */ }
       }
     } else {
-      // Anthropic：需要跟踪 event 类型，从不同事件中提取 usage
+      // Anthropic：需要跟踪 event 类型，从不同事件中提取 usage（兼容有空格和无空格）
       let eventType = ''
       for (const line of text.split('\n')) {
-        if (line.startsWith('event: ')) {
-          eventType = line.slice(7)
-        } else if (line.startsWith('data: ')) {
+        if (line.startsWith('event:')) {
+          eventType = line.startsWith('event: ') ? line.slice(7) : line.slice(6)
+        } else if (line.startsWith('data:')) {
+          const jsonStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
           try {
-            const data = JSON.parse(line.slice(6))
+            const data = JSON.parse(jsonStr)
             // message_start 事件：包含 input_tokens 和初始 output_tokens
             if (eventType === 'message_start' && data.message?.usage) {
               tokensIn = data.message.usage.input_tokens ?? tokensIn
