@@ -820,7 +820,9 @@ export function createServer() {
    * 不影响主流程，仅在 debugEnabled 时调用。
    *
    * OpenAI：从 choices[0].delta.content 提取
-   * Anthropic：从 content_block_delta 事件的 delta.text 提取
+   * Anthropic：从 content_block_delta 事件的 delta.text 或 delta.thinking 提取
+   *   - text_delta: 正常文本输出
+   *   - thinking_delta: 思考过程（extended thinking）
    */
   function extractContentFromSSE(
     text: string,
@@ -845,9 +847,13 @@ export function createServer() {
         } else if (line.startsWith('data: ')) {
           try {
             const data = JSON.parse(line.slice(6))
-            // content_block_delta 事件包含文本增量
-            if (eventType === 'content_block_delta' && data.delta?.type === 'text_delta') {
-              if (data.delta.text) parts.push(data.delta.text)
+            // content_block_delta 事件包含文本增量（text_delta 或 thinking_delta）
+            if (eventType === 'content_block_delta' && data.delta) {
+              if (data.delta.type === 'text_delta' && data.delta.text) {
+                parts.push(data.delta.text)
+              } else if (data.delta.type === 'thinking_delta' && data.delta.thinking) {
+                parts.push(`[thinking] ${data.delta.thinking}`)
+              }
             }
           } catch { /* 跳过格式错误的 JSON */ }
         }
