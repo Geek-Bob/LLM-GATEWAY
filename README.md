@@ -86,7 +86,55 @@ response = client.chat.completions.create(
 - **无限供应商**：同时配置 OpenAI、Anthropic、Google、本地模型等
 - **独立 API Key**：每个供应商独立管理密钥
 - **模型路由**：通过 `供应商名/模型名` 自动路由请求
-- **模型映射**：灵活的模型别名和转换规则
+
+### 🔀 模型映射（Agent 能力释放）
+
+**核心价值：** 让 Claude Code、Cursor、Windsurf 等 Agent 工具使用第三方供应商时，伪装成官方模型 ID，**完整释放 Agent 所有能力**。
+
+**问题：** Agent 工具（如 Claude Code）只对官方模型 ID（如 `claude-sonnet-4-20250514`）启用全部能力（工具调用、思考模式等）。使用第三方供应商的模型 ID 时，Agent 会禁用部分功能。
+
+**解决方案：** LLM Gateway 的模型映射功能：
+
+```
+Agent 请求: claude-sonnet-4-20250514
+        ↓
+   模型映射层
+        ↓
+实际调用: opencode/qwen3.7-plus
+```
+
+**使用场景：**
+
+| 场景 | 映射配置 | 效果 |
+|------|----------|------|
+| Claude Code + 第三方供应商 | `claude-sonnet-4-20250514` → `opencode/qwen3.7-plus` | Agent 完整能力（工具调用、思考模式） |
+| Cursor + 本地模型 | `gpt-4` → `local/llama-3` | IDE 完整功能 |
+| 任意 Agent + 任意供应商 | `官方模型ID` → `供应商/模型` | 无损能力迁移 |
+
+**配置示例：**
+
+```json
+{
+  "model_mappings": [
+    {
+      "source_model": "claude-sonnet-4-20250514",
+      "target_provider": "opencode",
+      "target_model": "qwen3.7-plus"
+    },
+    {
+      "source_model": "gpt-4",
+      "target_provider": "local",
+      "target_model": "llama-3-70b"
+    }
+  ]
+}
+```
+
+**优势：**
+- ✅ Agent 无法感知映射，完整启用所有能力
+- ✅ 支持多级映射链
+- ✅ 实时生效，无需重启
+- ✅ 映射规则可视化管理
 
 ### 💬 内置 Chat 客户端
 
@@ -130,6 +178,7 @@ response = client.chat.completions.create(
 | **`cache_control` 透传** | ✅ | ❌ | ❌ | ❌ |
 | **`thinking` 内容支持** | ✅ | ❌ | ❌ | ❌ |
 | **`web_search` 支持** | ✅ | ❌ | ❌ | ❌ |
+| **模型映射（Agent 能力释放）** | ✅ | ❌ | ❌ | ❌ |
 | **内置 Chat 客户端** | ✅ | ❌ | ❌ | ❌ |
 | **协议转换可视化日志** | ✅ | ❌ | ❌ | ❌ |
 | **桌面原生体验** | ✅ | ❌ | ❌ | ❌ |
@@ -194,6 +243,32 @@ for model in models:
 - 按供应商、模型、时间维度统计 Token 用量
 - 设置速率限制，防止意外超支
 - 查看历史趋势，优化使用策略
+
+### 场景 5：Agent 工具能力释放 ⭐
+
+**问题**：Claude Code、Cursor、Windsurf 等 Agent 工具只对官方模型 ID 启用全部能力（工具调用、思考模式等）。使用第三方供应商时，Agent 会禁用部分功能。
+
+**解决方案**：LLM Gateway 的模型映射功能，让第三方模型伪装成官方模型 ID。
+
+```bash
+# Claude Code 配置
+ANTHROPIC_BASE_URL=http://localhost:8080
+ANTHROPIC_API_KEY=your-gateway-key
+
+# LLM Gateway 模型映射配置
+claude-sonnet-4-20250514 → opencode/qwen3.7-plus
+
+# 结果：Claude Code 完整启用所有能力
+# - 工具调用 ✅
+# - 思考模式 ✅
+# - 多轮对话 ✅
+# - 代码生成 ✅
+```
+
+**实际效果：**
+- 使用第三方供应商的便宜模型
+- 享受官方模型的完整 Agent 能力
+- 成本降低 50-80%，功能无损
 
 ---
 
