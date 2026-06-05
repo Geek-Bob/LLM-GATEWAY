@@ -840,8 +840,15 @@ export function createServer() {
         if (!jsonStr || jsonStr === '[DONE]') continue
         try {
           const data = JSON.parse(jsonStr)
-          const content = data.choices?.[0]?.delta?.content
-          if (content) parts.push(content)
+          const delta = data.choices?.[0]?.delta
+          if (delta) {
+            // 优先提取 content，其次 reasoning_content
+            if (delta.content) {
+              parts.push(delta.content)
+            } else if (delta.reasoning_content) {
+              parts.push(`[thinking] ${delta.reasoning_content}`)
+            }
+          }
         } catch { /* 跳过格式错误的 JSON */ }
       }
     } else {
