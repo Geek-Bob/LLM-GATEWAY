@@ -208,8 +208,8 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
 
   ipcMain.handle('models:list', async () => modelsService.getAllModels())
 
-  ipcMain.handle('models:mapping:find', async (_event, { providerType, sourceModel }: { providerType: string; sourceModel: string }) =>
-    modelsService.findModelMapping(providerType, sourceModel)
+  ipcMain.handle('models:mapping:find', async (_event, sourceModel: string) =>
+    modelsService.findModelMapping(sourceModel)
   )
 
   ipcMain.handle('models:mapping:list', async () => modelsService.listModelMappings())

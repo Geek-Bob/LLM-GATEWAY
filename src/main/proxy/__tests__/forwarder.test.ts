@@ -76,10 +76,17 @@ describe('buildProxyUrl', () => {
 describe('buildProxyHeaders', () => {
   const decryptedKey = 'sk-test-key-12345'
 
-  it('should set authorization header with Bearer token', () => {
-    const provider = makeProvider()
+  it('should set authorization header with Bearer token for openai provider', () => {
+    const provider = makeProvider({ providerType: 'openai' })
     const headers = buildProxyHeaders(provider, decryptedKey, {})
     expect(headers.authorization).toBe('Bearer sk-test-key-12345')
+  })
+
+  it('should set x-api-key header for anthropic provider', () => {
+    const provider = makeProvider({ providerType: 'anthropic' })
+    const headers = buildProxyHeaders(provider, decryptedKey, {})
+    expect(headers['x-api-key']).toBe('sk-test-key-12345')
+    expect(headers.authorization).toBeUndefined()
   })
 
   it('should set content-type header with default application/json', () => {

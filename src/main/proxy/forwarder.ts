@@ -57,12 +57,16 @@ export function buildProxyHeaders(
 ): Record<string, string> {
   const headers: Record<string, string> = {
     ...originalHeaders,
-    authorization: `Bearer ${decryptedKey}`,
     'content-type': originalHeaders['content-type'] || originalHeaders['Content-Type'] || 'application/json'
   }
 
   if (provider.providerType === 'anthropic') {
+    // Anthropic API 使用 x-api-key header
+    headers['x-api-key'] = decryptedKey
     headers['anthropic-version'] = '2023-06-01'
+  } else {
+    // OpenAI 兼容 API 使用 Authorization: Bearer header
+    headers['authorization'] = `Bearer ${decryptedKey}`
   }
 
   return headers

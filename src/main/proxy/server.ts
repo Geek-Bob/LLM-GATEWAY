@@ -192,8 +192,8 @@ export function createServer() {
         debugInfo.client.apiFormat = apiFormat
       }
 
-      // 模型映射：根据 apiFormat + sourceModel 查找活跃映射，有则替换为 targetModel，无则透传原始模型名
-      const mapping = modelsService.findModelMapping(apiFormat, model)
+      // 模型映射：根据 sourceModel 查找活跃映射，有则替换为 targetModel，无则透传原始模型名
+      const mapping = modelsService.findModelMapping(model)
       const resolvedModel = mapping ? mapping.targetModel : model
 
       // 记录映射结果（调试模式）
@@ -448,7 +448,7 @@ export function createServer() {
       return c.json(convertedBody, response.status as any)
     } catch (err) {
       // 捕获所有未处理异常（网络错误、JSON 解析失败等）
-      return handleProxyError(c, err, startTime, apiFormat)
+      return handleProxyError(c, err, startTime, apiFormat, debugInfo)
     }
   }
 
@@ -656,7 +656,8 @@ export function createServer() {
     c: Context<AppEnv>,
     err: unknown,
     startTime: number,
-    apiFormat: 'anthropic' | 'openai'
+    apiFormat: 'anthropic' | 'openai',
+    debugInfo?: LogDebugInfo | null
   ): Response {
     const message = err instanceof Error ? err.message : String(err)
     proxyLog.info('PROXY_ERROR', { error: message, stack: err instanceof Error ? err.stack?.slice(0, 1000) : undefined })
@@ -679,13 +680,19 @@ export function createServer() {
       status = 400
     }
 
+    // 将错误信息写入 debugInfo（调试模式）
+    if (debugInfo) {
+      debugInfo.error = message
+    }
+
     // 记录错误日志（model 为 unknown，因为路由可能已失败）
     tryLogEntry(c, {
       model: 'unknown',
       apiFormat,
       statusCode: status,
       durationMs: Date.now() - startTime,
-      error: message
+      error: message,
+      debug: debugInfo ?? undefined
     })
 
     return c.json({ error: message }, status as any)

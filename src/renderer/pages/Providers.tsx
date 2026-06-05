@@ -77,11 +77,13 @@ export function ProvidersPage() {
   const [revealedKeyId, setRevealedKeyId] = useState<number | null>(null)
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null)
   const [newModel, setNewModel] = useState('')
+  const [showApiKey, setShowApiKey] = useState(false)
 
   const openCreate = () => {
     setEditingId(null)
     setForm(emptyForm)
     setNewModel('')
+    setShowApiKey(false)
     setModalOpen(true)
   }
 
@@ -95,6 +97,7 @@ export function ProvidersPage() {
       models: [...p.models],
     })
     setNewModel('')
+    setShowApiKey(false)
     setModalOpen(true)
   }
 
@@ -241,56 +244,6 @@ export function ProvidersPage() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <Popover
-                        open={revealedKeyId === p.id}
-                        onOpenChange={(open) => {
-                          if (!open) {
-                            setRevealedKeyId(null)
-                            setCopiedKeyId(null)
-                          }
-                        }}
-                      >
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-muted-foreground"
-                            onClick={() => setRevealedKeyId(revealedKeyId === p.id ? null : p.id)}
-                            title="查看 API Key"
-                          >
-                            {revealedKeyId === p.id ? (
-                              <Eye className="h-4 w-4" />
-                            ) : (
-                              <EyeOff className="h-4 w-4" />
-                            )}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent align="end" className="w-80">
-                          <div className="flex items-start gap-2">
-                            <code className="text-xs font-mono break-all select-all text-primary flex-1 leading-relaxed">
-                              {p.apiKey}
-                            </code>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 shrink-0 text-muted-foreground"
-                              onClick={async () => {
-                                try {
-                                  await navigator.clipboard.writeText(p.apiKey)
-                                  setCopiedKeyId(p.id)
-                                  setTimeout(() => setCopiedKeyId(null), 2000)
-                                } catch { /* clipboard write failed */ }
-                              }}
-                            >
-                              {copiedKeyId === p.id ? (
-                                <Check className="h-4 w-4 text-green-500" />
-                              ) : (
-                                <Copy className="h-4 w-4" />
-                              )}
-                            </Button>
-                          </div>
-                        </PopoverContent>
-                      </Popover>
                       <Button variant="ghost" size="sm" className="text-primary" onClick={() => openEdit(p)}>
                         <Pencil className="h-3.5 w-3.5" />
                         编辑
@@ -359,12 +312,28 @@ export function ProvidersPage() {
 
             <div>
               <label className="block text-sm font-medium mb-1.5 text-muted-foreground">API Key</label>
-              <Input
-                type="password"
-                value={form.apiKey}
-                onChange={(e) => setForm((prev) => ({ ...prev, apiKey: e.target.value }))}
-                placeholder={editingId !== null ? '留空则不修改' : 'sk-...'}
-              />
+              <div className="relative">
+                <Input
+                  type={showApiKey ? 'text' : 'password'}
+                  value={form.apiKey || ''}
+                  onChange={(e) => setForm((prev) => ({ ...prev, apiKey: e.target.value }))}
+                  placeholder={editingId !== null ? '留空则不修改' : 'sk-...'}
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? (
+                    <Eye className="h-4 w-4" />
+                  ) : (
+                    <EyeOff className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
             </div>
 
             <div>

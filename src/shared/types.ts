@@ -28,6 +28,7 @@ export interface LogDebugInfo {
     statusCode: number
     responseBody: string
   }
+  error?: string
 }
 
 /** 应用更新信息：版本号和发布说明 */

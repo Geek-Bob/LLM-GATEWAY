@@ -80,6 +80,7 @@ function rowToResponse(row: Record<string, unknown>): ProviderResponse {
     name: row.name as string,
     providerType: row.provider_type as string,
     baseUrl: row.base_url as string,
+    apiKey: row.api_key as string,
     models: JSON.parse(row.models as string) as string[],
     isActive: row.is_active as number,
     createdAt: row.created_at as string,

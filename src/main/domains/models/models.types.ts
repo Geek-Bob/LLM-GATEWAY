@@ -5,23 +5,20 @@
 /** 模型映射实体 */
 export interface ModelMapping {
   id: number
-  providerType: string      // 'anthropic' | 'openai'
-  sourceModel: string       // 完整模型 ID
-  targetModel: string       // 完整模型 ID
+  sourceModel: string       // 客户端请求的模型名
+  targetModel: string       // 完整模型 ID，如 "deepseek/deepseek-v4-pro"
   isActive: number
   createdAt: string
 }
 
 /** 创建映射输入 */
 export interface CreateModelMappingInput {
-  providerType: string
   sourceModel: string
   targetModel: string
 }
 
 /** 更新映射输入 */
 export interface UpdateModelMappingInput {
-  providerType?: string
   sourceModel?: string
   targetModel?: string
 }

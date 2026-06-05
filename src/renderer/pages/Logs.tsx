@@ -287,6 +287,13 @@ export function LogsPage() {
                 <DebugSection title="上游响应">
                   <DebugJSON label="响应体" json={selectedLog.debug.upstream.responseBody} />
                 </DebugSection>
+
+                {/* Error section (when debug has error info) */}
+                {selectedLog.debug.error && (
+                  <DebugSection title="错误">
+                    <DebugKV label="错误信息" value={selectedLog.debug.error} />
+                  </DebugSection>
+                )}
               </>
             ) : (
               /* No debug data -- show basic info + hint */

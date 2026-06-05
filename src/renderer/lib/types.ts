@@ -10,8 +10,8 @@ import type { ModelMapping, ModelInfo } from '../../main/domains/models/models.t
 
 export type { LogDebugInfo }
 
-/** UI 层 Provider 类型：不含 apiKey 敏感字段 */
-export type Provider = Omit<ProviderEntity, 'apiKey'>
+/** UI 层 Provider 类型 */
+export type Provider = ProviderEntity
 
 /** UI 层 ApiKey 类型 */
 export type ApiKey = ApiKeyEntity
@@ -140,10 +140,10 @@ declare global {
       models: {
         list: () => Promise<ModelInfo[]>
         mapping: {
-          find: (params: { providerType: string; sourceModel: string }) => Promise<ModelMapping | null>
+          find: (sourceModel: string) => Promise<ModelMapping | null>
           list: () => Promise<ModelMapping[]>
-          create: (input: { providerType: string; sourceModel: string; targetModel: string }) => Promise<ModelMapping>
-          update: (id: number, updates: { providerType?: string; sourceModel?: string; targetModel?: string }) => Promise<ModelMapping>
+          create: (input: { sourceModel: string; targetModel: string }) => Promise<ModelMapping>
+          update: (id: number, updates: { sourceModel?: string; targetModel?: string }) => Promise<ModelMapping>
           delete: (id: number) => Promise<void>
         }
       }

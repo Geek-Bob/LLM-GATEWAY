@@ -78,27 +78,24 @@ describe('models.service', () => {
 
   describe('findModelMapping', () => {
     it('未找到映射时应返回 null', () => {
-      const result = service.findModelMapping('anthropic', 'nonexistent/model')
+      const result = service.findModelMapping('nonexistent/model')
       expect(result).toBeNull()
     })
 
     it('应返回匹配的活跃映射', () => {
       service.createModelMapping({
-        providerType: 'anthropic',
         sourceModel: 'claude-3-opus',
         targetModel: 'claude-3-opus-20240229',
       })
 
-      const result = service.findModelMapping('anthropic', 'claude-3-opus')
+      const result = service.findModelMapping('claude-3-opus')
       expect(result).not.toBeNull()
-      expect(result!.providerType).toBe('anthropic')
       expect(result!.sourceModel).toBe('claude-3-opus')
       expect(result!.targetModel).toBe('claude-3-opus-20240229')
     })
 
     it('非活跃映射不应被查到', () => {
       const created = service.createModelMapping({
-        providerType: 'openai',
         sourceModel: 'gpt-4',
         targetModel: 'gpt-4-turbo',
       })
@@ -106,7 +103,7 @@ describe('models.service', () => {
       const db = getDb()
       db.prepare('UPDATE model_mappings SET is_active = 0 WHERE id = ?').run([created.id])
 
-      const result = service.findModelMapping('openai', 'gpt-4')
+      const result = service.findModelMapping('gpt-4')
       expect(result).toBeNull()
     })
   })
@@ -115,12 +112,10 @@ describe('models.service', () => {
     it('应能创建、查询、更新、删除映射', () => {
       // 创建
       const created = service.createModelMapping({
-        providerType: 'anthropic',
         sourceModel: 'test/source',
         targetModel: 'test/target',
       })
       expect(created.id).toBeDefined()
-      expect(created.providerType).toBe('anthropic')
       expect(created.sourceModel).toBe('test/source')
       expect(created.targetModel).toBe('test/target')
       expect(created.isActive).toBe(1)
@@ -145,29 +140,24 @@ describe('models.service', () => {
 
     it('更新应支持修改多个字段', () => {
       const created = service.createModelMapping({
-        providerType: 'openai',
         sourceModel: 'old/source',
         targetModel: 'old/target',
       })
 
       const updated = service.updateModelMapping(created.id, {
-        providerType: 'anthropic',
         sourceModel: 'new/source',
         targetModel: 'new/target',
       })
-      expect(updated.providerType).toBe('anthropic')
       expect(updated.sourceModel).toBe('new/source')
       expect(updated.targetModel).toBe('new/target')
     })
 
     it('listModelMappings 应按 id 降序排列', () => {
       service.createModelMapping({
-        providerType: 'openai',
         sourceModel: 'model-a',
         targetModel: 'target-a',
       })
       service.createModelMapping({
-        providerType: 'openai',
         sourceModel: 'model-b',
         targetModel: 'target-b',
       })

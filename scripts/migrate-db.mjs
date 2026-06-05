@@ -73,10 +73,12 @@ function readAll(db, tableName) {
 // ── 检测是否需要迁移 ──
 const providerCols = getColumns(oldDb, 'providers')
 const apiKeyCols = getColumns(oldDb, 'api_keys')
+const mappingCols = getColumns(oldDb, 'model_mappings')
 const needsProviderMigration = providerCols.includes('api_key_encrypted')
 const needsApiKeyMigration = apiKeyCols.includes('key_encrypted')
+const needsMappingMigration = mappingCols.includes('provider_type')
 
-if (!needsProviderMigration && !needsApiKeyMigration) {
+if (!needsProviderMigration && !needsApiKeyMigration && !needsMappingMigration) {
   console.log('✅ 数据库已是最新版本，无需迁移')
   oldDb.close()
   process.exit(0)
@@ -85,6 +87,7 @@ if (!needsProviderMigration && !needsApiKeyMigration) {
 console.log('🔄 检测到旧版本数据库，开始迁移...')
 if (needsProviderMigration) console.log('   providers: api_key_encrypted → api_key')
 if (needsApiKeyMigration) console.log('   api_keys:  key_encrypted → key')
+if (needsMappingMigration) console.log('   model_mappings: 删除 provider_type 字段')
 
 // ── 读取所有旧数据 ──
 const oldProviders = readAll(oldDb, 'providers')
@@ -93,9 +96,11 @@ const oldStats = readAll(oldDb, 'request_stats')
 const oldStatsProvider = readAll(oldDb, 'request_stats_provider')
 const oldConversations = readAll(oldDb, 'conversations')
 const oldMessages = readAll(oldDb, 'messages')
+const oldMappings = readAll(oldDb, 'model_mappings')
 
 console.log(`   providers: ${oldProviders.length} 条`)
 console.log(`   api_keys: ${oldApiKeys.length} 条`)
+console.log(`   model_mappings: ${oldMappings.length} 条`)
 console.log(`   conversations: ${oldConversations.length} 条`)
 console.log(`   messages: ${oldMessages.length} 条`)
 
@@ -170,6 +175,14 @@ newDb.run(`
     thinking TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE model_mappings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source_model TEXT NOT NULL UNIQUE,
+    target_model TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `)
 
@@ -251,6 +264,41 @@ for (const row of oldMessages) {
   msgStmt.run(row)
 }
 msgStmt.free()
+
+// model_mappings — 如果旧表有 provider_type 字段，需要迁移
+if (needsMappingMigration) {
+  const mappingStmt = newDb.prepare(
+    'INSERT INTO model_mappings (id, source_model, target_model, is_active, created_at) VALUES (?, ?, ?, ?, ?)'
+  )
+  for (const row of oldMappings) {
+    const cols = mappingCols
+    const get = (name) => row[cols.indexOf(name)] ?? ''
+    // 旧表有 provider_type 字段，新表没有，跳过该字段
+    // 如果同一个 source_model 有多个 provider_type 的映射，只保留第一个
+    try {
+      mappingStmt.run([
+        get('id'),
+        get('source_model'),
+        get('target_model'),
+        get('is_active') ?? 1,
+        get('created_at'),
+      ])
+    } catch {
+      // UNIQUE 约束冲突（同一 source_model 多条记录），跳过
+      console.log(`   ⚠️ 跳过重复映射: ${get('source_model')}`)
+    }
+  }
+  mappingStmt.free()
+} else if (oldMappings.length > 0) {
+  // 旧表结构已经是新版本，直接复制
+  const mappingStmt = newDb.prepare(
+    'INSERT INTO model_mappings (id, source_model, target_model, is_active, created_at) VALUES (?, ?, ?, ?, ?)'
+  )
+  for (const row of oldMappings) {
+    mappingStmt.run(row)
+  }
+  mappingStmt.free()
+}
 
 // ── 备份旧文件，写入新文件 ──
 const bakPath = dbPath + '.bak'

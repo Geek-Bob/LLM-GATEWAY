@@ -52,26 +52,22 @@ export function createModelsService() {
     /**
      * 查找活跃的模型映射
      *
-     * 按 providerType + sourceModel 精确匹配，仅返回 is_active=1 的记录。
+     * 按 sourceModel 精确匹配，仅返回 is_active=1 的记录。
      * 供 proxy 请求转换时调用，将客户端请求的 source_model 替换为 target_model。
      * 未找到映射时返回 null（调用方应使用原始模型名）。
      */
-    findModelMapping: (
-      providerType: string,
-      sourceModel: string
-    ): ModelMapping | null => {
+    findModelMapping: (sourceModel: string): ModelMapping | null => {
       const db = getDb()
       const row = db
         .prepare(
-          'SELECT * FROM model_mappings WHERE provider_type = ? AND source_model = ? AND is_active = 1'
+          'SELECT * FROM model_mappings WHERE source_model = ? AND is_active = 1'
         )
-        .get([providerType, sourceModel]) as Record<string, unknown> | undefined
+        .get([sourceModel]) as Record<string, unknown> | undefined
 
       if (!row) return null
 
       return {
         id: row.id as number,
-        providerType: row.provider_type as string,
         sourceModel: row.source_model as string,
         targetModel: row.target_model as string,
         isActive: row.is_active as number,
@@ -92,7 +88,6 @@ export function createModelsService() {
 
       return rows.map((row) => ({
         id: row.id as number,
-        providerType: row.provider_type as string,
         sourceModel: row.source_model as string,
         targetModel: row.target_model as string,
         isActive: row.is_active as number,
@@ -105,15 +100,15 @@ export function createModelsService() {
      *
      * 插入新记录，is_active 默认为 1，created_at 由数据库自动生成。
      * 返回完整的映射对象（含自增 id）。
-     * 注意：provider_type + source_model 有 UNIQUE 约束，重复插入会抛异常。
+     * 注意：source_model 有 UNIQUE 约束，重复插入会抛异常。
      */
     createModelMapping: (data: CreateModelMappingInput): ModelMapping => {
       const db = getDb()
       const result = db
         .prepare(
-          'INSERT INTO model_mappings (provider_type, source_model, target_model) VALUES (?, ?, ?)'
+          'INSERT INTO model_mappings (source_model, target_model) VALUES (?, ?)'
         )
-        .run([data.providerType, data.sourceModel, data.targetModel])
+        .run([data.sourceModel, data.targetModel])
 
       // 查询刚创建的记录，返回完整对象
       const row = db
@@ -122,7 +117,6 @@ export function createModelsService() {
 
       return {
         id: row.id as number,
-        providerType: row.provider_type as string,
         sourceModel: row.source_model as string,
         targetModel: row.target_model as string,
         isActive: row.is_active as number,
@@ -145,10 +139,6 @@ export function createModelsService() {
       const values: unknown[] = []
 
       // 动态构建 SET 子句，仅包含传入的字段
-      if (data.providerType !== undefined) {
-        setClauses.push('provider_type = ?')
-        values.push(data.providerType)
-      }
       if (data.sourceModel !== undefined) {
         setClauses.push('source_model = ?')
         values.push(data.sourceModel)
@@ -173,7 +163,6 @@ export function createModelsService() {
 
       return {
         id: row.id as number,
-        providerType: row.provider_type as string,
         sourceModel: row.source_model as string,
         targetModel: row.target_model as string,
         isActive: row.is_active as number,

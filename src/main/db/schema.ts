@@ -34,15 +34,13 @@ export function createTables(): void {
     );
 
     -- 模型映射表：将客户端请求的 source_model 转换为目标供应商的实际 model
-    -- provider_type 决定映射适用的协议方向，UNIQUE 约束确保每个源模型只有一条活跃映射
+    -- UNIQUE(source_model) 确保每个源模型只有一条映射规则
     CREATE TABLE IF NOT EXISTS model_mappings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      provider_type TEXT NOT NULL CHECK(provider_type IN ('anthropic', 'openai')),
-      source_model TEXT NOT NULL,
+      source_model TEXT NOT NULL UNIQUE,
       target_model TEXT NOT NULL,
       is_active INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      UNIQUE(provider_type, source_model)
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     -- API 密钥表：用于代理认证的本地 API 密钥

@@ -18,6 +18,7 @@ export interface ProviderResponse {
   name: string
   providerType: string
   baseUrl: string
+  apiKey: string
   /** 已解析为数组的模型列表 */
   models: string[]
   isActive: number

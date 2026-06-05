@@ -146,12 +146,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   models: {
     list: () => ipcRenderer.invoke('models:list'),
     mapping: {
-      find: (params: { providerType: string; sourceModel: string }) =>
-        ipcRenderer.invoke('models:mapping:find', params),
+      find: (sourceModel: string) =>
+        ipcRenderer.invoke('models:mapping:find', sourceModel),
       list: () => ipcRenderer.invoke('models:mapping:list'),
-      create: (input: { providerType: string; sourceModel: string; targetModel: string }) =>
+      create: (input: { sourceModel: string; targetModel: string }) =>
         ipcRenderer.invoke('models:mapping:create', input),
-      update: (id: number, updates: { providerType?: string; sourceModel?: string; targetModel?: string }) =>
+      update: (id: number, updates: { sourceModel?: string; targetModel?: string }) =>
         ipcRenderer.invoke('models:mapping:update', { id, updates }),
       delete: (id: number) => ipcRenderer.invoke('models:mapping:delete', id),
     }

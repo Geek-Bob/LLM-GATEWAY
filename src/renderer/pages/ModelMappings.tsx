@@ -5,10 +5,9 @@
  * 1. useModelMappings 通过 IPC 获取所有映射列表
  * 2. useModels 获取所有活跃 provider 的模型列表（用于下拉选择）
  * 3. useCreateModelMapping / useUpdateModelMapping / useDeleteModelMapping 处理增删改
- * 4. 弹出 Dialog 中选择 Provider Type + 源模型 + 目标模型
+ * 4. 弹出 Dialog 中选择请求模型 + 映射模型
  *
  * 模型 ID 格式: "providerName/modelName"（来自 models.list()）
- * 映射存储格式: 仅 modelName（DB 的 source_model / target_model 列）
  */
 
 import { useState } from 'react'
@@ -20,6 +19,7 @@ import { api } from '../lib/ipc'
 import type { ModelMapping } from '../../main/domains/models/models.types'
 import { cn } from '../lib/utils'
 import { Button } from '../components/ui/button'
+import { Input } from '../components/ui/input'
 import { Badge } from '../components/ui/badge'
 import { Skeleton } from '../components/ui/skeleton'
 import {
@@ -47,25 +47,14 @@ import {
 
 /** 表单数据结构 */
 interface MappingForm {
-  providerType: string
   sourceModel: string
   targetModel: string
 }
 
 /** 表单初始值 */
 const emptyForm: MappingForm = {
-  providerType: 'openai',
   sourceModel: '',
   targetModel: '',
-}
-
-/**
- * 从复合模型 ID 中提取模型名称
- * "providerName/modelName" → "modelName"
- */
-function extractModelName(compositeId: string): string {
-  const slashIdx = compositeId.indexOf('/')
-  return slashIdx >= 0 ? compositeId.slice(slashIdx + 1) : compositeId
 }
 
 export function ModelMappingsPage() {
@@ -90,7 +79,7 @@ export function ModelMappingsPage() {
 
   // 创建映射
   const createMutation = useMutation({
-    mutationFn: (data: { providerType: string; sourceModel: string; targetModel: string }) =>
+    mutationFn: (data: { sourceModel: string; targetModel: string }) =>
       api.models.mapping.create(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['model-mappings'] })
@@ -114,9 +103,6 @@ export function ModelMappingsPage() {
     },
   })
 
-  // 按 providerType 过滤模型列表
-  const filteredModels = models.filter((m) => m.providerType === form.providerType)
-
   /** 打开新建弹窗 */
   const openCreate = () => {
     setEditingId(null)
@@ -124,34 +110,23 @@ export function ModelMappingsPage() {
     setModalOpen(true)
   }
 
-  /** 打开编辑弹窗：将 DB 中的纯模型名映射回复合 ID 供下拉选择 */
+  /** 打开编辑弹窗 */
   const openEdit = (m: ModelMapping) => {
     setEditingId(m.id)
-    // 从 models 列表中找到匹配的复合 ID
-    const sourceComposite = models.find(
-      (model) => model.providerType === m.providerType && extractModelName(model.id) === m.sourceModel
-    )?.id ?? m.sourceModel
-    const targetComposite = models.find(
-      (model) => model.providerType === m.providerType && extractModelName(model.id) === m.targetModel
-    )?.id ?? m.targetModel
     setForm({
-      providerType: m.providerType,
-      sourceModel: sourceComposite,
-      targetModel: targetComposite,
+      sourceModel: m.sourceModel,
+      targetModel: m.targetModel,
     })
     setModalOpen(true)
   }
 
-  /** 提交表单：从复合 ID 中提取纯模型名后调用 IPC */
+  /** 提交表单 */
   const handleSave = async () => {
     if (!form.sourceModel || !form.targetModel) return
 
-    const sourceModel = extractModelName(form.sourceModel)
-    const targetModel = extractModelName(form.targetModel)
-
-    // 前置校验：源模型与目标模型不能相同
-    if (sourceModel === targetModel) {
-      toast.error('源模型和目标模型不能相同')
+    // 前置校验：请求模型与映射模型不能相同
+    if (form.sourceModel === form.targetModel) {
+      toast.error('请求模型和映射模型不能相同')
       return
     }
 
@@ -160,16 +135,14 @@ export function ModelMappingsPage() {
       if (editingId !== null) {
         await updateMutation.mutateAsync({
           id: editingId,
-          providerType: form.providerType,
-          sourceModel,
-          targetModel,
+          sourceModel: form.sourceModel,
+          targetModel: form.targetModel,
         })
         toast.success('映射已更新')
       } else {
         await createMutation.mutateAsync({
-          providerType: form.providerType,
-          sourceModel,
-          targetModel,
+          sourceModel: form.sourceModel,
+          targetModel: form.targetModel,
         })
         toast.success('映射已创建')
       }
@@ -178,7 +151,7 @@ export function ModelMappingsPage() {
       const raw = e instanceof Error ? e.message : String(e)
       // 处理 UNIQUE 约束冲突
       if (raw.includes('UNIQUE')) {
-        toast.error('该 Provider Type 下已存在相同的源模型映射')
+        toast.error('该请求模型已存在映射规则')
       } else {
         toast.error(`保存失败: ${raw}`)
       }
@@ -231,9 +204,8 @@ export function ModelMappingsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Provider Type</TableHead>
-                <TableHead>源模型</TableHead>
-                <TableHead>目标模型</TableHead>
+                <TableHead>请求模型</TableHead>
+                <TableHead>映射模型</TableHead>
                 <TableHead>状态</TableHead>
                 <TableHead className="text-right">操作</TableHead>
               </TableRow>
@@ -247,9 +219,6 @@ export function ModelMappingsPage() {
                   transition={{ delay: idx * 0.04, duration: 0.3 }}
                   className="border-b transition-colors hover:bg-muted/50"
                 >
-                  <TableCell>
-                    <Badge variant="secondary">{m.providerType}</Badge>
-                  </TableCell>
                   <TableCell>
                     <code className="text-sm font-mono text-foreground">{m.sourceModel}</code>
                   </TableCell>
@@ -305,64 +274,30 @@ export function ModelMappingsPage() {
 
           <div className="space-y-4 py-2">
             <div>
-              <label className="block text-sm font-medium mb-1.5 text-muted-foreground">Provider Type</label>
-              <Select
-                value={form.providerType}
-                onValueChange={(value) =>
-                  setForm((prev) => ({ ...prev, providerType: value, sourceModel: '', targetModel: '' }))
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="选择 Provider 类型" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="openai">OpenAI</SelectItem>
-                  <SelectItem value="anthropic">Anthropic</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1.5 text-muted-foreground">源模型</label>
-              <Select
+              <label className="block text-sm font-medium mb-1.5 text-muted-foreground">请求模型</label>
+              <Input
                 value={form.sourceModel}
-                onValueChange={(value) => setForm((prev) => ({ ...prev, sourceModel: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={filteredModels.length === 0 ? '该类型下无可用模型' : '选择源模型'} />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredModels.length === 0 ? (
-                    <SelectItem value="__none__" disabled>
-                      请先配置对应类型的供应商
-                    </SelectItem>
-                  ) : (
-                    filteredModels.map((m) => (
-                      <SelectItem key={m.id} value={m.id}>
-                        {m.id}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                onChange={(e) => setForm((prev) => ({ ...prev, sourceModel: e.target.value }))}
+                placeholder="输入客户端请求的模型名，如 gpt-4o"
+              />
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1.5 text-muted-foreground">目标模型</label>
+              <label className="block text-sm font-medium mb-1.5 text-muted-foreground">映射模型</label>
               <Select
                 value={form.targetModel}
                 onValueChange={(value) => setForm((prev) => ({ ...prev, targetModel: value }))}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder={filteredModels.length === 0 ? '该类型下无可用模型' : '选择目标模型'} />
+                  <SelectValue placeholder={models.length === 0 ? '无可用模型' : '选择映射模型'} />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredModels.length === 0 ? (
+                  {models.length === 0 ? (
                     <SelectItem value="__none__" disabled>
-                      请先配置对应类型的供应商
+                      请先配置供应商
                     </SelectItem>
                   ) : (
-                    filteredModels.map((m) => (
+                    models.map((m) => (
                       <SelectItem key={m.id} value={m.id}>
                         {m.id}
                       </SelectItem>

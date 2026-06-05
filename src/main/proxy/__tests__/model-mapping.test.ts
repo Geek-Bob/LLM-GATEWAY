@@ -34,43 +34,39 @@ describe('模型映射端到端', () => {
   it('完整流程：创建映射 -> 查找映射 -> 删除映射', () => {
     // 1. 创建映射
     const mapping = service.createModelMapping({
-      providerType: 'anthropic',
       sourceModel: 'test/source-model',
       targetModel: 'test/target-model',
     })
     expect(mapping.id).toBeDefined()
-    expect(mapping.providerType).toBe('anthropic')
     expect(mapping.sourceModel).toBe('test/source-model')
     expect(mapping.targetModel).toBe('test/target-model')
     expect(mapping.isActive).toBe(1)
 
     // 2. 查找映射
-    const found = service.findModelMapping('anthropic', 'test/source-model')
+    const found = service.findModelMapping('test/source-model')
     expect(found).not.toBeNull()
     expect(found!.targetModel).toBe('test/target-model')
 
     // 3. 查找不存在的映射
-    const notFound = service.findModelMapping('anthropic', 'nonexistent/model')
+    const notFound = service.findModelMapping('nonexistent/model')
     expect(notFound).toBeNull()
 
     // 4. 删除映射
     service.deleteModelMapping(mapping.id)
-    const afterDelete = service.findModelMapping('anthropic', 'test/source-model')
+    const afterDelete = service.findModelMapping('test/source-model')
     expect(afterDelete).toBeNull()
   })
 
-  it('UNIQUE 约束：同一 provider_type + source_model 不能重复', () => {
+  it('UNIQUE 约束：同一 source_model 不能重复', () => {
     // 第一次插入应成功
     service.createModelMapping({
-      providerType: 'openai',
       sourceModel: 'test/duplicate',
       targetModel: 'test/first',
     })
 
-    // 第二次插入相同 provider_type + source_model 应抛出 SQLite UNIQUE 约束错误
+    // 第二次插入相同 source_model 应抛出 SQLite UNIQUE 约束错误
     expect(() => {
       service.createModelMapping({
-        providerType: 'openai',
         sourceModel: 'test/duplicate',
         targetModel: 'test/second',
       })
@@ -80,7 +76,6 @@ describe('模型映射端到端', () => {
   it('端到端生命周期：创建 -> 更新 -> 验证更新 -> 列表查询 -> 删除', () => {
     // 1. 创建
     const created = service.createModelMapping({
-      providerType: 'openai',
       sourceModel: 'e2e/source',
       targetModel: 'e2e/target',
     })
@@ -94,7 +89,7 @@ describe('模型映射端到端', () => {
     expect(updated.sourceModel).toBe('e2e/source')
 
     // 3. 通过 findModelMapping 验证更新生效
-    const found = service.findModelMapping('openai', 'e2e/source')
+    const found = service.findModelMapping('e2e/source')
     expect(found).not.toBeNull()
     expect(found!.targetModel).toBe('e2e/updated-target')
 
@@ -104,7 +99,7 @@ describe('模型映射端到端', () => {
 
     // 5. 删除后确认消失
     service.deleteModelMapping(created.id)
-    const afterDelete = service.findModelMapping('openai', 'e2e/source')
+    const afterDelete = service.findModelMapping('e2e/source')
     expect(afterDelete).toBeNull()
 
     const allAfterDelete = service.listModelMappings()
