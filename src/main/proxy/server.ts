@@ -541,15 +541,15 @@ export function createServer() {
             const lines = buffer.split('\n')
             buffer = lines.pop() ?? ''
 
-            // 逐行解析 SSE 协议
+            // 逐行解析 SSE 协议（兼容 event: 和 event: 两种格式）
             for (let i = 0; i < lines.length; i++) {
               const line = lines[i]
-              if (line.startsWith('event: ')) {
-                // SSE 事件类型行
-                currentEvent = line.slice(7)
-              } else if (line.startsWith('data: ')) {
-                // SSE 数据行
-                const dataStr = line.slice(6)
+              if (line.startsWith('event:')) {
+                // SSE 事件类型行（兼容有空格和无空格）
+                currentEvent = line.startsWith('event: ') ? line.slice(7) : line.slice(6)
+              } else if (line.startsWith('data:')) {
+                // SSE 数据行（兼容有空格和无空格）
+                const dataStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
 
                 // OpenAI 流结束标记：[DONE]
                 if (from === 'openai' && dataStr === '[DONE]') {
