@@ -823,6 +823,8 @@ export function createServer() {
    * Anthropic：从 content_block_delta 事件的 delta.text 或 delta.thinking 提取
    *   - text_delta: 正常文本输出
    *   - thinking_delta: 思考过程（extended thinking）
+   *
+   * 注意：上游 SSE 格式可能不标准（event/data 后无空格），兼容处理
    */
   function extractContentFromSSE(
     text: string,
@@ -832,9 +834,12 @@ export function createServer() {
 
     if (apiFormat === 'openai') {
       for (const line of text.split('\n')) {
-        if (!line.startsWith('data: ') || line.includes('[DONE]')) continue
+        // 兼容 "data: " 和 "data:"（无空格）
+        if (!line.startsWith('data:')) continue
+        const jsonStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
+        if (!jsonStr || jsonStr === '[DONE]') continue
         try {
-          const data = JSON.parse(line.slice(6))
+          const data = JSON.parse(jsonStr)
           const content = data.choices?.[0]?.delta?.content
           if (content) parts.push(content)
         } catch { /* 跳过格式错误的 JSON */ }
@@ -842,11 +847,13 @@ export function createServer() {
     } else {
       let eventType = ''
       for (const line of text.split('\n')) {
-        if (line.startsWith('event: ')) {
-          eventType = line.slice(7)
-        } else if (line.startsWith('data: ')) {
+        // 兼容 "event: " 和 "event:"（无空格）
+        if (line.startsWith('event:')) {
+          eventType = line.startsWith('event: ') ? line.slice(7) : line.slice(6)
+        } else if (line.startsWith('data:')) {
+          const jsonStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
           try {
-            const data = JSON.parse(line.slice(6))
+            const data = JSON.parse(jsonStr)
             // content_block_delta 事件包含文本增量（text_delta 或 thinking_delta）
             if (eventType === 'content_block_delta' && data.delta) {
               if (data.delta.type === 'text_delta' && data.delta.text) {
