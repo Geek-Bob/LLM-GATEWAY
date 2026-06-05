@@ -482,11 +482,14 @@ export function createServer() {
       const usage = extractUsageFromSSE(text, apiFormat)
       // 调试模式下，提取完整响应内容用于日志
       if (debug) {
-        debug.upstream.responseBody = extractContentFromSSE(text, apiFormat)
+        const content = extractContentFromSSE(text, apiFormat)
+        debug.upstream.responseBody = content || text.slice(0, 4000) // 如果提取不到内容，保留原始文本
+        proxyLog.info('SSE_RESPONSE_EXTRACTED', { contentLength: content.length, textLength: text.length })
       }
       tryLogEntry(null as any, { ...logBase, ...usage, debug })
-    } catch {
+    } catch (err) {
       // 日志记录是尽力而为，失败静默忽略
+      proxyLog.error('SSE_EXTRACT_ERROR', { error: err instanceof Error ? err.message : String(err) })
     }
   }
 
