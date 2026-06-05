@@ -90,6 +90,8 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 - 日志迁移：`node scripts/migrate-logs.mjs`（行数/文件变更时重新分片）
 - 调试日志自动截断：proxy 调试日志（`llm-gateway-proxy-debug.log` 等）每次启动时自动清空
 - 数据库迁移：`node scripts/migrate-db.mjs`（旧 schema 列名映射，如 `api_key_encrypted` → `api_key`）
+- **SSE 解析兼容性**：上游 Provider 可能返回非标准 SSE 格式（`data:json` 无空格），所有 SSE 解析点必须兼容 `data: ` 和 `data:` 两种格式。涉及文件：`server.ts`（extractContentFromSSE、extractUsageFromSSE、convertSSEStream）、`useChatStream.ts`
+- **Anthropic 认证**：Anthropic API 使用 `x-api-key` 头，OpenAI 使用 `Authorization: Bearer`，`forwarder.ts` 中按 providerType 分别处理
 
 ## 规则模块
 | 文件 | 加载方式 | 职责 |
