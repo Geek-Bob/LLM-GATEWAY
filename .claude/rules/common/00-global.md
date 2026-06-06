@@ -1,4 +1,4 @@
-# 铁律补充（CLAUDE.md 铁律未覆盖的细节）
+# 通用铁律（前后端共用）
 
 ## 命名约定
 - 组件/类：PascalCase → `UserProfile`、`DataLoader`
@@ -32,7 +32,3 @@ catch (error) {
   logger.error('Failed to fetch user', { userId, error });
   throw new DatabaseError('User query failed', { cause: error });
 }
-
-## 焦点操控
-- 任何 `window.focus()` / `document.activeElement.blur()` 等手动焦点操控 workaround（根因是 `confirm()`，禁止用补丁掩盖问题）
-- `confirm()` 的详细说明：Electron 无边框窗口（`frame: false`）下，原生确认框会夺走 webContents 焦点且不归还，导致所有页面输入框永久失焦（需 Alt+Tab 切换才能恢复）。删除确认等场景直接执行操作，不做二次确认；如需确认 UI，用 Radix AlertDialog 组件

@@ -98,20 +98,28 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 ### 通用规则（`common/` 目录，所有语言/场景适用）
 | 文件 | 加载方式 | 职责 |
 |------|---------|------|
-| `common/00-global.md` | 始终加载 | 铁律补充（注释要求、焦点操控禁止） |
+| `common/00-global.md` | 始终加载 | 命名约定、注释要求、错误处理 |
 | `common/05-engineering.md` | 始终加载 | 架构思维、防御性编程、可读性、解耦与抽象 |
-| `common/10-tech-stack.md` | 始终加载 | 版本红线和禁止 API |
-| `common/20-directory.md` | 始终加载 | 目录边界、导入规则、类型治理 |
-| `common/50-testing.md` | 按需加载 | 测试约定（操作测试文件时触发） |
-| `common/60-security.md` | 始终加载 | 安全要求 |
+| `common/10-tech-stack.md` | 始终加载 | TypeScript、Vite、ESLint 版本红线 |
+| `common/20-directory.md` | 始终加载 | 类型治理、跨层导入禁止 |
+| `common/50-testing.md` | 按需加载 | 测试框架、TDD 原则 |
+| `common/60-security.md` | 始终加载 | 输入校验、日志安全 |
 
 ### 前端规则（`frontend/` 目录，仅 renderer 代码适用）
 | 文件 | 加载方式 | 职责 |
 |------|---------|------|
-| `frontend/31-renderer.md` | 始终加载 | 渲染进程 feature 模式、TanStack Query 规范 |
-| `frontend/32-component-reuse.md` | 始终加载 | 组件复用规则（禁止原生 HTML 表单，统一用共享组件） |
+| `frontend/31-renderer.md` | 始终加载 | feature 模式、TanStack Query 规范 |
+| `frontend/32-component-reuse.md` | 始终加载 | 组件复用规则 |
+| `frontend/33-focus-control.md` | 始终加载 | Electron 焦点操控禁止 |
+| `frontend/34-frontend-tech-stack.md` | 始终加载 | React、Tailwind、Router、Query、Shiki 版本红线 |
+| `frontend/35-frontend-directory.md` | 始终加载 | renderer 目录结构、@/ 别名导入规则 |
+| `frontend/36-frontend-testing.md` | 按需加载 | 组件测试约定 |
 
 ### 后端规则（`backend/` 目录，仅 main 进程代码适用）
 | 文件 | 加载方式 | 职责 |
 |------|---------|------|
-| `backend/30-main.md` | 始终加载 | 主进程 domain 模式 + proxy 路由约定 |
+| `backend/30-main.md` | 始终加载 | domain 模式、proxy 路由约定 |
+| `backend/31-backend-tech-stack.md` | 始终加载 | Hono 版本红线 |
+| `backend/32-backend-directory.md` | 始终加载 | main 目录结构、导入规则 |
+| `backend/33-backend-testing.md` | 按需加载 | service/schema 测试约定 |
+| `backend/34-backend-security.md` | 始终加载 | 代理安全、IPC 输入校验 |
