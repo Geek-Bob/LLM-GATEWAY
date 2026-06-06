@@ -107,5 +107,34 @@ export function createTables(): void {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
     );
+
+    -- Agent 表：存储可复用的 Agent 配置模板
+    -- name 全局唯一，config_format 限定为 json/toml/env 三种格式
+    -- is_builtin 标记是否为内置 Agent（不可删除）
+    CREATE TABLE IF NOT EXISTS agents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      config_path TEXT NOT NULL,
+      config_format TEXT NOT NULL CHECK (config_format IN ('json', 'toml', 'env')),
+      is_builtin INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    -- Agent 配置版本表：存储同一 Agent 的多个配置版本
+    -- agent_id 级联删除，删除 Agent 时自动清理关联配置
+    -- UNIQUE(agent_id, name) 确保同一 Agent 下配置名唯一
+    -- is_current 标记当前激活的配置版本
+    CREATE TABLE IF NOT EXISTS agent_configs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id INTEGER NOT NULL REFERENCES agents(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      content TEXT NOT NULL,
+      is_current INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      UNIQUE(agent_id, name)
+    );
   `)
 }

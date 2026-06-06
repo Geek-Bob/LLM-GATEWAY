@@ -141,4 +141,159 @@ describe('Schema - createTables', () => {
         .run()
     }).toThrow()
   })
+
+  // ── agents 表 ──────────────────────────────────────────
+
+  it('should create agents table', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const row = getDb()!
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='agents'")
+      .get() as { name: string } | undefined
+
+    expect(row).toBeDefined()
+    expect(row!.name).toBe('agents')
+  })
+
+  it('should have correct agents columns', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const columns = getDb()!
+      .prepare("PRAGMA table_info('agents')")
+      .all() as Array<{ name: string; type: string; notnull: number; pk: number }>
+
+    const columnNames = columns.map((c) => c.name)
+    expect(columnNames).toContain('id')
+    expect(columnNames).toContain('name')
+    expect(columnNames).toContain('display_name')
+    expect(columnNames).toContain('config_path')
+    expect(columnNames).toContain('config_format')
+    expect(columnNames).toContain('is_builtin')
+    expect(columnNames).toContain('created_at')
+    expect(columnNames).toContain('updated_at')
+
+    const idCol = columns.find((c) => c.name === 'id')
+    expect(idCol!.pk).toBe(1)
+  })
+
+  it('should enforce UNIQUE constraint on agents.name', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    getDb()!
+      .prepare(
+        "INSERT INTO agents (name, display_name, config_path, config_format) VALUES ('test-agent', 'Test Agent', '/path/to/config', 'json')"
+      )
+      .run()
+    expect(() => {
+      getDb()!
+        .prepare(
+          "INSERT INTO agents (name, display_name, config_path, config_format) VALUES ('test-agent', 'Duplicate', '/path/to/other', 'json')"
+        )
+        .run()
+    }).toThrow()
+  })
+
+  it('should enforce CHECK constraint on agents.config_format', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    expect(() => {
+      getDb()!
+        .prepare(
+          "INSERT INTO agents (name, display_name, config_path, config_format) VALUES ('bad-agent', 'Bad', '/path', 'yaml')"
+        )
+        .run()
+    }).toThrow()
+  })
+
+  // ── agent_configs 表 ───────────────────────────────────
+
+  it('should create agent_configs table', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const row = getDb()!
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='agent_configs'")
+      .get() as { name: string } | undefined
+
+    expect(row).toBeDefined()
+    expect(row!.name).toBe('agent_configs')
+  })
+
+  it('should have correct agent_configs columns', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const columns = getDb()!
+      .prepare("PRAGMA table_info('agent_configs')")
+      .all() as Array<{ name: string; type: string; notnull: number; pk: number }>
+
+    const columnNames = columns.map((c) => c.name)
+    expect(columnNames).toContain('id')
+    expect(columnNames).toContain('agent_id')
+    expect(columnNames).toContain('name')
+    expect(columnNames).toContain('content')
+    expect(columnNames).toContain('is_current')
+    expect(columnNames).toContain('created_at')
+    expect(columnNames).toContain('updated_at')
+
+    const idCol = columns.find((c) => c.name === 'id')
+    expect(idCol!.pk).toBe(1)
+  })
+
+  it('should enforce UNIQUE constraint on agent_configs(agent_id, name)', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    // 先插入一个 agent
+    getDb()!
+      .prepare(
+        "INSERT INTO agents (name, display_name, config_path, config_format) VALUES ('test-agent', 'Test Agent', '/path', 'json')"
+      )
+      .run()
+
+    getDb()!
+      .prepare(
+        "INSERT INTO agent_configs (agent_id, name, content) VALUES (1, 'default', '{}')"
+      )
+      .run()
+
+    expect(() => {
+      getDb()!
+        .prepare(
+          "INSERT INTO agent_configs (agent_id, name, content) VALUES (1, 'default', '{\"key\":\"val\"}')"
+        )
+        .run()
+    }).toThrow()
+  })
+
+  it('should cascade delete agent_configs when agent is deleted', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    getDb()!
+      .prepare(
+        "INSERT INTO agents (name, display_name, config_path, config_format) VALUES ('test-agent', 'Test Agent', '/path', 'json')"
+      )
+      .run()
+
+    getDb()!
+      .prepare(
+        "INSERT INTO agent_configs (agent_id, name, content) VALUES (1, 'default', '{}')"
+      )
+      .run()
+
+    // 删除 agent
+    getDb()!.prepare('DELETE FROM agents WHERE id = 1').run()
+
+    // agent_configs 也应被级联删除
+    const row = getDb()!
+      .prepare('SELECT COUNT(*) as cnt FROM agent_configs')
+      .get() as { cnt: number }
+
+    expect(row.cnt).toBe(0)
+  })
 })
