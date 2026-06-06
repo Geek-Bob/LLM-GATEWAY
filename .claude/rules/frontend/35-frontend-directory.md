@@ -3,14 +3,38 @@ description: 目录结构与模块边界规范，始终加载
 ---
 
 # 目录结构
-- `pages/` — 薄层组合层，不包含复杂业务逻辑
-- `features/{name}/components/` — 功能域纯 UI 组件
-- `features/{name}/hooks/` — 功能域复杂逻辑
-- `features/{name}/queries/` — 功能域 TanStack Query hooks
-- `components/ui/` — 共享原子组件（shadcn/ui）
-- `hooks/` — 全局通用 hooks
-- `lib/` — 工具函数、动画常量、IPC 导出、queries
-- `shared/lib/` — 跨进程共享实现（如 api-client）
+
+```
+src/renderer/
+├── App.tsx                    # 入口层：路由定义 + 全局 Provider
+├── main.tsx                   # 入口层：应用挂载 + Dark 模式
+├── pages/                     # 入口层：路由页面（薄层组合，不含业务逻辑）
+│   ├── Dashboard.tsx
+│   ├── Providers.tsx
+│   ├── ApiKeys.tsx
+│   ├── Agents.tsx
+│   ├── Chat.tsx
+│   ├── Logs.tsx
+│   ├── ModelMappings.tsx
+│   └── Settings.tsx
+├── features/                  # 业务层：按功能域划分
+│   └── {name}/
+│       ├── components/            # 功能域纯 UI 组件
+│       └── hooks/                 # 功能域复杂逻辑（SSE 流、状态机）
+├── components/
+│   ├── ui/                    # 表现层：共享原子组件（shadcn/ui）
+│   ├── Layout.tsx             # 入口层：全局布局
+│   ├── TitleBar.tsx           # 入口层：标题栏
+│   └── ErrorBoundary.tsx      # 入口层：错误边界
+├── hooks/                     # 基础设施层：全局通用 hooks
+├── lib/
+│   ├── queries/               # 数据层：TanStack Query hooks（按域分文件）
+│   ├── ipc.ts                 # 数据层：IPC 快捷导出
+│   ├── types.ts               # 数据层：类型定义
+│   ├── utils.ts               # 基础设施层：工具函数
+│   └── animations.ts          # 表现层：动画常量
+└── shared/lib/                # 基础设施层：跨进程共享实现
+```
 
 # 导入规则
 - 统一使用 `@/` 别名（映射到 `src/renderer/*`）

@@ -7,14 +7,33 @@
 - 面向需要在多个 LLM 供应商之间切换的开发者和团队
 
 ## 技术栈
-- 语言：TypeScript 6.0
-- 前端：React 19.2 + Tailwind 4.3 + React Router 7.x（HashRouter）
-- 后端：Electron 42 主进程 + Hono 4.x（仅代理层）
-- 数据库：sql.js/WASM（SQLite）
-- 构建：electron-vite + Vite 6.4
-- 测试：vitest + jsdom
-- 数据层：TanStack Query 5.x
-- 目标平台：Windows / macOS / Linux 桌面
+
+### 共用
+| 技术 | 锁定版本 | 禁止使用 |
+|------|---------|---------|
+| TypeScript | 6.0 | `enum`、`namespace`、装饰器 |
+| ESLint | 10.x | `.eslintrc` 格式 |
+| 测试 | vitest + jsdom | — |
+
+### 前端（renderer）
+| 技术 | 锁定版本 | 禁止使用 |
+|------|---------|---------|
+| React | 19.2 | `defaultProps`、`forwardRef`（应用代码）、class 组件 |
+| Tailwind | 4.3 | `tailwind.config.ts`、`@layer components` |
+| React Router | 7.x | `BrowserRouter`（Electron 用 HashRouter） |
+| TanStack Query | 5.x | 字符串 queryKey（用数组 `['key', id]`） |
+| Vite | 6.4 | 额外的 vite.config.ts |
+| Shiki | 最新 | 高亮超过 5 种语言（ts/js/python/json/bash） |
+
+### 后端（main）
+| 技术 | 锁定版本 | 禁止使用 |
+|------|---------|---------|
+| Electron | 42 | — |
+| Hono | 4.x | 在 `server.ts` 中写路由逻辑 |
+| sql.js/WASM | — | — |
+
+### 目标平台
+Windows / macOS / Linux 桌面
 
 ## 铁律（不可协商）
 - `console.log` → 用 `core/logger.ts`
@@ -35,11 +54,18 @@
 ### 项目拓扑
 ```
 src/
-├── main/           # Electron 主进程（IPC + DB + Proxy）
-├── preload/        # contextBridge 桥接
-├── renderer/       # React 前端（pages + features + components）
-└── shared/         # 主/渲染进程共享类型
+├── main/           # 主进程：业务逻辑、数据库、代理、IPC
+├── preload/        # 桥接层：contextBridge 安全暴露 API
+├── renderer/       # 渲染进程：React UI、TanStack Query
+└── shared/         # 共享层：跨进程类型定义、工具函数
 ```
+
+### 进程间边界
+- `renderer/` 禁止导入 `main/` 任何文件（编译隔离，必须走 IPC）
+- `main/` 禁止导入 `renderer/` 任何文件
+- `shared/` 禁止导入 `main/`、`renderer/`、`preload/`（纯被动依赖）
+- `preload/` 只导入 `shared/` 的类型定义
+- 核心实体基础接口只在 `shared/types.ts` 定义，各层通过 type alias 派生，禁止重新定义同名 interface
 
 ### 调用链路（核心热路径）
 ```
@@ -100,19 +126,14 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 ### 通用规则（`common/` 目录，所有语言/场景适用）
 | 文件 | 加载方式 | 职责 |
 |------|---------|------|
-| `common/00-global.md` | 始终加载 | 命名约定、注释要求、错误处理 |
-| `common/05-engineering.md` | 始终加载 | 架构思维、防御性编程、可读性、解耦与抽象 |
-| `common/10-tech-stack.md` | 始终加载 | TypeScript、Vite、ESLint 版本红线 |
-| `common/20-directory.md` | 始终加载 | 类型治理、跨层导入禁止 |
-| `common/50-testing.md` | 按需加载 | 测试框架、TDD 原则 |
-| `common/60-security.md` | 始终加载 | 输入校验、日志安全 |
+| `common/00-global.md` | 始终加载 | 命名约定、注释要求 |
+| `common/05-engineering.md` | 始终加载 | 架构先行、解耦、防御性编程、可读性、全局观 |
 
 ### 前端规则（`frontend/` 目录，仅 renderer 代码适用）
 | 文件 | 加载方式 | 职责 |
 |------|---------|------|
 | `frontend/31-renderer.md` | 始终加载 | Feature 模式 + 数据流（TanStack Query、错误处理） |
 | `frontend/32-component-reuse.md` | 始终加载 | 组件复用规则 |
-| `frontend/34-frontend-tech-stack.md` | 始终加载 | React、Tailwind、Router、Query、Shiki 版本红线 |
 | `frontend/35-frontend-directory.md` | 始终加载 | 目录结构 + 模块边界（导入方向、编译隔离） |
 | `frontend/36-frontend-testing.md` | 按需加载 | 组件测试约定 |
 | `frontend/37-visual-style.md` | 始终加载 | 视觉风格 + 样式系统（颜色、圆角、阴影、字体） |
@@ -121,8 +142,11 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 ### 后端规则（`backend/` 目录，仅 main 进程代码适用）
 | 文件 | 加载方式 | 职责 |
 |------|---------|------|
-| `backend/30-main.md` | 始终加载 | domain 模式、proxy 路由约定 |
-| `backend/31-backend-tech-stack.md` | 始终加载 | Hono 版本红线 |
-| `backend/32-backend-directory.md` | 始终加载 | main 目录结构、导入规则 |
-| `backend/33-backend-testing.md` | 按需加载 | service/schema 测试约定 |
-| `backend/34-backend-security.md` | 始终加载 | 代理安全、IPC 输入校验 |
+| `backend/30-layered-architecture.md` | 始终加载 | 分层与依赖：层级划分、依赖方向、职责边界 |
+| `backend/31-domain-modeling.md` | 始终加载 | 领域建模：服务边界、内部结构、服务间通信 |
+| `backend/32-interface-contracts.md` | 始终加载 | 接口契约：输入校验、输出契约、IPC/代理规范 |
+| `backend/33-data-access.md` | 始终加载 | 数据访问：查询抽象、连接管理、Schema、事务 |
+| `backend/34-error-handling.md` | 始终加载 | 错误处理：错误类型、传播规则、跨边界映射 |
+| `backend/35-security.md` | 始终加载 | 安全：信任边界、输入校验、API Key 保护 |
+| `backend/36-observability.md` | 始终加载 | 可观测性：日志分层、格式、链路追踪、轮转 |
+| `backend/37-testing.md` | 按需加载 | 测试策略：金字塔、Mock 边界、测试数据管理 |
