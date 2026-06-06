@@ -66,4 +66,16 @@ describe('Agent Repository', () => {
     const builtin = agents.find(a => a.isBuiltin === 1)
     await expect(repo.remove(builtin!.id)).rejects.toThrow('Cannot delete builtin agent')
   })
+
+  it('should get agent by name', async () => {
+    const agent = await repo.getByName('claude')
+    expect(agent).toBeDefined()
+    expect(agent?.name).toBe('claude')
+    expect(agent?.isBuiltin).toBe(1)
+  })
+
+  it('should return null for non-existent name', async () => {
+    const agent = await repo.getByName('non-existent')
+    expect(agent).toBeNull()
+  })
 })
