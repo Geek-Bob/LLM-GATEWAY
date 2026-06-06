@@ -156,4 +156,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
       delete: (id: number) => ipcRenderer.invoke('models:mapping:delete', id),
     }
   },
+  /**
+   * Agent 配置管理
+   * CRUD 操作 Agent 和 AgentConfig（配置版本管理）
+   * switchConfig: 原子切换当前激活配置并写入 Agent 配置文件
+   */
+  agents: {
+    list: () => ipcRenderer.invoke('agent:list'),
+    get: (id: number) => ipcRenderer.invoke('agent:get', id),
+    create: (data: unknown) => ipcRenderer.invoke('agent:create', data),
+    update: (id: number, data: unknown) => ipcRenderer.invoke('agent:update', id, data),
+    delete: (id: number) => ipcRenderer.invoke('agent:delete', id),
+    listConfigs: (agentId: number) => ipcRenderer.invoke('agent:listConfigs', agentId),
+    getConfig: (id: number) => ipcRenderer.invoke('agent:getConfig', id),
+    createConfig: (data: unknown) => ipcRenderer.invoke('agent:createConfig', data),
+    updateConfig: (id: number, data: unknown) => ipcRenderer.invoke('agent:updateConfig', id, data),
+    deleteConfig: (id: number) => ipcRenderer.invoke('agent:deleteConfig', id),
+    switchConfig: (data: unknown) => ipcRenderer.invoke('agent:switchConfig', data),
+  },
 })

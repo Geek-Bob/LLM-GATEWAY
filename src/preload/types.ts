@@ -1,6 +1,62 @@
 import type { ProviderEntity, ApiKeyEntity, UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig } from '../shared/types'
 export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig }
 
+/** Agent 响应类型（对应 db/agents.ts 中的 Agent 接口） */
+export interface AgentResponse {
+  id: number
+  name: string
+  displayName: string
+  configPath: string
+  configFormat: 'json' | 'toml' | 'env'
+  isBuiltin: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** Agent 配置响应类型（对应 db/agent-configs.ts 中的 AgentConfig 接口） */
+export interface AgentConfigResponse {
+  id: number
+  agentId: number
+  name: string
+  content: string
+  isCurrent: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** 创建 Agent 输入 */
+export interface CreateAgentInput {
+  name: string
+  displayName: string
+  configPath: string
+  configFormat: 'json' | 'toml' | 'env'
+}
+
+/** 更新 Agent 输入 */
+export interface UpdateAgentInput {
+  displayName?: string
+  configPath?: string
+  configFormat?: 'json' | 'toml' | 'env'
+}
+
+/** 创建 Agent 配置输入 */
+export interface CreateAgentConfigInput {
+  agentId: number
+  name: string
+  content: string
+}
+
+/** 更新 Agent 配置输入 */
+export interface UpdateAgentConfigInput {
+  content: string
+}
+
+/** 切换配置输入 */
+export interface SwitchConfigInput {
+  agentId: number
+  configId: number
+}
+
 /** Provider 对外类型（preload 层与 db 层结构一致） */
 export type Provider = ProviderEntity
 
@@ -72,5 +128,18 @@ export interface ElectronAPI {
     onProgress: (callback: (progress: UpdateProgress) => void) => () => void
     onDownloaded: (callback: (info: UpdateInfo) => void) => () => void
     onError: (callback: (error: { message: string }) => void) => () => void
+  }
+  agents: {
+    list: () => Promise<AgentResponse[]>
+    get: (id: number) => Promise<AgentResponse | null>
+    create: (data: CreateAgentInput) => Promise<AgentResponse>
+    update: (id: number, data: UpdateAgentInput) => Promise<AgentResponse>
+    delete: (id: number) => Promise<void>
+    listConfigs: (agentId: number) => Promise<AgentConfigResponse[]>
+    getConfig: (id: number) => Promise<AgentConfigResponse | null>
+    createConfig: (data: CreateAgentConfigInput) => Promise<AgentConfigResponse>
+    updateConfig: (id: number, data: UpdateAgentConfigInput) => Promise<AgentConfigResponse>
+    deleteConfig: (id: number) => Promise<void>
+    switchConfig: (data: SwitchConfigInput) => Promise<void>
   }
 }

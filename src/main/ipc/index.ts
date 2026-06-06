@@ -10,6 +10,7 @@
  * - 日志查询与统计
  * - 代理控制
  * - 窗口控制
+ * - Agent 配置管理
  * - 自动更新
  */
 
@@ -29,6 +30,14 @@ import { UpdateManager } from '../update/manager'
 import { setupUpdateIpcHandlers } from '../update/ipc'
 import { createModelsService } from '../domains/models/models.service'
 import { createModelMappingSchema, updateModelMappingSchema } from '../domains/models/models.schema'
+import { createAgentService } from '../domains/agent/agent.service'
+import {
+  createAgentSchema,
+  updateAgentSchema,
+  createAgentConfigSchema,
+  updateAgentConfigSchema,
+  switchConfigSchema,
+} from '../domains/agent/agent.schema'
 
 const logger = createLogger('ipc')
 
@@ -227,6 +236,58 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
   ipcMain.handle('models:mapping:delete', async (_event, id: number) =>
     modelsService.deleteModelMapping(id)
   )
+
+  // ====== Agent 配置管理 ======
+  const agentService = createAgentService(db)
+
+  ipcMain.handle('agent:list', async () => {
+    return agentService.list()
+  })
+
+  ipcMain.handle('agent:get', async (_event, id: number) => {
+    return agentService.getById(id)
+  })
+
+  ipcMain.handle('agent:create', async (_event, data: unknown) => {
+    const input = createAgentSchema.parse(data)
+    return agentService.create(input)
+  })
+
+  ipcMain.handle('agent:update', async (_event, id: number, data: unknown) => {
+    const input = updateAgentSchema.parse(data)
+    return agentService.update(id, input)
+  })
+
+  ipcMain.handle('agent:delete', async (_event, id: number) => {
+    return agentService.remove(id)
+  })
+
+  ipcMain.handle('agent:listConfigs', async (_event, agentId: number) => {
+    return agentService.listConfigs(agentId)
+  })
+
+  ipcMain.handle('agent:getConfig', async (_event, id: number) => {
+    return agentService.getConfig(id)
+  })
+
+  ipcMain.handle('agent:createConfig', async (_event, data: unknown) => {
+    const input = createAgentConfigSchema.parse(data)
+    return agentService.createConfig(input)
+  })
+
+  ipcMain.handle('agent:updateConfig', async (_event, id: number, data: unknown) => {
+    const input = updateAgentConfigSchema.parse(data)
+    return agentService.updateConfig(id, input)
+  })
+
+  ipcMain.handle('agent:deleteConfig', async (_event, id: number) => {
+    return agentService.deleteConfig(id)
+  })
+
+  ipcMain.handle('agent:switchConfig', async (_event, data: unknown) => {
+    const input = switchConfigSchema.parse(data)
+    return agentService.switchConfig(input)
+  })
 
   // ====== 自动更新 ======
   setupUpdateIpcHandlers(updateManager)
