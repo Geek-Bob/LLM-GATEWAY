@@ -270,6 +270,39 @@ describe('Schema - createTables', () => {
     }).toThrow()
   })
 
+  // ── 内置 Agent 预设 ────────────────────────────────────
+
+  it('should initialize builtin agents on createTables', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const rows = getDb()!
+      .prepare('SELECT name FROM agents WHERE is_builtin = 1')
+      .all() as Array<{ name: string }>
+
+    const names = rows.map((r) => r.name)
+    expect(names).toContain('claude')
+    expect(names).toContain('codex')
+    expect(names).toContain('gemini')
+    expect(names).toContain('claude-desktop')
+    expect(names).toContain('opencode')
+    expect(names).toContain('openclaw')
+    expect(names).toContain('hermes')
+    expect(names).toHaveLength(7)
+  })
+
+  it('should not duplicate builtin agents on repeated createTables', async () => {
+    await initDatabase(':memory:')
+    createTables()
+    createTables() // 幂等调用
+
+    const rows = getDb()!
+      .prepare('SELECT COUNT(*) as cnt FROM agents WHERE is_builtin = 1')
+      .get() as { cnt: number }
+
+    expect(rows.cnt).toBe(7)
+  })
+
   it('should cascade delete agent_configs when agent is deleted', async () => {
     await initDatabase(':memory:')
     createTables()

@@ -12,8 +12,9 @@
 import { getDb } from './connection'
 
 /**
- * 创建所有数据库表（幂等）
+ * 创建所有数据库表并初始化内置 Agent 预设（幂等）
  * 使用 CREATE TABLE IF NOT EXISTS 确保多次调用安全。
+ * 内置 Agent 使用 INSERT OR IGNORE 避免重复插入。
  * 仅适用于新安装或已迁移后的数据库。
  */
 export function createTables(): void {
@@ -137,4 +138,23 @@ export function createTables(): void {
       UNIQUE(agent_id, name)
     );
   `)
+
+  // 插入内置 Agent 预设（INSERT OR IGNORE 确保幂等）
+  const builtinAgents = [
+    { name: 'claude', displayName: 'Claude Code', configPath: '~/.claude/settings.json', format: 'json' },
+    { name: 'claude-desktop', displayName: 'Claude Desktop', configPath: '~/.claude-desktop/config.json', format: 'json' },
+    { name: 'codex', displayName: 'Codex', configPath: '~/.codex/config.toml', format: 'toml' },
+    { name: 'gemini', displayName: 'Gemini CLI', configPath: '~/.gemini/settings.json', format: 'json' },
+    { name: 'opencode', displayName: 'OpenCode', configPath: '~/.opencode/config.json', format: 'json' },
+    { name: 'openclaw', displayName: 'OpenClaw', configPath: '~/.openclaw/config.json', format: 'json' },
+    { name: 'hermes', displayName: 'Hermes', configPath: '~/.hermes/config.json', format: 'json' },
+  ]
+
+  const stmt = db.prepare(
+    `INSERT OR IGNORE INTO agents (name, display_name, config_path, config_format, is_builtin)
+     VALUES (?, ?, ?, ?, 1)`
+  )
+  for (const agent of builtinAgents) {
+    stmt.run([agent.name, agent.displayName, agent.configPath, agent.format])
+  }
 }
