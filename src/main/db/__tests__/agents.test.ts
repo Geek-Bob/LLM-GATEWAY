@@ -1,0 +1,69 @@
+// @vitest-environment node
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { initDatabase, closeDatabase } from '../connection'
+import { createTables } from '../schema'
+import { createAgentRepository } from '../agents'
+
+describe('Agent Repository', () => {
+  let repo: ReturnType<typeof createAgentRepository>
+
+  beforeEach(async () => {
+    const db = await initDatabase(':memory:')
+    createTables()
+    repo = createAgentRepository(db)
+  })
+
+  afterEach(() => {
+    closeDatabase()
+  })
+
+  it('should list all agents', async () => {
+    const agents = await repo.list()
+    expect(agents.length).toBeGreaterThan(0)
+    expect(agents[0]).toHaveProperty('id')
+    expect(agents[0]).toHaveProperty('name')
+    expect(agents[0]).toHaveProperty('displayName')
+  })
+
+  it('should get agent by id', async () => {
+    const agents = await repo.list()
+    const agent = await repo.getById(agents[0].id)
+    expect(agent).toBeDefined()
+    expect(agent?.name).toBe(agents[0].name)
+  })
+
+  it('should create custom agent', async () => {
+    const agent = await repo.create({
+      name: 'custom-agent',
+      displayName: 'Custom Agent',
+      configPath: '~/.custom/config.json',
+      configFormat: 'json'
+    })
+    expect(agent.id).toBeDefined()
+    expect(agent.isBuiltin).toBe(0)
+  })
+
+  it('should update agent', async () => {
+    const agents = await repo.list()
+    const updated = await repo.update(agents[0].id, { displayName: 'Updated Name' })
+    expect(updated.displayName).toBe('Updated Name')
+  })
+
+  it('should delete custom agent', async () => {
+    const agent = await repo.create({
+      name: 'to-delete',
+      displayName: 'To Delete',
+      configPath: '~/.to-delete/config.json',
+      configFormat: 'json'
+    })
+    await repo.remove(agent.id)
+    const found = await repo.getById(agent.id)
+    expect(found).toBeNull()
+  })
+
+  it('should not delete builtin agent', async () => {
+    const agents = await repo.list()
+    const builtin = agents.find(a => a.isBuiltin === 1)
+    await expect(repo.remove(builtin!.id)).rejects.toThrow('Cannot delete builtin agent')
+  })
+})
