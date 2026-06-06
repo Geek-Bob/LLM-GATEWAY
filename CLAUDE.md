@@ -114,6 +114,11 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 | `frontend/34-frontend-tech-stack.md` | 始终加载 | React、Tailwind、Router、Query、Shiki 版本红线 |
 | `frontend/35-frontend-directory.md` | 始终加载 | renderer 目录结构、@/ 别名导入规则 |
 | `frontend/36-frontend-testing.md` | 按需加载 | 组件测试约定 |
+| `frontend/37-visual-style.md` | 始终加载 | 视觉风格（颜色、字体、间距、圆角、阴影） |
+| `frontend/38-style-system.md` | 始终加载 | 样式系统（Tailwind、主题变量、阴影层级） |
+| `frontend/39-animation.md` | 始终加载 | 动效规范（入场/退出/过渡动画） |
+| `frontend/40-data-flow.md` | 始终加载 | 数据流（TanStack Query、IPC、错误处理） |
+| `frontend/41-module-boundaries.md` | 始终加载 | 模块边界（导入方向、编译隔离） |
 
 ### 后端规则（`backend/` 目录，仅 main 进程代码适用）
 | 文件 | 加载方式 | 职责 |
