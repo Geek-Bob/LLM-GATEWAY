@@ -127,7 +127,7 @@ export function createAgentConfigRepository() {
       )
       const result = stmt.run([input.agentId, input.name, input.content])
       const config = await this.getById(result.lastInsertRowid)
-      if (!config) throw new Error('Failed to create config')
+      if (!config) throw new Error(`Failed to create config for agent ${input.agentId}`)
       return config
     },
 
@@ -147,7 +147,7 @@ export function createAgentConfigRepository() {
       )
       stmt.run([content, id])
       const config = await this.getById(id)
-      if (!config) throw new Error('Config not found')
+      if (!config) throw new Error(`Config ${id} not found`)
       return config
     },
 
@@ -160,16 +160,33 @@ export function createAgentConfigRepository() {
      */
     async setCurrent(agentId: number, configId: number): Promise<void> {
       const db = getDb()
-      // 清除该 Agent 的所有 is_current 标记
-      const clearStmt = db.prepare(
-        'UPDATE agent_configs SET is_current = 0 WHERE agent_id = ?'
-      )
-      clearStmt.run([agentId])
-      // 设置新的当前配置
-      const setStmt = db.prepare(
-        'UPDATE agent_configs SET is_current = 1 WHERE id = ? AND agent_id = ?'
-      )
-      setStmt.run([configId, agentId])
+
+      // 先校验 configId 存在性
+      const config = await this.getById(configId)
+      if (!config) throw new Error(`Config ${configId} not found`)
+      if (config.agentId !== agentId) {
+        throw new Error(`Config ${configId} does not belong to agent ${agentId}`)
+      }
+
+      // 使用事务包装，防止第一条 UPDATE 成功、第二条失败导致无激活配置
+      db.exec('BEGIN')
+      try {
+        const clearStmt = db.prepare(
+          'UPDATE agent_configs SET is_current = 0 WHERE agent_id = ?'
+        )
+        clearStmt.run([agentId])
+        const setStmt = db.prepare(
+          'UPDATE agent_configs SET is_current = 1 WHERE id = ? AND agent_id = ?'
+        )
+        const result = setStmt.run([configId, agentId])
+        if (result.changes === 0) {
+          throw new Error(`Config ${configId} not found for agent ${agentId}`)
+        }
+        db.exec('COMMIT')
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
     },
 
     /**
@@ -181,8 +198,8 @@ export function createAgentConfigRepository() {
      */
     async remove(id: number): Promise<void> {
       const config = await this.getById(id)
-      if (!config) throw new Error('Config not found')
-      if (config.isCurrent === 1) throw new Error('Cannot delete current config')
+      if (!config) throw new Error(`Config ${id} not found`)
+      if (config.isCurrent === 1) throw new Error(`Cannot delete current config ${id}`)
       const db = getDb()
       const stmt = db.prepare('DELETE FROM agent_configs WHERE id = ?')
       stmt.run(id)
