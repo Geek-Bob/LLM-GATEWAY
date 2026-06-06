@@ -7,31 +7,18 @@
  * 3. useCurrentVersion 获取当前应用版本号
  * 4. UpdateButton 组件调用主进程的更新检查逻辑
  *
- * 目前包含：自动更新开关、预发布版本开关、手动检查更新、应用信息
+ * 包含：自动更新开关、预发布版本开关、手动检查更新、应用信息
  */
 
-import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Settings as SettingsIcon, Info, ChevronDown } from 'lucide-react'
+import { Settings as SettingsIcon, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { useUpdateConfig, useUpdateConfigMutation, useCurrentVersion } from '../lib/queries/update'
-import { useAgents, useAgentConfigs, useSwitchAgentConfig, useDeleteAgentConfig } from '../lib/queries/agents'
 import { Switch } from '../components/ui/switch'
 import { Label } from '../components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Skeleton } from '../components/ui/skeleton'
-import { Button } from '../components/ui/button'
 import { UpdateButton } from '../components/update/UpdateButton'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '../components/ui/alert-dialog'
 
 const pageVariants = {
   hidden: { opacity: 0 },
@@ -51,29 +38,6 @@ export function SettingsPage() {
       toast.error(`保存失败: ${error.message}`)
     },
   })
-
-  // Agent 配置管理状态
-  const [expandedAgent, setExpandedAgent] = useState<number | null>(null)
-  const [configToDelete, setConfigToDelete] = useState<number | null>(null)
-  const { data: agents = [] } = useAgents()
-  const { data: configs = [] } = useAgentConfigs(expandedAgent)
-  const switchConfig = useSwitchAgentConfig()
-  const deleteConfig = useDeleteAgentConfig()
-
-  /** 切换指定 Agent 的当前激活配置 */
-  const handleSwitchConfig = async (agentId: number, configId: number) => {
-    try {
-      await switchConfig.mutateAsync({ agentId, configId })
-      toast.success('配置已切换')
-    } catch (error) {
-      toast.error('切换失败: ' + (error as Error).message)
-    }
-  }
-
-  /** 展开/收起 Agent 配置面板 */
-  const toggleAgent = (agentId: number) => {
-    setExpandedAgent(expandedAgent === agentId ? null : agentId)
-  }
 
   return (
     <motion.div variants={pageVariants} initial="hidden" animate="show" className="space-y-6">
@@ -178,117 +142,6 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       </motion.div>
-
-      {/* Agent 配置管理 */}
-      <motion.div variants={childVariants}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Agent 配置</CardTitle>
-            <CardDescription>管理 AI 编程助手的配置文件</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {agents.length === 0 ? (
-              <p className="text-sm text-muted-foreground">暂无已注册的 Agent</p>
-            ) : (
-              agents.map(agent => (
-                <div key={agent.id} className="border rounded-lg p-4">
-                  <div
-                    className="flex items-center justify-between cursor-pointer"
-                    onClick={() => toggleAgent(agent.id)}
-                  >
-                    <div>
-                      <h4 className="font-medium">{agent.displayName}</h4>
-                      <p className="text-sm text-muted-foreground">{agent.configPath}</p>
-                    </div>
-                    <ChevronDown
-                      className={`w-4 h-4 transition-transform ${
-                        expandedAgent === agent.id ? 'rotate-180' : ''
-                      }`}
-                    />
-                  </div>
-
-                  {expandedAgent === agent.id && (
-                    <div className="mt-4 space-y-2">
-                      {configs.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">暂无配置</p>
-                      ) : (
-                        configs.map(config => (
-                          <div
-                            key={config.id}
-                            className={`flex items-center justify-between p-2 rounded ${
-                              config.isCurrent === 1 ? 'bg-primary/10' : 'hover:bg-muted'
-                            }`}
-                          >
-                            <div
-                              className="flex items-center gap-2 cursor-pointer flex-1"
-                              onClick={() => config.isCurrent !== 1 && handleSwitchConfig(agent.id, config.id)}
-                            >
-                              <div
-                                className={`w-2 h-2 rounded-full ${
-                                  config.isCurrent === 1 ? 'bg-primary' : 'bg-muted-foreground'
-                                }`}
-                              />
-                              <span className="text-sm">
-                                {config.name}
-                                {config.isCurrent === 1 ? ' (当前)' : ''}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              {config.isCurrent !== 1 && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setConfigToDelete(config.id)
-                                  }}
-                                >
-                                  删除
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                      <Button variant="outline" size="sm" className="w-full" disabled>
-                        添加配置
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
-
-      {/* 删除配置确认对话框 */}
-      <AlertDialog open={configToDelete !== null} onOpenChange={() => setConfigToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>确认删除</AlertDialogTitle>
-            <AlertDialogDescription>
-              确定要删除这个配置吗？此操作不可撤销。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => {
-              if (configToDelete) {
-                try {
-                  await deleteConfig.mutateAsync(configToDelete)
-                  toast.success('配置已删除')
-                  setConfigToDelete(null)
-                } catch (error) {
-                  toast.error('删除失败: ' + (error as Error).message)
-                }
-              }
-            }}>
-              删除
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </motion.div>
   )
 }
