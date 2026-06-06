@@ -66,10 +66,21 @@ describe('Agent Config E2E', () => {
     const currentConfig = configs.find(c => c.isCurrent === 1)
     expect(currentConfig?.id).toBe(config.id)
 
-    // 5. 验证文件系统原子写入被调用
-    const { writeFile, rename } = await import('fs/promises')
-    expect(writeFile).toHaveBeenCalled()
-    expect(rename).toHaveBeenCalled()
+    // 5. 验证文件系统原子写入被调用，包含正确的路径模式和内容
+    const { writeFile, rename, mkdir } = await import('fs/promises')
+    expect(mkdir).toHaveBeenCalledWith(
+      expect.any(String),
+      { recursive: true }
+    )
+    expect(writeFile).toHaveBeenCalledWith(
+      expect.stringContaining('.tmp.'),
+      config.content,
+      'utf-8'
+    )
+    expect(rename).toHaveBeenCalledWith(
+      expect.stringContaining('.tmp.'),
+      expect.stringContaining('settings.json')
+    )
   })
 
   it('should support multiple configs per agent', async () => {
@@ -163,5 +174,63 @@ describe('Agent Config E2E', () => {
 
     // 尝试删除当前配置，应抛出错误
     await expect(service.deleteConfig(config.id)).rejects.toThrow('Cannot delete current config')
+  })
+
+  it('should rollback to previous current on write failure', async () => {
+    const { writeFile } = await import('fs/promises')
+    const mockWriteFile = vi.mocked(writeFile)
+
+    const agents = await service.list()
+    const claude = agents.find(a => a.name === 'claude')!
+
+    // 创建两个配置
+    const configA = await service.createConfig({
+      agentId: claude.id,
+      name: 'configA',
+      content: '{"a": true}',
+    })
+    const configB = await service.createConfig({
+      agentId: claude.id,
+      name: 'configB',
+      content: '{"b": true}',
+    })
+
+    // 先切换到 configA（成功）
+    await service.switchConfig({ agentId: claude.id, configId: configA.id })
+
+    // 设置下次写入失败
+    mockWriteFile.mockRejectedValueOnce(new Error('Write failed'))
+
+    // 切换到 configB 应该失败
+    await expect(service.switchConfig({ agentId: claude.id, configId: configB.id }))
+      .rejects.toThrow('Write failed')
+
+    // 验证回滚：configA 仍然是当前配置
+    const configs = await service.listConfigs(claude.id)
+    const current = configs.find(c => c.isCurrent === 1)
+    expect(current?.id).toBe(configA.id)
+  })
+
+  it('should throw error for non-existent config', async () => {
+    const agents = await service.list()
+    const claude = agents.find(a => a.name === 'claude')!
+
+    await expect(service.switchConfig({ agentId: claude.id, configId: 999 }))
+      .rejects.toThrow('Config 999 not found')
+  })
+
+  it('should throw error when config does not belong to agent', async () => {
+    const agents = await service.list()
+    const claude = agents.find(a => a.name === 'claude')!
+    const codex = agents.find(a => a.name === 'codex')!
+
+    const config = await service.createConfig({
+      agentId: claude.id,
+      name: 'test',
+      content: '{}',
+    })
+
+    await expect(service.switchConfig({ agentId: codex.id, configId: config.id }))
+      .rejects.toThrow('does not belong to agent')
   })
 })
