@@ -11,6 +11,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { motion, AnimatePresence } from 'framer-motion'
+import { pageVariants, childVariants } from '@/lib/animations'
 import { MessageSquare, Square } from 'lucide-react'
 
 import { api } from '@/lib/ipc'
@@ -24,9 +25,9 @@ import type { StreamMessage } from '@/features/chat/hooks/useChatStream'
 
 import { useProviders } from '@/lib/queries/providers'
 import { useApiKeys } from '@/lib/queries/apiKeys'
-import { ConversationSidebar } from '@/components/ConversationSidebar'
-import { ChatMessage } from '@/components/ChatMessage'
-import { ChatInput } from '@/components/ChatInput'
+import { ConversationSidebar } from '@/features/chat/components/ConversationSidebar'
+import { ChatMessage } from '@/features/chat/components/ChatMessage'
+import { ChatInput } from '@/features/chat/components/ChatInput'
 import { ChatToolbar } from '@/features/chat/components/ChatToolbar'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -197,22 +198,24 @@ export function ChatPage() {
   // ─── JSX ───
   return (
     <motion.div
+      variants={pageVariants}
+      initial="hidden"
+      animate="show"
       className="flex h-full"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
     >
-      <ConversationSidebar
-        conversations={conversations}
-        activeId={activeConversationId}
-        onSelect={handleSelectConversation}
-        onNew={handleNewConversation}
-        onDelete={handleDeleteConversation}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-      />
+      <motion.div variants={childVariants} className="contents">
+        <ConversationSidebar
+          conversations={conversations}
+          activeId={activeConversationId}
+          onSelect={handleSelectConversation}
+          onNew={handleNewConversation}
+          onDelete={handleDeleteConversation}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
+      </motion.div>
 
-      <div className="flex-1 flex flex-col min-w-0 pl-3">
+      <motion.div variants={childVariants} className="flex-1 flex flex-col min-w-0 pl-3">
         <ChatToolbar
           providers={providerOptions}
           selectedProviderId={selectedProviderId}
@@ -267,7 +270,7 @@ export function ChatPage() {
             </Button>
           )}
         </Card>
-      </div>
+      </motion.div>
     </motion.div>
   )
 }

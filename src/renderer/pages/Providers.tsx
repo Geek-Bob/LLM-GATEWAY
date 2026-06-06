@@ -13,7 +13,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { rowFadeIn } from '@/lib/animations'
+import { pageVariants, childVariants, rowFadeIn } from '@/lib/animations'
 import { Plus, Pencil, Trash2, Eye, EyeOff, Copy, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useProviders, useCreateProvider, useUpdateProvider, useDeleteProvider } from '@/lib/queries/providers'
@@ -166,20 +166,23 @@ export function ProvidersPage() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
+    <motion.div variants={pageVariants} initial="hidden" animate="show">
       {/* Header */}
-      <PageHeader
-        title="供应商管理"
-        description="管理 AI 服务提供商连接"
-        action={
-          <Button onClick={openCreate} size="sm">
-            <Plus className="h-4 w-4" />
-            添加供应商
-          </Button>
-        }
-      />
+      <motion.div variants={childVariants}>
+        <PageHeader
+          title="供应商管理"
+          description="管理 AI 服务提供商连接"
+          action={
+            <Button onClick={openCreate} size="sm">
+              <Plus className="h-4 w-4" />
+              添加供应商
+            </Button>
+          }
+        />
+      </motion.div>
 
       {/* Content */}
+      <motion.div variants={childVariants}>
       {isLoading ? (
         <TableSkeleton />
       ) : providers.length === 0 ? (
@@ -227,6 +230,7 @@ export function ProvidersPage() {
           </Table>
         </div>
       )}
+      </motion.div>
 
       {/* Dialog */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

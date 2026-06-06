@@ -17,9 +17,9 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronDown, Copy, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { Markdown } from './ui/markdown'
-import { ErrorBoundary } from './ErrorBoundary'
-import { Button } from './ui/button'
+import { Markdown } from '@/components/ui/markdown'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { Button } from '@/components/ui/button'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'

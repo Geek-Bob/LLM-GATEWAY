@@ -12,7 +12,7 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { rowFadeIn } from '@/lib/animations'
+import { pageVariants, childVariants, rowFadeIn } from '@/lib/animations'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -170,20 +170,23 @@ export function ModelMappingsPage() {
   const handleDelete = (m: ModelMapping) => deleteMapping(m.id, `${m.sourceModel} → ${m.targetModel}`)
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
+    <motion.div variants={pageVariants} initial="hidden" animate="show">
       {/* Header */}
-      <PageHeader
-        title="模型映射"
-        description="配置模型名称转换规则，将请求中的模型名映射到实际模型"
-        action={
-          <Button onClick={openCreate} size="sm">
-            <Plus className="h-4 w-4" />
-            新增映射
-          </Button>
-        }
-      />
+      <motion.div variants={childVariants}>
+        <PageHeader
+          title="模型映射"
+          description="配置模型名称转换规则，将请求中的模型名映射到实际模型"
+          action={
+            <Button onClick={openCreate} size="sm">
+              <Plus className="h-4 w-4" />
+              新增映射
+            </Button>
+          }
+        />
+      </motion.div>
 
       {/* Content */}
+      <motion.div variants={childVariants}>
       {isLoading ? (
         <TableSkeleton />
       ) : mappings.length === 0 ? (
@@ -229,6 +232,7 @@ export function ModelMappingsPage() {
           </Table>
         </div>
       )}
+      </motion.div>
 
       {/* Dialog */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>

@@ -12,7 +12,7 @@ const SettingsPage = lazy(() => import('./pages/Settings').then(m => ({ default:
 const ModelMappingsPage = lazy(() => import('./pages/ModelMappings').then(m => ({ default: m.ModelMappingsPage })))
 const AgentsPage = lazy(() => import('./pages/Agents').then(m => ({ default: m.AgentsPage })))
 import { Sonner } from './components/ui/sonner'
-import { UpdateDialog } from './components/update/UpdateDialog'
+import { UpdateDialog } from '@/features/update/components/UpdateDialog'
 import { useSkipVersion } from './lib/queries/update'
 import { toast } from 'sonner'
 

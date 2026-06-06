@@ -13,6 +13,7 @@
 import { useState } from 'react'
 import { X, Bug } from 'lucide-react'
 import { motion } from 'framer-motion'
+import { pageVariants, childVariants } from '@/lib/animations'
 import { useLogs } from '@/lib/queries/logs'
 import { useDebugMode, useSetDebugMode } from '@/lib/queries/proxy'
 import { Switch } from '@/components/ui/switch'
@@ -91,24 +92,27 @@ export function LogsPage() {
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
+    <motion.div variants={pageVariants} initial="hidden" animate="show">
       {/* Header */}
-      <PageHeader
-        title="请求日志"
-        description="查看所有代理请求记录"
-        action={
-          <div className="flex items-center gap-2">
-            <Bug className="h-4 w-4 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">Debug</span>
-            <Switch
-              checked={debugMode}
-              onCheckedChange={handleToggleDebug}
-            />
-          </div>
-        }
-      />
+      <motion.div variants={childVariants}>
+        <PageHeader
+          title="请求日志"
+          description="查看所有代理请求记录"
+          action={
+            <div className="flex items-center gap-2">
+              <Bug className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs text-muted-foreground">Debug</span>
+              <Switch
+                checked={debugMode}
+                onCheckedChange={handleToggleDebug}
+              />
+            </div>
+          }
+        />
+      </motion.div>
 
       {/* Content */}
+      <motion.div variants={childVariants}>
       {isLoading ? (
         <TableSkeleton />
       ) : logs.length === 0 ? (
@@ -206,6 +210,7 @@ export function LogsPage() {
           />
         </>
       )}
+      </motion.div>
 
       {/* Detail Panel */}
       {selectedLog && (

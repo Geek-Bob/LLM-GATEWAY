@@ -12,7 +12,7 @@
  */
 
 import { useRef, useEffect } from 'react'
-import { Button } from './ui/button'
+import { Button } from '@/components/ui/button'
 import { Send } from 'lucide-react'
 
 interface ChatInputProps {

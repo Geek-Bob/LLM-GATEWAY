@@ -97,6 +97,3 @@
 
 @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .animate-pulse-cyan { animation: pulse-dot 2s ease-in-out infinite; }
-
-@keyframes heartbeat { 0%, 100% { opacity: 0.6; box-shadow: 0 0 4px currentColor; } 50% { opacity: 1; box-shadow: 0 0 14px currentColor; } }
-.animate-heartbeat { animation: heartbeat 2.5s ease-in-out infinite; }

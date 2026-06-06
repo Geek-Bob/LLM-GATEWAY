@@ -64,7 +64,6 @@ export function ApiKeysPage() {
   const { execute: deleteApiKey } = useDeleteWithToast(deleteMutation, 'API Key')
   const [plaintextKey, setPlaintextKey] = useState('')
   const [revealedKeyId, setRevealedKeyId] = useState<number | null>(null)
-  const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null)
 
   const openCreate = () => {
     setName('')
@@ -152,7 +151,6 @@ export function ApiKeysPage() {
                         onOpenChange={(open) => {
                           if (!open) {
                             setRevealedKeyId(null)
-                            setCopiedKeyId(null)
                           }
                         }}
                       >
@@ -184,15 +182,9 @@ export function ApiKeysPage() {
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 shrink-0 text-muted-foreground"
-                              onClick={async () => {
-                                try {
-                                  await navigator.clipboard.writeText(key.key_plaintext)
-                                  setCopiedKeyId(key.id)
-                                  setTimeout(() => setCopiedKeyId(null), 2000)
-                                } catch { /* clipboard write failed */ }
-                              }}
+                              onClick={() => copy(key.key_plaintext)}
                             >
-                              {copiedKeyId === key.id ? (
+                              {copied ? (
                                 <Check className="h-4 w-4 text-green-500" />
                               ) : (
                                 <Copy className="h-4 w-4" />

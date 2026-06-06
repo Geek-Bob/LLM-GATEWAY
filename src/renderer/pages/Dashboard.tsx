@@ -15,8 +15,8 @@ import { useProviders } from '@/lib/queries/providers'
 import { useDashboardStats, useHourlyStats, useDailyStats } from '@/lib/queries/stats'
 import { useProxyStatus, useToggleProxy } from '@/lib/queries/proxy'
 import type { StatsDataPoint } from '@/lib/types'
-import { StatsCard } from '@/components/StatsCard'
-import { HourlyBarChart, DailyAreaChart } from '@/components/StatsCharts'
+import { StatsCard } from '@/features/dashboard/components/StatsCard'
+import { HourlyBarChart, DailyAreaChart } from '@/features/dashboard/components/StatsCharts'
 import { Card, CardContent } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
 import { Input } from '@/components/ui/input'
@@ -113,11 +113,22 @@ export function Dashboard() {
         <Card className="border-border/50">
           <CardContent className="p-4 flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <span
-                className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                  proxyRunning ? 'bg-green-500 animate-heartbeat' : 'bg-red-500'
-                }`}
-              />
+              {proxyRunning ? (
+                <motion.span
+                  className="w-2.5 h-2.5 rounded-full shrink-0 bg-green-500"
+                  animate={{
+                    opacity: [0.6, 1, 0.6],
+                    boxShadow: [
+                      '0 0 4px currentColor',
+                      '0 0 14px currentColor',
+                      '0 0 4px currentColor',
+                    ],
+                  }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+                />
+              ) : (
+                <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-red-500" />
+              )}
               <span className="text-sm font-medium text-foreground">代理服务</span>
               {proxyRunning ? (
                 <span className="font-mono text-sm text-muted-foreground">

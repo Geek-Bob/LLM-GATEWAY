@@ -11,15 +11,15 @@
  */
 
 import { motion } from 'framer-motion'
-import { Settings as SettingsIcon, Info } from 'lucide-react'
+import { Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { useUpdateConfig, useUpdateConfigMutation, useCurrentVersion } from '@/lib/queries/update'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { TableSkeleton } from '@/components/ui/table-skeleton'
-import { UpdateButton } from '@/components/update/UpdateButton'
-
+import { UpdateButton } from '@/features/update/components/UpdateButton'
+import { PageHeader } from '@/components/ui/page-header'
 import { pageVariants, childVariants } from '@/lib/animations'
 
 export function SettingsPage() {
@@ -33,12 +33,8 @@ export function SettingsPage() {
 
   return (
     <motion.div variants={pageVariants} initial="hidden" animate="show" className="space-y-6">
-      <motion.div variants={childVariants} className="flex items-center gap-3">
-        <SettingsIcon className="h-6 w-6 text-muted-foreground" />
-        <div>
-          <h1 className="text-2xl font-bold">设置</h1>
-          <p className="text-sm text-muted-foreground">管理应用配置和偏好</p>
-        </div>
+      <motion.div variants={childVariants}>
+        <PageHeader title="设置" description="管理应用配置和偏好" />
       </motion.div>
 
       <motion.div variants={childVariants}>
