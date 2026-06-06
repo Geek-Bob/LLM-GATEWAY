@@ -92,6 +92,8 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 - 数据库迁移：`node scripts/migrate-db.mjs`（旧 schema 列名映射，如 `api_key_encrypted` → `api_key`）
 - **SSE 解析兼容性**：上游 Provider 可能返回非标准 SSE 格式（`data:json` 无空格），所有 SSE 解析点必须兼容 `data: ` 和 `data:` 两种格式。涉及文件：`server.ts`（extractContentFromSSE、extractUsageFromSSE、convertSSEStream）、`useChatStream.ts`
 - **Anthropic 认证**：Anthropic API 使用 `x-api-key` 头，OpenAI 使用 `Authorization: Bearer`，`forwarder.ts` 中按 providerType 分别处理
+- 禁止任何 `window.focus()` / `document.activeElement.blur()` 等手动焦点操控 workaround
+- 禁止`confirm()` / `alert()` / `window.confirm()` / `window.alert()`，用 Radix AlertDialog 组件
 
 ## 规则模块
 
@@ -108,17 +110,13 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 ### 前端规则（`frontend/` 目录，仅 renderer 代码适用）
 | 文件 | 加载方式 | 职责 |
 |------|---------|------|
-| `frontend/31-renderer.md` | 始终加载 | feature 模式、TanStack Query 规范 |
+| `frontend/31-renderer.md` | 始终加载 | Feature 模式 + 数据流（TanStack Query、错误处理） |
 | `frontend/32-component-reuse.md` | 始终加载 | 组件复用规则 |
-| `frontend/33-focus-control.md` | 始终加载 | Electron 焦点操控禁止 |
 | `frontend/34-frontend-tech-stack.md` | 始终加载 | React、Tailwind、Router、Query、Shiki 版本红线 |
-| `frontend/35-frontend-directory.md` | 始终加载 | renderer 目录结构、@/ 别名导入规则 |
+| `frontend/35-frontend-directory.md` | 始终加载 | 目录结构 + 模块边界（导入方向、编译隔离） |
 | `frontend/36-frontend-testing.md` | 按需加载 | 组件测试约定 |
-| `frontend/37-visual-style.md` | 始终加载 | 视觉风格（颜色、字体、间距、圆角、阴影） |
-| `frontend/38-style-system.md` | 始终加载 | 样式系统（Tailwind、主题变量、阴影层级） |
-| `frontend/39-animation.md` | 始终加载 | 动效规范（入场/退出/过渡动画） |
-| `frontend/40-data-flow.md` | 始终加载 | 数据流（TanStack Query、IPC、错误处理） |
-| `frontend/41-module-boundaries.md` | 始终加载 | 模块边界（导入方向、编译隔离） |
+| `frontend/37-visual-style.md` | 始终加载 | 视觉风格 + 样式系统（颜色、圆角、阴影、字体） |
+| `frontend/38-animation.md` | 始终加载 | 动效规范（入场/退出/过渡动画） |
 
 ### 后端规则（`backend/` 目录，仅 main 进程代码适用）
 | 文件 | 加载方式 | 职责 |

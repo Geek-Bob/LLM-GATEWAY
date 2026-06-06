@@ -1,5 +1,5 @@
 ---
-description: 前端测试约定（仅 renderer）
+description: 前端测试约定（仅 renderer），按需加载
 paths:
   - "src/renderer/**/*.test.*"
   - "src/renderer/**/*.spec.*"
