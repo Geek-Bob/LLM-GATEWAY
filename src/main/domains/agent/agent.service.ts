@@ -19,6 +19,7 @@ import * as os from 'os'
 import type { Database } from '../../db/database'
 import { createAgentRepository, type Agent } from '../../db/agents'
 import { createAgentConfigRepository, type AgentConfig } from '../../db/agent-configs'
+import { createLogger } from '../../core/logger'
 import type {
   CreateAgentInput,
   UpdateAgentInput,
@@ -26,6 +27,8 @@ import type {
   UpdateAgentConfigInput,
   SwitchConfigInput,
 } from './agent.types'
+
+const logger = createLogger('agent-service')
 
 /**
  * 展开 ~ 路径为用户主目录
@@ -193,12 +196,21 @@ export function createAgentService(db: Database) {
         // 原子替换
         await fs.rename(tmpPath, configPath)
       } catch (error) {
-        // 写入失败，回滚数据库状态
-        if (previousCurrent) {
-          await configRepo.setCurrent(agentId, previousCurrent.id)
-        } else {
-          // 如果之前没有 current 配置，清除所有 current 标记
-          await configRepo.clearCurrent(agentId)
+        // 写入失败，回滚数据库状态（回滚本身也需要 try-catch，避免掩盖原始错误）
+        try {
+          if (previousCurrent) {
+            await configRepo.setCurrent(agentId, previousCurrent.id)
+          } else {
+            // 如果之前没有 current 配置，清除所有 current 标记
+            await configRepo.clearCurrent(agentId)
+          }
+        } catch (rollbackError) {
+          // 回滚失败，记录日志但不掩盖原始错误
+          logger.error('Failed to rollback database state after switchConfig write failure', {
+            agentId,
+            configId,
+            error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+          })
         }
         throw error
       }

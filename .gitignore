@@ -5,7 +5,7 @@ dist/
 *.db-journal
 .DS_Store
 .superpowers/
-new-api-main/
+references/
 *.log
 *.tsbuildinfo
 .claude/settings.local.json

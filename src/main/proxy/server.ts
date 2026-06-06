@@ -29,6 +29,23 @@ import { getDebugMode } from './manager'
 import { createModelsService } from '../domains/models/models.service'
 import type { LogDebugInfo } from '../../shared/types'
 
+/**
+ * 清理上游响应头，移除传输编码相关的头
+ *
+ * Node.js fetch 自动解压 Brotli/gzip 响应，response.body 已是解压后的数据。
+ * 若原样转发 content-encoding / content-length / transfer-encoding，
+ * 客户端会尝试再次解压已解压的数据，导致流损坏并抛出 "network error"。
+ */
+function sanitizeResponseHeaders(headers: Headers): Record<string, string> {
+  const cleaned: Record<string, string> = {}
+  headers.forEach((value, key) => {
+    const lower = key.toLowerCase()
+    if (lower === 'content-encoding' || lower === 'content-length' || lower === 'transfer-encoding') return
+    cleaned[key] = value
+  })
+  return cleaned
+}
+
 /** 工作目录（用于调试日志文件输出） */
 const LOG_DIR = process.cwd()
 /** 认证相关调试日志（API Key 验证、认证失败等，启动时清空） */
@@ -403,7 +420,7 @@ export function createServer() {
           extractAndLogSSE(forLogging, logBase, route.provider.providerType as 'anthropic' | 'openai', debugInfo ?? undefined).catch(() => {})
           return new Response(convertedStream, {
             status: response.status,
-            headers: response.headers
+            headers: sanitizeResponseHeaders(response.headers)
           })
         }
 
@@ -415,7 +432,7 @@ export function createServer() {
         extractAndLogSSE(forLogging, logBase, apiFormat, debugInfo ?? undefined).catch(() => {})
         return new Response(forClient, {
           status: response.status,
-          headers: response.headers
+          headers: sanitizeResponseHeaders(response.headers)
         })
       }
 

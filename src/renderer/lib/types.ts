@@ -5,8 +5,15 @@
  * 与主进程共享的类型放在 src/shared/types.ts 中。
  */
 
-import type { ProviderEntity, ApiKeyEntity, LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress } from '../../shared/types'
+import type {
+  ProviderEntity, ApiKeyEntity, LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress,
+  AgentEntity, AgentConfigEntity, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput,
+} from '../../shared/types'
 import type { ModelMapping, ModelInfo } from '../../main/domains/models/models.types'
+
+/** 向后兼容别名 */
+export type AgentResponse = AgentEntity
+export type AgentConfigResponse = AgentConfigEntity
 
 export type { LogDebugInfo }
 
@@ -146,6 +153,20 @@ declare global {
           update: (id: number, updates: { sourceModel?: string; targetModel?: string }) => Promise<ModelMapping>
           delete: (id: number) => Promise<void>
         }
+      }
+      /** Agent 配置管理 */
+      agents: {
+        list: () => Promise<AgentResponse[]>
+        get: (id: number) => Promise<AgentResponse | null>
+        create: (data: CreateAgentInput) => Promise<AgentResponse>
+        update: (id: number, data: UpdateAgentInput) => Promise<AgentResponse>
+        delete: (id: number) => Promise<void>
+        listConfigs: (agentId: number) => Promise<AgentConfigResponse[]>
+        getConfig: (id: number) => Promise<AgentConfigResponse | null>
+        createConfig: (data: CreateAgentConfigInput) => Promise<AgentConfigResponse>
+        updateConfig: (id: number, data: UpdateAgentConfigInput) => Promise<AgentConfigResponse>
+        deleteConfig: (id: number) => Promise<void>
+        switchConfig: (data: SwitchConfigInput) => Promise<void>
       }
     }
   }

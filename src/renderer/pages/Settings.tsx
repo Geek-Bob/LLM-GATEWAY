@@ -273,10 +273,15 @@ export function SettingsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
+            <AlertDialogAction onClick={async () => {
               if (configToDelete) {
-                deleteConfig.mutate(configToDelete)
-                setConfigToDelete(null)
+                try {
+                  await deleteConfig.mutateAsync(configToDelete)
+                  toast.success('配置已删除')
+                  setConfigToDelete(null)
+                } catch (error) {
+                  toast.error('删除失败: ' + (error as Error).message)
+                }
               }
             }}>
               删除

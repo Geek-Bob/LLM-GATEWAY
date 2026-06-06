@@ -107,6 +107,67 @@ export interface ConversationMessageEntity {
   created_at: string
 }
 
+// ====== Agent 配置管理实体类型（主进程/渲染进程共享） ======
+
+/** 配置文件格式 */
+export type ConfigFormat = 'json' | 'toml' | 'env'
+
+/** Agent 实体 */
+export interface AgentEntity {
+  id: number
+  name: string
+  displayName: string
+  configPath: string
+  configFormat: ConfigFormat
+  isBuiltin: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** Agent 配置实体 */
+export interface AgentConfigEntity {
+  id: number
+  agentId: number
+  name: string
+  content: string
+  isCurrent: number
+  createdAt: string
+  updatedAt: string
+}
+
+/** 创建 Agent 输入 */
+export interface CreateAgentInput {
+  name: string
+  displayName: string
+  configPath: string
+  configFormat: ConfigFormat
+}
+
+/** 更新 Agent 输入 */
+export interface UpdateAgentInput {
+  displayName?: string
+  configPath?: string
+  configFormat?: ConfigFormat
+}
+
+/** 创建 Agent 配置输入 */
+export interface CreateAgentConfigInput {
+  agentId: number
+  name: string
+  content: string
+}
+
+/** 更新 Agent 配置输入 */
+export interface UpdateAgentConfigInput {
+  content: string
+}
+
+/** 切换配置输入 */
+export interface SwitchConfigInput {
+  agentId: number
+  configId: number
+}
+
 // ====== SSE 事件类型（主进程/渲染进程共享） ======
 
 /** 解析后的 SSE 行结构 */

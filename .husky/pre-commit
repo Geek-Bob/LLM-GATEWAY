@@ -1,0 +1,76 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+# Pre-commit hook: 检测敏感信息
+# 防止 API Key、密码、Token 等敏感信息被提交
+
+echo "🔍 检查敏感信息..."
+
+# 获取暂存区的文件列表
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM)
+
+if [ -z "$STAGED_FILES" ]; then
+  exit 0
+fi
+
+# 敏感信息模式
+PATTERNS=(
+  # API Keys
+  'sk-[a-zA-Z0-9]{20,}'           # OpenAI API Key
+  'ghp_[a-zA-Z0-9]{36}'           # GitHub Personal Access Token
+  'gho_[a-zA-Z0-9]{36}'           # GitHub OAuth Token
+  'github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59}'  # GitHub Fine-grained PAT
+  'AIza[a-zA-Z0-9_-]{35}'         # Google API Key
+  'xoxb-[a-zA-Z0-9-]+'            # Slack Bot Token
+  'xoxp-[a-zA-Z0-9-]+'            # Slack User Token
+  'sk_live_[a-zA-Z0-9]+'          # Stripe Live Key
+  'rk_live_[a-zA-Z0-9]+'          # Stripe Restricted Key
+  'sq0[a-z]{3}-[a-zA-Z0-9_-]{22}' # Square Access Token
+
+  # AWS
+  'AKIA[0-9A-Z]{16}'              # AWS Access Key ID
+  'aws_secret_access_key\s*=\s*[a-zA-Z0-9/+=]{40}'  # AWS Secret Key
+
+  # Database URLs
+  'mysql://[^:]+:[^@]+@'          # MySQL connection string with password
+  'postgres://[^:]+:[^@]+@'       # PostgreSQL connection string with password
+  'mongodb://[^:]+:[^@]+@'        # MongoDB connection string with password
+  'redis://[^:]+:[^@]+@'          # Redis connection string with password
+
+  # Private Keys
+  '-----BEGIN\s+(RSA\s+)?PRIVATE\s+KEY-----'  # Private key header
+
+  # Generic secrets
+  'password\s*[:=]\s*["\x27][^"\x27]{8,}'  # Password assignments
+  'secret\s*[:=]\s*["\x27][^"\x27]{8,}'     # Secret assignments
+  'token\s*[:=]\s*["\x27][^"\x27]{8,}'      # Token assignments
+)
+
+FOUND_SECRETS=0
+
+for FILE in $STAGED_FILES; do
+  # 跳过二进制文件和已删除文件
+  if [ ! -f "$FILE" ] || file "$FILE" | grep -q "binary"; then
+    continue
+  fi
+
+  # 检查文件内容
+  for PATTERN in "${PATTERNS[@]}"; do
+    if grep -qE "$PATTERN" "$FILE" 2>/dev/null; then
+      echo "❌ 发现敏感信息: $FILE"
+      echo "   模式: $PATTERN"
+      FOUND_SECRETS=1
+    fi
+  done
+done
+
+if [ $FOUND_SECRETS -eq 1 ]; then
+  echo ""
+  echo "🚫 提交被阻止: 发现敏感信息"
+  echo "   请移除敏感信息后重新提交"
+  echo "   如果这是误报，请使用 git commit --no-verify 跳过检查"
+  exit 1
+fi
+
+echo "✅ 未发现敏感信息"
+exit 0
