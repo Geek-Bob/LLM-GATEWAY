@@ -307,26 +307,37 @@ describe('Schema - createTables', () => {
     await initDatabase(':memory:')
     createTables()
 
+    // 插入自定义 agent 并获取其真实 id
     getDb()!
       .prepare(
-        "INSERT INTO agents (name, display_name, config_path, config_format) VALUES ('test-agent', 'Test Agent', '/path', 'json')"
+        "INSERT INTO agents (name, display_name, config_path, config_format, is_builtin) VALUES ('test-agent', 'Test Agent', '~/.test/config.json', 'json', 0)"
       )
       .run()
+    const row = getDb()!
+      .prepare('SELECT last_insert_rowid() as id')
+      .get() as { id: number }
+    const agentId = row.id
 
+    // 用真实 id 插入 config
     getDb()!
       .prepare(
-        "INSERT INTO agent_configs (agent_id, name, content) VALUES (1, 'default', '{}')"
+        'INSERT INTO agent_configs (agent_id, name, content) VALUES (?, ?, ?)'
       )
-      .run()
+      .run([agentId, 'default', '{}'])
+
+    // 验证 config 存在
+    const configsBefore = getDb()!
+      .prepare('SELECT COUNT(*) as cnt FROM agent_configs WHERE agent_id = ?')
+      .get([agentId]) as { cnt: number }
+    expect(configsBefore.cnt).toBe(1)
 
     // 删除 agent
-    getDb()!.prepare('DELETE FROM agents WHERE id = 1').run()
+    getDb()!.prepare('DELETE FROM agents WHERE id = ?').run([agentId])
 
-    // agent_configs 也应被级联删除
-    const row = getDb()!
-      .prepare('SELECT COUNT(*) as cnt FROM agent_configs')
-      .get() as { cnt: number }
-
-    expect(row.cnt).toBe(0)
+    // 验证 config 被级联删除
+    const configsAfter = getDb()!
+      .prepare('SELECT COUNT(*) as cnt FROM agent_configs WHERE agent_id = ?')
+      .get([agentId]) as { cnt: number }
+    expect(configsAfter.cnt).toBe(0)
   })
 })
