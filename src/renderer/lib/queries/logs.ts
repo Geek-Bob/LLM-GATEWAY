@@ -11,8 +11,8 @@
  * 接口返回 { logs: LogEntry[], total: number } 支持 UI 分页控件计算总页数
  */
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../ipc'
-import type { LogEntry } from '../types'
+import { api } from '@/lib/ipc'
+import type { LogEntry } from '@/lib/types'
 
 interface LogsResult {
   logs: LogEntry[]

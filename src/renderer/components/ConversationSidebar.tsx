@@ -17,6 +17,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, PanelLeftClose, PanelLeft, Trash2 } from 'lucide-react'
 import type { Conversation } from '@/lib/types'
+import { formatRelativeDate } from '@/lib/utils'
+import { EmptyState } from '@/components/ui/empty-state'
 
 interface ConversationSidebarProps {
   conversations: Conversation[]
@@ -37,18 +39,6 @@ export function ConversationSidebar({
   collapsed,
   onToggleCollapse,
 }: ConversationSidebarProps) {
-  // 相对时间格式化：今天显示时分，昨天显示"昨天"，7天内显示"N天前"，更早显示月日
-  const formatDate = (iso: string) => {
-    const d = new Date(iso)
-    const now = new Date()
-    const diffMs = now.getTime() - d.getTime()
-    const diffDays = Math.floor(diffMs / 86400000)
-    if (diffDays === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-    if (diffDays === 1) return '昨天'
-    if (diffDays < 7) return `${diffDays}天前`
-    return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
-  }
-
   if (collapsed) {
     return (
       <motion.div
@@ -95,9 +85,8 @@ export function ConversationSidebar({
       <div className="flex-1 overflow-y-auto py-1">
         <AnimatePresence>
           {conversations.length === 0 ? (
-            <motion.div key="empty" className="px-4 py-8 text-center">
-              <p className="text-xs text-muted-foreground">暂无会话</p>
-              <p className="text-xs mt-1 text-muted-foreground/70">点击"新建"开始对话</p>
+            <motion.div key="empty">
+              <EmptyState title="暂无会话" description={'点击"新建"开始对话'} className="border-0 bg-transparent p-4" />
             </motion.div>
           ) : (
             conversations.map((conv) => (
@@ -136,7 +125,7 @@ export function ConversationSidebar({
                     {conv.model}
                   </span>
                   <span className="text-[10px] shrink-0 text-muted-foreground/70">
-                    {formatDate(conv.updated_at)}
+                    {formatRelativeDate(conv.updated_at)}
                   </span>
                 </div>
               </motion.div>

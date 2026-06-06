@@ -12,8 +12,8 @@
  * 只读查询，不需要 mutation 或 invalidate。
  */
 import { useQuery } from '@tanstack/react-query'
-import { api } from '../ipc'
-import type { DashboardStats, ProviderStatsGroup } from '../types'
+import { api } from '@/lib/ipc'
+import type { DashboardStats, ProviderStatsGroup } from '@/lib/types'
 
 export function useDashboardStats() {
   return useQuery<DashboardStats>({

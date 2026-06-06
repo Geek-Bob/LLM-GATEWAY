@@ -14,7 +14,7 @@
  * - 如果已满了，返回最早时间戳 + 窗口时长（即何时可恢复）
  * - 如果未满，返回窗口开始时间 + 窗口时长
  */
-export interface RateLimitResult {
+interface RateLimitResult {
   allowed: boolean
   remaining: number
   resetAt: number

@@ -6,9 +6,10 @@
  * div.drag 和 div.no-drag 区分拖拽区域和按钮区域（由 preload 中的 CSS 类控制）
  */
 
-import { api } from '../lib/ipc'
+import { api } from '@/lib/ipc'
 import { Minus, Square, X } from 'lucide-react'
-import { cn } from '../lib/utils'
+import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 
 export function TitleBar() {
   const handleMinimize = () => api.window.minimize()
@@ -29,14 +30,16 @@ export function TitleBar() {
           { action: handleMaximize, icon: Square, label: '最大化', hoverBg: 'hover:bg-accent' },
           { action: handleClose, icon: X, label: '关闭', hoverBg: 'hover:bg-destructive/15 hover:text-destructive' },
         ].map(({ action, icon: Icon, label, hoverBg }) => (
-          <button
+          <Button
             key={label}
+            variant="ghost"
+            size="icon"
             onClick={action}
-            className={cn('w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 text-muted-foreground', hoverBg)}
+            className={cn('w-8 h-8 rounded-lg text-muted-foreground', hoverBg)}
             aria-label={label}
           >
             <Icon className="w-4 h-4" />
-          </button>
+          </Button>
         ))}
       </div>
     </div>

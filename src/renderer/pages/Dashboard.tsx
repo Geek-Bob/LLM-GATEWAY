@@ -10,30 +10,24 @@
  */
 
 import { useState } from 'react'
-import { useProviders } from '../lib/queries/providers'
-import { useDashboardStats, useHourlyStats, useDailyStats } from '../lib/queries/stats'
-import { useProxyStatus, useToggleProxy } from '../lib/queries/proxy'
-import type { StatsDataPoint } from '../lib/types'
-import { StatsCard } from '../components/StatsCard'
-import { HourlyBarChart, DailyAreaChart } from '../components/StatsCharts'
-import { Card, CardContent } from '../components/ui/card'
-import { Switch } from '../components/ui/switch'
-import { Input } from '../components/ui/input'
-import { Badge } from '../components/ui/badge'
-import { Skeleton } from '../components/ui/skeleton'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
+import { useClipboard } from '@/hooks/useClipboard'
+import { useProviders } from '@/lib/queries/providers'
+import { useDashboardStats, useHourlyStats, useDailyStats } from '@/lib/queries/stats'
+import { useProxyStatus, useToggleProxy } from '@/lib/queries/proxy'
+import type { StatsDataPoint } from '@/lib/types'
+import { StatsCard } from '@/components/StatsCard'
+import { HourlyBarChart, DailyAreaChart } from '@/components/StatsCharts'
+import { Card, CardContent } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { motion, AnimatePresence } from 'framer-motion'
 import { BarChart3, Coins, Building2, Zap, Copy, Check, ChevronRight } from 'lucide-react'
-
-const pageVariants = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
-} as const
-
-const childVariants = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0 },
-} as const
+import { pageVariants, childVariants } from '@/lib/animations'
 
 export function Dashboard() {
   const { data: providers, isLoading: providersLoading } = useProviders()
@@ -45,18 +39,12 @@ export function Dashboard() {
 
   const [expandedProvider, setExpandedProvider] = useState<number | null>(null)
   const [proxyPort, setProxyPort] = useState(8080)
-  const [copied, setCopied] = useState(false)
+  const { copied, copy } = useClipboard()
 
   const proxyRunning = proxyStatus?.running ?? false
   const port = proxyStatus?.port ?? proxyPort
 
-  const handleCopyUrl = async () => {
-    try {
-      await navigator.clipboard.writeText(`http://localhost:${port}`)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch { /* ignore */ }
-  }
+  const handleCopyUrl = () => copy(`http://localhost:${port}`)
 
   const handleToggleProxy = () => {
     toggleProxy.mutate({ running: proxyRunning, port: proxyRunning ? port : proxyPort })
@@ -148,16 +136,18 @@ export function Dashboard() {
                   />
                 </div>
               )}
-              <button
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={handleCopyUrl}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg transition-all duration-200 bg-muted/50 hover:bg-muted text-muted-foreground"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs h-7"
               >
                 {copied ? (
                   <Check className="w-3.5 h-3.5 text-green-500" />
                 ) : (
                   <Copy className="w-3.5 h-3.5" />
                 )}
-              </button>
+              </Button>
             </div>
             <Switch
               checked={proxyRunning}
@@ -185,11 +175,7 @@ export function Dashboard() {
         {dailyLoading ? (
           <Skeleton className="h-48 w-full" />
         ) : !dailyStats || dailyStats.length === 0 ? (
-          <Card className="border-border/50">
-            <CardContent className="p-6 text-center">
-              <p className="text-sm text-muted-foreground">暂无统计数据，发送请求后自动生成</p>
-            </CardContent>
-          </Card>
+          <EmptyState title="暂无统计数据" description="发送请求后自动生成" />
         ) : (
           <Card className="border-border/50 overflow-hidden">
             <Table>
@@ -241,18 +227,15 @@ export function Dashboard() {
         {dailyLoading ? (
           <Skeleton className="h-48 w-full" />
         ) : !dailyStats || dailyStats.length === 0 ? (
-          <Card className="border-border/50">
-            <CardContent className="p-6 text-center">
-              <p className="text-sm text-muted-foreground">暂无统计数据，发送请求后自动生成</p>
-            </CardContent>
-          </Card>
+          <EmptyState title="暂无统计数据" description="发送请求后自动生成" />
         ) : (
           <div className="space-y-2">
             {dailyStats.map((group) => (
               <Card key={group.providerId} className="border-border/50 overflow-hidden">
-                <button
+                <Button
+                  variant="ghost"
                   onClick={() => setExpandedProvider(expandedProvider === group.providerId ? null : group.providerId)}
-                  className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-muted/50 transition-colors"
+                  className="w-full flex items-center gap-3 px-5 py-3.5 text-left justify-start h-auto"
                 >
                   <ChevronRight
                     className={`w-4 h-4 text-muted-foreground transition-transform duration-200 ${
@@ -268,7 +251,7 @@ export function Dashboard() {
                   <span className="text-muted-foreground text-xs">
                     | {group.models.reduce((s, m) => s + m.totalTokensIn + m.totalTokensOut, 0).toLocaleString()} tokens
                   </span>
-                </button>
+                </Button>
 
                 <AnimatePresence>
                   {expandedProvider === group.providerId && (

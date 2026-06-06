@@ -13,7 +13,7 @@
 import type { Provider } from '../db/providers'
 import { getProviderByName } from '../db/providers'
 
-export interface ModelRoute {
+interface ModelRoute {
   prefix: string
   modelName: string
   provider: Provider

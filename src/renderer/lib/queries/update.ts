@@ -18,7 +18,7 @@
  * useCurrentVersion / useUpdateConfig: 只读查询，有 TanStack Query 缓存
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../ipc'
+import { api } from '@/lib/ipc'
 import type { UpdateCheckResult, UpdateConfig } from '../../../shared/types'
 
 export function useUpdateConfig() {

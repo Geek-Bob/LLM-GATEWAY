@@ -16,7 +16,7 @@
  * 缓存策略：所有写操作（CUD）成功后 invalidate 相关 queryKey，下次读取时自动重新 fetch。
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../ipc'
+import { api } from '@/lib/ipc'
 import type {
   AgentEntity, AgentConfigEntity, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput,
 } from '../../../shared/types'

@@ -8,8 +8,8 @@
 import type {
   ProviderEntity, ApiKeyEntity, LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress,
   AgentEntity, AgentConfigEntity, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput,
+  ModelMapping, ModelInfo,
 } from '../../shared/types'
-import type { ModelMapping, ModelInfo } from '../../main/domains/models/models.types'
 
 /** 向后兼容别名 */
 export type AgentResponse = AgentEntity
@@ -60,7 +60,7 @@ export interface Conversation {
 }
 
 /** 单条对话消息（包括用户消息和 AI 回复，thinking 字段记录扩展思维过程） */
-export interface ConversationMessage {
+interface ConversationMessage {
   id: number
   conversation_id: number
   role: 'user' | 'assistant'

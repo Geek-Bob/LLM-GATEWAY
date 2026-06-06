@@ -19,6 +19,7 @@ import { ChevronDown, Copy, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { Markdown } from './ui/markdown'
 import { ErrorBoundary } from './ErrorBoundary'
+import { Button } from './ui/button'
 
 interface ChatMessageProps {
   role: 'user' | 'assistant'
@@ -127,21 +128,25 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
         {/* Action buttons */}
         {showActions && (
           <div className="flex items-center gap-0.5 mt-3 pt-2 border-t border-border/30">
-            <button
-              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/50"
+            <Button
+              variant="ghost"
+              size="sm"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground h-7 px-2"
               onClick={handleCopy}
             >
               <Copy className="w-3 h-3" />
               复制
-            </button>
+            </Button>
             {onRegenerate && (
-              <button
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted/50"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground h-7 px-2"
                 onClick={onRegenerate}
               >
                 <RefreshCw className="w-3 h-3" />
                 重新生成
-              </button>
+              </Button>
             )}
           </div>
         )}

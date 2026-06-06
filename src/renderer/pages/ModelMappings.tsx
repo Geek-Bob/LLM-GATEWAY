@@ -12,30 +12,34 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { rowFadeIn } from '@/lib/animations'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../lib/ipc'
-import type { ModelMapping } from '../../main/domains/models/models.types'
-import { cn } from '../lib/utils'
-import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
-import { Badge } from '../components/ui/badge'
-import { Skeleton } from '../components/ui/skeleton'
+import { api } from '@/lib/ipc'
+import type { ModelMapping } from '../../shared/types'
+import { getErrorMessage } from '@/lib/utils'
+import { useDeleteWithToast } from '@/hooks/useDeleteWithToast'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '../components/ui/select'
+} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '../components/ui/dialog'
+} from '@/components/ui/dialog'
 import {
   Table,
   TableHeader,
@@ -43,7 +47,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
-} from '../components/ui/table'
+} from '@/components/ui/table'
 
 /** 表单数据结构 */
 interface MappingForm {
@@ -148,7 +152,7 @@ export function ModelMappingsPage() {
       }
       setModalOpen(false)
     } catch (e) {
-      const raw = e instanceof Error ? e.message : String(e)
+      const raw = getErrorMessage(e)
       // 处理 UNIQUE 约束冲突
       if (raw.includes('UNIQUE')) {
         toast.error('该请求模型已存在映射规则')
@@ -160,45 +164,30 @@ export function ModelMappingsPage() {
     }
   }
 
+  const { execute: deleteMapping } = useDeleteWithToast(deleteMutation, '映射')
+
   /** 删除映射 */
-  const handleDelete = async (m: ModelMapping) => {
-    try {
-      await deleteMutation.mutateAsync(m.id)
-      toast.success('映射已删除')
-    } catch (e) {
-      toast.error(`删除失败: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
+  const handleDelete = (m: ModelMapping) => deleteMapping(m.id, `${m.sourceModel} → ${m.targetModel}`)
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">模型映射</h1>
-          <p className="text-sm mt-1 text-muted-foreground">配置模型名称转换规则，将请求中的模型名映射到实际模型</p>
-        </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="h-4 w-4" />
-          新增映射
-        </Button>
-      </div>
+      <PageHeader
+        title="模型映射"
+        description="配置模型名称转换规则，将请求中的模型名映射到实际模型"
+        action={
+          <Button onClick={openCreate} size="sm">
+            <Plus className="h-4 w-4" />
+            新增映射
+          </Button>
+        }
+      />
 
       {/* Content */}
       {isLoading ? (
-        <div className="rounded-xl border border-border bg-card p-8">
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        </div>
+        <TableSkeleton />
       ) : mappings.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-12 text-center">
-          <div className="text-3xl mb-3 opacity-40">&#128260;</div>
-          <p className="text-base font-medium mb-1 text-muted-foreground">暂无映射</p>
-          <p className="text-sm text-muted-foreground/60">点击上方「新增映射」开始配置模型名称转换规则</p>
-        </div>
+        <EmptyState icon="&#128260;" title="暂无映射" description="点击上方「新增映射」开始配置模型名称转换规则" />
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <Table>
@@ -212,13 +201,7 @@ export function ModelMappingsPage() {
             </TableHeader>
             <TableBody>
               {mappings.map((m, idx) => (
-                <motion.tr
-                  key={m.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.04, duration: 0.3 }}
-                  className="border-b transition-colors hover:bg-muted/50"
-                >
+                <motion.tr key={m.id} {...rowFadeIn(idx)} className="border-b transition-colors hover:bg-muted/50">
                   <TableCell>
                     <code className="text-sm font-mono text-foreground">{m.sourceModel}</code>
                   </TableCell>
@@ -226,23 +209,7 @@ export function ModelMappingsPage() {
                     <code className="text-sm font-mono text-foreground">{m.targetModel}</code>
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        'gap-1.5',
-                        m.isActive === 1
-                          ? 'border-green-500/30 text-green-500'
-                          : 'border-muted-foreground/30 text-muted-foreground'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'inline-block h-1.5 w-1.5 rounded-full',
-                          m.isActive === 1 ? 'bg-green-500' : 'bg-muted-foreground'
-                        )}
-                      />
-                      {m.isActive === 1 ? '启用' : '禁用'}
-                    </Badge>
+                    <StatusBadge active={m.isActive === 1} />
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">

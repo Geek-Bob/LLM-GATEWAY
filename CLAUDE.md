@@ -102,5 +102,6 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 | `20-directory.md` | 始终加载 | 目录边界、导入规则、类型治理 |
 | `30-main.md` | 始终加载 | 主进程 domain 模式 + proxy 路由约定 |
 | `31-renderer.md` | 始终加载 | 渲染进程 feature 模式 |
+| `32-component-reuse.md` | 始终加载 | 组件复用规则（禁止原生 HTML 表单，统一用共享组件） |
 | `50-testing.md` | 按需加载 | 测试约定（操作测试文件时触发） |
 | `60-security.md` | 始终加载 | 安全要求 |

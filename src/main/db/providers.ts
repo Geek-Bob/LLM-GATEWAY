@@ -33,7 +33,7 @@ export interface Provider {
   updatedAt: string
 }
 
-export interface ProviderUpdate {
+interface ProviderUpdate {
   name?: string
   providerType?: 'anthropic' | 'openai'
   baseUrl?: string

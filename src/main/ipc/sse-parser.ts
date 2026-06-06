@@ -13,7 +13,7 @@ export type { ParsedSSELine }
  * eventType - 事件类型（event: 字段）
  * data - 数据内容（data: 字段）
  */
-export interface SSELine {
+interface SSELine {
   raw: string
   eventType?: string
   data?: string

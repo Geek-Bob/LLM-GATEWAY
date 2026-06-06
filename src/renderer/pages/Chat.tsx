@@ -13,23 +13,23 @@ import { v4 as uuidv4 } from 'uuid'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquare, Square } from 'lucide-react'
 
-import { api } from '../lib/ipc'
-import { setApiKey } from '../shared/lib/api-client'
-import { useChatStream } from '../features/chat/hooks/useChatStream'
+import { api } from '@/lib/ipc'
+import { setApiKey } from '@/shared/lib/api-client'
+import { useChatStream } from '@/features/chat/hooks/useChatStream'
 import {
   useConversationManager,
   DEFAULT_CONVERSATION_TITLE,
-} from '../features/chat/hooks/useConversationManager'
-import type { StreamMessage } from '../features/chat/hooks/useChatStream'
+} from '@/features/chat/hooks/useConversationManager'
+import type { StreamMessage } from '@/features/chat/hooks/useChatStream'
 
-import { useProviders } from '../lib/queries/providers'
-import { useApiKeys } from '../lib/queries/apiKeys'
-import { ConversationSidebar } from '../components/ConversationSidebar'
-import { ChatMessage } from '../components/ChatMessage'
-import { ChatInput } from '../components/ChatInput'
-import { ChatToolbar } from '../features/chat/components/ChatToolbar'
-import { Card, CardContent } from '../components/ui/card'
-import { Button } from '../components/ui/button'
+import { useProviders } from '@/lib/queries/providers'
+import { useApiKeys } from '@/lib/queries/apiKeys'
+import { ConversationSidebar } from '@/components/ConversationSidebar'
+import { ChatMessage } from '@/components/ChatMessage'
+import { ChatInput } from '@/components/ChatInput'
+import { ChatToolbar } from '@/features/chat/components/ChatToolbar'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 
 /** 单条消息的数据结构 */
 interface Message {

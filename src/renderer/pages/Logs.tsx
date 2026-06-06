@@ -13,25 +13,20 @@
 import { useState } from 'react'
 import { X, Bug } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { useLogs } from '../lib/queries/logs'
-import { useDebugMode, useSetDebugMode } from '../lib/queries/proxy'
-import { Switch } from '../components/ui/switch'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
-import { Badge } from '../components/ui/badge'
-import { Button } from '../components/ui/button'
-import { Skeleton } from '../components/ui/skeleton'
-import { Pagination } from '../components/ui/pagination'
-import type { LogEntry } from '../lib/types'
+import { useLogs } from '@/lib/queries/logs'
+import { useDebugMode, useSetDebugMode } from '@/lib/queries/proxy'
+import { Switch } from '@/components/ui/switch'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
+import { Pagination } from '@/components/ui/pagination'
+import type { LogEntry } from '@/lib/types'
+import { formatDate } from '@/lib/utils'
 
 const PAGE_SIZE = 10
-
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr)
-  return d.toLocaleDateString('zh-CN', {
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  })
-}
 
 function formatTokens(entry: LogEntry) {
   if (entry.tokens_in === 0 && entry.tokens_out === 0) return '-'
@@ -98,32 +93,26 @@ export function LogsPage() {
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">请求日志</h1>
-          <p className="text-sm mt-1 text-muted-foreground">查看所有代理请求记录</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Bug className="h-4 w-4 text-muted-foreground" />
-          <span className="text-xs text-muted-foreground">Debug</span>
-          <Switch
-            checked={debugMode}
-            onCheckedChange={handleToggleDebug}
-          />
-        </div>
-      </div>
+      <PageHeader
+        title="请求日志"
+        description="查看所有代理请求记录"
+        action={
+          <div className="flex items-center gap-2">
+            <Bug className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground">Debug</span>
+            <Switch
+              checked={debugMode}
+              onCheckedChange={handleToggleDebug}
+            />
+          </div>
+        }
+      />
 
       {/* Content */}
       {isLoading ? (
-        <div className="rounded-lg border border-border/50 bg-card p-8">
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
-          </div>
-        </div>
+        <TableSkeleton />
       ) : logs.length === 0 ? (
-        <div className="rounded-lg border border-border/50 bg-card p-12 text-center">
-          <p className="text-base font-medium text-muted-foreground">暂无日志</p>
-        </div>
+        <EmptyState title="暂无日志" />
       ) : (
         <>
           <div className="rounded-lg border border-border/50 bg-card overflow-hidden">

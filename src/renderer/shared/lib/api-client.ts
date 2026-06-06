@@ -15,12 +15,8 @@
  * ApiError：非 2xx 响应时抛出，携带 status 和解析后的 JSON body
  * header 归一化：统一 Headers 对象 / 元组数组 / 普通对象三种输入格式为 Record<string, string>
  */
-let baseUrl = 'http://localhost:8080'
+const baseUrl = 'http://localhost:8080'
 let apiKey = ''
-
-export function setApiBaseUrl(url: string) {
-  baseUrl = url
-}
 
 export function setApiKey(key: string) {
   apiKey = key

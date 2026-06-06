@@ -6,8 +6,8 @@
  * 使用 useProxyStatus 轮询代理状态
  */
 
-import { useState } from 'react'
-import { useProxyStatus } from '../lib/queries/proxy'
+import { useClipboard } from '@/hooks/useClipboard'
+import { useProxyStatus } from '@/lib/queries/proxy'
 import { Card, CardContent } from './ui/card'
 import { Button } from './ui/button'
 import { Skeleton } from './ui/skeleton'
@@ -16,15 +16,10 @@ import { motion } from 'framer-motion'
 
 export function StatusBar() {
   const { data: status, isLoading } = useProxyStatus()
-  const [copied, setCopied] = useState(false)
+  const { copied, copy } = useClipboard()
 
-  const handleCopy = async () => {
-    if (!status?.url) return
-    try {
-      await navigator.clipboard.writeText(status.url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch { /* clipboard not available */ }
+  const handleCopy = () => {
+    if (status?.url) copy(status.url)
   }
 
   if (isLoading) {

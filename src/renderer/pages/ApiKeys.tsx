@@ -12,27 +12,33 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { rowFadeIn } from '@/lib/animations'
 import { Plus, Trash2, Eye, EyeOff, Copy, Check, Key } from 'lucide-react'
 import { toast } from 'sonner'
-import { useApiKeys, useCreateApiKey, useDeleteApiKey } from '../lib/queries/apiKeys'
-import type { ApiKey } from '../lib/types'
-import { cn } from '../lib/utils'
-import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
-import { Badge } from '../components/ui/badge'
-import { Skeleton } from '../components/ui/skeleton'
+import { useApiKeys, useCreateApiKey, useDeleteApiKey } from '@/lib/queries/apiKeys'
+import type { ApiKey } from '@/lib/types'
+import { formatDate } from '@/lib/utils'
+import { useDeleteWithToast } from '@/hooks/useDeleteWithToast'
+import { useClipboard } from '@/hooks/useClipboard'
+import { useSavingAction } from '@/hooks/useSavingAction'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '../components/ui/dialog'
+} from '@/components/ui/dialog'
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
-} from '../components/ui/popover'
+} from '@/components/ui/popover'
 import {
   Table,
   TableHeader,
@@ -40,7 +46,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
-} from '../components/ui/table'
+} from '@/components/ui/table'
 
 type Step = 'form' | 'result'
 
@@ -53,9 +59,10 @@ export function ApiKeysPage() {
   const [step, setStep] = useState<Step>('form')
   const [name, setName] = useState('')
   const [rateLimit, setRateLimit] = useState('')
-  const [saving, setSaving] = useState(false)
+  const { saving, execute: executeSaving } = useSavingAction()
+  const { copied, copy } = useClipboard()
+  const { execute: deleteApiKey } = useDeleteWithToast(deleteMutation, 'API Key')
   const [plaintextKey, setPlaintextKey] = useState('')
-  const [copied, setCopied] = useState(false)
   const [revealedKeyId, setRevealedKeyId] = useState<number | null>(null)
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null)
 
@@ -64,58 +71,28 @@ export function ApiKeysPage() {
     setRateLimit('')
     setStep('form')
     setPlaintextKey('')
-    setCopied(false)
     setDialogOpen(true)
   }
 
-  const handleCreate = async () => {
+  const handleCreate = () => {
     if (!name.trim()) return
     const rl = rateLimit.trim() ? Number(rateLimit.trim()) : undefined
     if (rl !== undefined && (isNaN(rl) || rl < 1)) {
       toast.error('速率限制必须是大于 0 的数字')
       return
     }
-    setSaving(true)
-    try {
+    executeSaving(async () => {
       const result = await createMutation.mutateAsync({ name: name.trim(), rateLimit: rl })
       setPlaintextKey(result.plaintextKey)
       setStep('result')
-    } catch (e) {
-      toast.error(`创建失败: ${e instanceof Error ? e.message : String(e)}`)
-    } finally {
-      setSaving(false)
-    }
+    }, '创建失败')
   }
 
-  const handleCopyCreatedKey = async () => {
-    try {
-      await navigator.clipboard.writeText(plaintextKey)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch { /* clipboard write failed */ }
-  }
+  const handleCopyCreatedKey = () => copy(plaintextKey)
 
-  const handleDelete = async (key: ApiKey) => {
-    try {
-      await deleteMutation.mutateAsync(key.id)
-      toast.success(`API Key「${key.name}」已删除`)
-    } catch (e) {
-      toast.error(`删除失败: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
+  const handleDelete = (key: ApiKey) => deleteApiKey(key.id, key.name)
 
   const formatRateLimit = (rl: number) => `${rl}/min`
-
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr)
-    return d.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  }
 
   return (
     <motion.div
@@ -124,40 +101,26 @@ export function ApiKeysPage() {
       transition={{ duration: 0.35, ease: 'easeOut' }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            API Key 管理
-          </h1>
-          <p className="text-sm mt-1 text-muted-foreground">
-            管理网关访问密钥
-          </p>
-        </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="h-4 w-4" />
-          创建 API Key
-        </Button>
-      </div>
+      <PageHeader
+        title="API Key 管理"
+        description="管理网关访问密钥"
+        action={
+          <Button onClick={openCreate} size="sm">
+            <Plus className="h-4 w-4" />
+            创建 API Key
+          </Button>
+        }
+      />
 
       {/* Content */}
       {isLoading ? (
-        <div className="rounded-xl border border-border bg-card p-8">
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        </div>
+        <TableSkeleton />
       ) : keys.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-12 text-center">
-          <Key className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-          <p className="text-base font-medium mb-1 text-muted-foreground">
-            暂无 API Key
-          </p>
-          <p className="text-sm text-muted-foreground/60">
-            点击上方「创建 API Key」生成一个新的密钥
-          </p>
-        </div>
+        <EmptyState
+          icon={<Key className="h-10 w-10 mx-auto text-muted-foreground/40" />}
+          title="暂无 API Key"
+          description="点击上方「创建 API Key」生成一个新的密钥"
+        />
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <Table>
@@ -173,13 +136,7 @@ export function ApiKeysPage() {
             </TableHeader>
             <TableBody>
               {keys.map((key, idx) => (
-                <motion.tr
-                  key={key.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.04, duration: 0.3 }}
-                  className="border-b transition-colors hover:bg-muted/50"
-                >
+                <motion.tr key={key.id} {...rowFadeIn(idx)} className="border-b transition-colors hover:bg-muted/50">
                   <TableCell>
                     <span className="font-medium text-foreground">
                       {key.name}
@@ -250,25 +207,7 @@ export function ApiKeysPage() {
                     {formatRateLimit(key.rate_limit)}
                   </TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        'gap-1.5',
-                        key.is_active === 1
-                          ? 'border-green-500/30 text-green-500'
-                          : 'border-muted-foreground/30 text-muted-foreground'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'inline-block h-1.5 w-1.5 rounded-full',
-                          key.is_active === 1
-                            ? 'bg-green-500'
-                            : 'bg-muted-foreground'
-                        )}
-                      />
-                      {key.is_active === 1 ? '启用' : '禁用'}
-                    </Badge>
+                    <StatusBadge active={key.is_active === 1} />
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {formatDate(key.created_at)}
@@ -301,7 +240,6 @@ export function ApiKeysPage() {
             setRateLimit('')
             setStep('form')
             setPlaintextKey('')
-            setCopied(false)
           }
         }}
       >

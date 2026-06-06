@@ -26,7 +26,7 @@ export interface ApiKeyRow {
   created_at: string
 }
 
-export interface ApiKeyResult {
+interface ApiKeyResult {
   plaintextKey: string
   key: Omit<ApiKeyRow, 'key_hash' | 'key'>
 }

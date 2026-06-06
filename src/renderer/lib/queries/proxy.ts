@@ -14,8 +14,8 @@
  * - 写操作（toggle、setDebugMode）成功后 invalidate 对应 queryKey 刷新 UI
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../ipc'
-import type { ProxyStatus } from '../types'
+import { api } from '@/lib/ipc'
+import type { ProxyStatus } from '@/lib/types'
 
 export function useProxyStatus() {
   return useQuery<ProxyStatus>({

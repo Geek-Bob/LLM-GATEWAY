@@ -13,22 +13,14 @@
 import { motion } from 'framer-motion'
 import { Settings as SettingsIcon, Info } from 'lucide-react'
 import { toast } from 'sonner'
-import { useUpdateConfig, useUpdateConfigMutation, useCurrentVersion } from '../lib/queries/update'
-import { Switch } from '../components/ui/switch'
-import { Label } from '../components/ui/label'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Skeleton } from '../components/ui/skeleton'
-import { UpdateButton } from '../components/update/UpdateButton'
+import { useUpdateConfig, useUpdateConfigMutation, useCurrentVersion } from '@/lib/queries/update'
+import { Switch } from '@/components/ui/switch'
+import { Label } from '@/components/ui/label'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
+import { UpdateButton } from '@/components/update/UpdateButton'
 
-const pageVariants = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
-} as const
-
-const childVariants = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0 },
-} as const
+import { pageVariants, childVariants } from '@/lib/animations'
 
 export function SettingsPage() {
   const { data: config, isLoading } = useUpdateConfig()
@@ -51,13 +43,7 @@ export function SettingsPage() {
 
       <motion.div variants={childVariants}>
         {isLoading ? (
-          <div className="rounded-xl border border-border bg-card p-8">
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          </div>
+          <TableSkeleton />
         ) : (
           <Card>
             <CardHeader>

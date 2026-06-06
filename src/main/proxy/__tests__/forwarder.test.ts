@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildProxyUrl, buildProxyHeaders, buildProxyBody } from '../forwarder'
+import { buildProxyUrl, buildProxyHeaders } from '../forwarder'
 import type { Provider } from '../../db/providers'
 
 function makeProvider(overrides: Partial<Provider> = {}): Provider {
@@ -139,28 +139,5 @@ describe('buildProxyHeaders', () => {
       authorization: 'Bearer old-key'
     })
     expect(headers.authorization).toBe('Bearer sk-test-key-12345')
-  })
-})
-
-describe('buildProxyBody', () => {
-  it('should pass through the body unchanged', () => {
-    const provider = makeProvider()
-    const body = { model: 'gpt-4', messages: [{ role: 'user', content: 'Hello' }] }
-    const result = buildProxyBody(body, provider)
-    expect(result).toBe(body)
-  })
-
-  it('should pass through primitive values', () => {
-    const provider = makeProvider()
-    expect(buildProxyBody('string', provider)).toBe('string')
-    expect(buildProxyBody(42, provider)).toBe(42)
-    expect(buildProxyBody(null, provider)).toBeNull()
-  })
-
-  it('should pass through array body', () => {
-    const provider = makeProvider()
-    const arr = [1, 2, 3]
-    const result = buildProxyBody(arr, provider)
-    expect(result).toBe(arr)
   })
 })

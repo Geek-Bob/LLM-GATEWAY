@@ -72,11 +72,3 @@ export function buildProxyHeaders(
   return headers
 }
 
-/**
- * 构建转发请求体。
- * 当前实现为透传（直接返回原始 body）。
- * 格式转换（OpenAI ↔ Anthropic）由 server.ts 中的 converter 处理。
- */
-export function buildProxyBody(body: unknown, _provider: Provider): unknown {
-  return body
-}

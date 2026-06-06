@@ -13,27 +13,32 @@
 
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { rowFadeIn } from '@/lib/animations'
 import { Plus, Pencil, Trash2, Eye, EyeOff, Copy, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { useProviders, useCreateProvider, useUpdateProvider, useDeleteProvider } from '../lib/queries/providers'
-import type { Provider } from '../lib/types'
-import { cn } from '../lib/utils'
-import { Button } from '../components/ui/button'
-import { Input } from '../components/ui/input'
-import { Badge } from '../components/ui/badge'
-import { Skeleton } from '../components/ui/skeleton'
+import { useProviders, useCreateProvider, useUpdateProvider, useDeleteProvider } from '@/lib/queries/providers'
+import type { Provider } from '@/lib/types'
+import { cn, getErrorMessage } from '@/lib/utils'
+import { useDeleteWithToast } from '@/hooks/useDeleteWithToast'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Badge } from '@/components/ui/badge'
+import { StatusBadge } from '@/components/ui/status-badge'
+import { EmptyState } from '@/components/ui/empty-state'
+import { PageHeader } from '@/components/ui/page-header'
+import { TableSkeleton } from '@/components/ui/table-skeleton'
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from '../components/ui/dialog'
+} from '@/components/ui/dialog'
 import {
   Popover,
   PopoverTrigger,
   PopoverContent,
-} from '../components/ui/popover'
+} from '@/components/ui/popover'
 import {
   Table,
   TableHeader,
@@ -41,7 +46,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
-} from '../components/ui/table'
+} from '@/components/ui/table'
 
 interface ProviderForm {
   name: string
@@ -131,7 +136,7 @@ export function ProvidersPage() {
       setModalOpen(false)
       toast.success(editingId !== null ? '供应商已更新' : '供应商已创建')
     } catch (e) {
-      const raw = e instanceof Error ? e.message : String(e)
+      const raw = getErrorMessage(e)
       // 解析 Zod 序列化错误，提取字段名和错误类型做中文映射
       const fieldMatch = raw.match(/"path":\s*\["(\w+)"\]/)
       const field = fieldMatch?.[1]
@@ -149,14 +154,8 @@ export function ProvidersPage() {
     }
   }
 
-  const handleDelete = async (p: Provider) => {
-    try {
-      await deleteMutation.mutateAsync(p.id)
-      toast.success(`供应商「${p.name}」已删除`)
-    } catch (e) {
-      toast.error(`删除失败: ${e instanceof Error ? e.message : String(e)}`)
-    }
-  }
+  const { execute: deleteProvider } = useDeleteWithToast(deleteMutation, '供应商')
+  const handleDelete = (p: Provider) => deleteProvider(p.id, p.name)
 
   const handleProviderTypeChange = (newType: 'anthropic' | 'openai') => {
     setForm((prev) => ({
@@ -169,32 +168,22 @@ export function ProvidersPage() {
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: 'easeOut' }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">供应商管理</h1>
-          <p className="text-sm mt-1 text-muted-foreground">管理 AI 服务提供商连接</p>
-        </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="h-4 w-4" />
-          添加供应商
-        </Button>
-      </div>
+      <PageHeader
+        title="供应商管理"
+        description="管理 AI 服务提供商连接"
+        action={
+          <Button onClick={openCreate} size="sm">
+            <Plus className="h-4 w-4" />
+            添加供应商
+          </Button>
+        }
+      />
 
       {/* Content */}
       {isLoading ? (
-        <div className="rounded-xl border border-border bg-card p-8">
-          <div className="space-y-4">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        </div>
+        <TableSkeleton />
       ) : providers.length === 0 ? (
-        <div className="rounded-xl border border-border bg-card p-12 text-center">
-          <div className="text-3xl mb-3 opacity-40">&#127970;</div>
-          <p className="text-base font-medium mb-1 text-muted-foreground">暂无供应商</p>
-          <p className="text-sm text-muted-foreground/60">点击上方「添加供应商」开始配置</p>
-        </div>
+        <EmptyState icon="&#127970;" title="暂无供应商" description="点击上方「添加供应商」开始配置" />
       ) : (
         <div className="rounded-xl border border-border bg-card overflow-hidden">
           <Table>
@@ -209,13 +198,7 @@ export function ProvidersPage() {
             </TableHeader>
             <TableBody>
               {providers.map((p, idx) => (
-                <motion.tr
-                  key={p.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.04, duration: 0.3 }}
-                  className="border-b transition-colors hover:bg-muted/50"
-                >
+                <motion.tr key={p.id} {...rowFadeIn(idx)} className="border-b transition-colors hover:bg-muted/50">
                   <TableCell>
                     <span className="font-medium text-foreground">{p.name}</span>
                   </TableCell>
@@ -224,23 +207,7 @@ export function ProvidersPage() {
                   </TableCell>
                   <TableCell className="text-muted-foreground">{p.models.length}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        'gap-1.5',
-                        p.isActive === 1
-                          ? 'border-green-500/30 text-green-500'
-                          : 'border-muted-foreground/30 text-muted-foreground'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'inline-block h-1.5 w-1.5 rounded-full',
-                          p.isActive === 1 ? 'bg-green-500' : 'bg-muted-foreground'
-                        )}
-                      />
-                      {p.isActive === 1 ? '启用' : '禁用'}
-                    </Badge>
+                    <StatusBadge active={p.isActive === 1} />
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end gap-2">

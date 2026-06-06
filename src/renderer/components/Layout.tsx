@@ -14,7 +14,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { LayoutDashboard, Building2, Key, ScrollText, MessageSquare, ArrowLeftRight, Bot, Settings } from 'lucide-react'
 import { TitleBar } from './TitleBar'
-import { cn } from '../lib/utils'
+import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/', label: '仪表盘', icon: LayoutDashboard },

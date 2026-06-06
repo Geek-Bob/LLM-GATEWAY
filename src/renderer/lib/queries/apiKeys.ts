@@ -12,8 +12,8 @@
  * create 调用时 name 为必填，rateLimit 可选。
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../ipc'
-import type { ApiKey } from '../types'
+import { api } from '@/lib/ipc'
+import type { ApiKey } from '@/lib/types'
 
 export function useApiKeys() {
   return useQuery<ApiKey[]>({

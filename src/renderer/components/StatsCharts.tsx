@@ -9,7 +9,7 @@
  */
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, AreaChart, Area, ResponsiveContainer } from 'recharts'
-import type { StatsDataPoint } from '../lib/types'
+import type { StatsDataPoint } from '@/lib/types'
 
 interface HourlyBarChartProps {
   data: StatsDataPoint[]

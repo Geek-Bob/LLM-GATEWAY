@@ -9,9 +9,21 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Bot, ChevronDown, Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import { useAgents, useAgentConfigs, useSwitchAgentConfig, useDeleteAgentConfig, useCreateAgentConfig } from '../lib/queries/agents'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Button } from '../components/ui/button'
+import {
+  useAgents,
+  useAgentConfigs,
+  useSwitchAgentConfig,
+  useDeleteAgentConfig,
+  useCreateAgentConfig,
+  useUpdateAgentConfig,
+  useCreateAgent,
+} from '@/lib/queries/agents'
+import type { AgentConfigResponse } from '@/lib/types'
+import { getErrorMessage } from '@/lib/utils'
+import { useDeleteWithToast } from '@/hooks/useDeleteWithToast'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Button } from '@/components/ui/button'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,7 +33,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '../components/ui/alert-dialog'
+} from '@/components/ui/alert-dialog'
 import {
   Dialog,
   DialogContent,
@@ -29,20 +41,19 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '../components/ui/dialog'
-import { Input } from '../components/ui/input'
-import { Textarea } from '../components/ui/textarea'
-import { Label } from '../components/ui/label'
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { CodeEditor } from '@/components/ui/code-editor'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
-const pageVariants = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.08 } },
-} as const
-
-const childVariants = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0 },
-} as const
+import { pageVariants, childVariants } from '@/lib/animations'
 
 export function AgentsPage() {
   // Agent 配置管理状态
@@ -51,11 +62,30 @@ export function AgentsPage() {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [newConfigName, setNewConfigName] = useState('')
   const [newConfigContent, setNewConfigContent] = useState('{\n  \n}')
+  const [editingConfig, setEditingConfig] = useState<AgentConfigResponse | null>(null)
+  const [editContent, setEditContent] = useState('')
+  const [showAddAgent, setShowAddAgent] = useState(false)
+  const [newAgent, setNewAgent] = useState({
+    name: '',
+    displayName: '',
+    configPath: '',
+    configFormat: 'json' as 'json' | 'toml' | 'env',
+  })
   const { data: agents = [] } = useAgents()
   const { data: configs = [] } = useAgentConfigs(expandedAgent)
   const switchConfig = useSwitchAgentConfig()
   const deleteConfig = useDeleteAgentConfig()
   const createConfig = useCreateAgentConfig()
+  const updateConfig = useUpdateAgentConfig()
+  const createAgent = useCreateAgent()
+
+  const { execute: deleteConfigAction } = useDeleteWithToast(deleteConfig, '配置')
+
+  /** 删除配置（关闭对话框 + 删除 + toast） */
+  const handleDeleteConfig = async (configId: number, configName: string) => {
+    setConfigToDelete(null)
+    await deleteConfigAction(configId, configName)
+  }
 
   /** 切换指定 Agent 的当前激活配置 */
   const handleSwitchConfig = async (agentId: number, configId: number) => {
@@ -63,7 +93,7 @@ export function AgentsPage() {
       await switchConfig.mutateAsync({ agentId, configId })
       toast.success('配置已切换')
     } catch (error) {
-      toast.error('切换失败: ' + (error as Error).message)
+      toast.error('切换失败: ' + getErrorMessage(error))
     }
   }
 
@@ -96,7 +126,38 @@ export function AgentsPage() {
       toast.success('配置已创建')
       setShowAddDialog(false)
     } catch (error) {
-      toast.error('创建失败: ' + (error as Error).message)
+      toast.error('创建失败: ' + getErrorMessage(error))
+    }
+  }
+
+  /** 更新配置内容 */
+  const handleUpdateConfig = async () => {
+    if (!editingConfig) return
+    try {
+      await updateConfig.mutateAsync({
+        id: editingConfig.id,
+        data: { content: editContent },
+      })
+      toast.success('配置已更新')
+      setEditingConfig(null)
+    } catch (error) {
+      toast.error('更新失败: ' + getErrorMessage(error))
+    }
+  }
+
+  /** 创建自定义 Agent */
+  const handleCreateAgent = async () => {
+    if (!newAgent.name || !newAgent.displayName || !newAgent.configPath) {
+      toast.error('请填写所有必填字段')
+      return
+    }
+    try {
+      await createAgent.mutateAsync(newAgent)
+      toast.success('Agent 已创建')
+      setShowAddAgent(false)
+      setNewAgent({ name: '', displayName: '', configPath: '', configFormat: 'json' })
+    } catch (error) {
+      toast.error('创建失败: ' + getErrorMessage(error))
     }
   }
 
@@ -118,7 +179,7 @@ export function AgentsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {agents.length === 0 ? (
-              <p className="text-sm text-muted-foreground">暂无已注册的 Agent</p>
+              <EmptyState title="暂无已注册的 Agent" />
             ) : (
               agents.map(agent => (
                 <div key={agent.id} className="border rounded-lg p-4">
@@ -140,7 +201,7 @@ export function AgentsPage() {
                   {expandedAgent === agent.id && (
                     <div className="mt-4 space-y-2">
                       {configs.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">暂无配置</p>
+                        <EmptyState title="暂无配置" />
                       ) : (
                         configs.map(config => (
                           <div
@@ -164,6 +225,17 @@ export function AgentsPage() {
                               </span>
                             </div>
                             <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditingConfig(config)
+                                  setEditContent(config.content)
+                                }}
+                              >
+                                编辑
+                              </Button>
                               {config.isCurrent !== 1 && (
                                 <Button
                                   variant="ghost"
@@ -198,6 +270,18 @@ export function AgentsPage() {
         </Card>
       </motion.div>
 
+      {/* 添加自定义 Agent 按钮 */}
+      <motion.div variants={childVariants}>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setShowAddAgent(true)}
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          添加自定义 Agent
+        </Button>
+      </motion.div>
+
       {/* 删除配置确认对话框 */}
       <AlertDialog open={configToDelete !== null} onOpenChange={() => setConfigToDelete(null)}>
         <AlertDialogContent>
@@ -209,15 +293,10 @@ export function AgentsPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => {
+            <AlertDialogAction onClick={() => {
               if (configToDelete) {
-                try {
-                  await deleteConfig.mutateAsync(configToDelete)
-                  toast.success('配置已删除')
-                  setConfigToDelete(null)
-                } catch (error) {
-                  toast.error('删除失败: ' + (error as Error).message)
-                }
+                const config = configs.find(c => c.id === configToDelete)
+                handleDeleteConfig(configToDelete, config?.name ?? String(configToDelete))
               }
             }}>
               删除
@@ -228,7 +307,7 @@ export function AgentsPage() {
 
       {/* 添加配置对话框 */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>添加配置</DialogTitle>
             <DialogDescription>
@@ -246,14 +325,12 @@ export function AgentsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="config-content">配置内容</Label>
-              <Textarea
-                id="config-content"
-                placeholder='{"env": {"ANTHROPIC_API_KEY": "sk-xxx"}}'
+              <Label>配置内容</Label>
+              <CodeEditor
                 value={newConfigContent}
-                onChange={(e) => setNewConfigContent(e.target.value)}
-                rows={10}
-                className="font-mono text-sm"
+                onChange={setNewConfigContent}
+                language="json"
+                height="400px"
               />
             </div>
           </div>
@@ -262,6 +339,99 @@ export function AgentsPage() {
               取消
             </Button>
             <Button onClick={handleCreateConfig}>
+              创建
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 编辑配置对话框 */}
+      <Dialog open={editingConfig !== null} onOpenChange={() => setEditingConfig(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>编辑配置: {editingConfig?.name}</DialogTitle>
+            <DialogDescription>
+              修改配置文件内容（支持语法高亮、代码折叠、格式化）
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <CodeEditor
+              value={editContent}
+              onChange={setEditContent}
+              language="json"
+              height="500px"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingConfig(null)}>
+              取消
+            </Button>
+            <Button onClick={handleUpdateConfig}>
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 添加自定义 Agent 对话框 */}
+      <Dialog open={showAddAgent} onOpenChange={setShowAddAgent}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>添加自定义 Agent</DialogTitle>
+            <DialogDescription>
+              添加一个新的 AI 编程助手配置管理
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="agent-name">名称</Label>
+              <Input
+                id="agent-name"
+                placeholder="my-agent"
+                value={newAgent.name}
+                onChange={(e) => setNewAgent({ ...newAgent, name: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agent-display-name">显示名称</Label>
+              <Input
+                id="agent-display-name"
+                placeholder="My Agent"
+                value={newAgent.displayName}
+                onChange={(e) => setNewAgent({ ...newAgent, displayName: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agent-config-path">配置路径</Label>
+              <Input
+                id="agent-config-path"
+                placeholder="~/.my-agent/config.json"
+                value={newAgent.configPath}
+                onChange={(e) => setNewAgent({ ...newAgent, configPath: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>配置格式</Label>
+              <Select
+                value={newAgent.configFormat}
+                onValueChange={(value) => setNewAgent({ ...newAgent, configFormat: value as 'json' | 'toml' | 'env' })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择格式" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="json">JSON</SelectItem>
+                  <SelectItem value="toml">TOML</SelectItem>
+                  <SelectItem value="env">ENV</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddAgent(false)}>
+              取消
+            </Button>
+            <Button onClick={handleCreateAgent}>
               创建
             </Button>
           </DialogFooter>

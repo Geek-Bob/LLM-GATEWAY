@@ -1,5 +1,5 @@
 /** 数据库 providers 表的原始行记录，列名使用下划线命名（snake_case） */
-export interface ProviderRow {
+interface ProviderRow {
   id: number
   name: string
   provider_type: 'anthropic' | 'openai'

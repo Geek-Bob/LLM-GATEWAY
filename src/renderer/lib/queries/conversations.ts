@@ -11,8 +11,8 @@
  * 缓存策略：写操作后 invalidate 'conversations' 列表缓存。
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api } from '../ipc'
-import type { Conversation } from '../types'
+import { api } from '@/lib/ipc'
+import type { Conversation } from '@/lib/types'
 
 export function useConversations() {
   return useQuery<Conversation[]>({
