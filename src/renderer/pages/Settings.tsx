@@ -22,6 +22,16 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../co
 import { Skeleton } from '../components/ui/skeleton'
 import { Button } from '../components/ui/button'
 import { UpdateButton } from '../components/update/UpdateButton'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../components/ui/alert-dialog'
 
 const pageVariants = {
   hidden: { opacity: 0 },
@@ -44,6 +54,7 @@ export function SettingsPage() {
 
   // Agent 配置管理状态
   const [expandedAgent, setExpandedAgent] = useState<number | null>(null)
+  const [configToDelete, setConfigToDelete] = useState<number | null>(null)
   const { data: agents = [] } = useAgents()
   const { data: configs = [] } = useAgentConfigs(expandedAgent)
   const switchConfig = useSwitchAgentConfig()
@@ -208,7 +219,10 @@ export function SettingsPage() {
                               config.isCurrent === 1 ? 'bg-primary/10' : 'hover:bg-muted'
                             }`}
                           >
-                            <div className="flex items-center gap-2">
+                            <div
+                              className="flex items-center gap-2 cursor-pointer flex-1"
+                              onClick={() => config.isCurrent !== 1 && handleSwitchConfig(agent.id, config.id)}
+                            >
                               <div
                                 className={`w-2 h-2 rounded-full ${
                                   config.isCurrent === 1 ? 'bg-primary' : 'bg-muted-foreground'
@@ -224,16 +238,10 @@ export function SettingsPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleSwitchConfig(agent.id, config.id)}
-                                >
-                                  切换
-                                </Button>
-                              )}
-                              {config.isCurrent !== 1 && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => deleteConfig.mutate(config.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setConfigToDelete(config.id)
+                                  }}
                                 >
                                   删除
                                 </Button>
@@ -242,6 +250,9 @@ export function SettingsPage() {
                           </div>
                         ))
                       )}
+                      <Button variant="outline" size="sm" className="w-full" disabled>
+                        添加配置
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -250,6 +261,29 @@ export function SettingsPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* 删除配置确认对话框 */}
+      <AlertDialog open={configToDelete !== null} onOpenChange={() => setConfigToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除这个配置吗？此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (configToDelete) {
+                deleteConfig.mutate(configToDelete)
+                setConfigToDelete(null)
+              }
+            }}>
+              删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   )
 }
