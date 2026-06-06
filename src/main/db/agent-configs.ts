@@ -190,6 +190,18 @@ export function createAgentConfigRepository() {
     },
 
     /**
+     * 清除指定 Agent 的所有 current 标记
+     * 使用单条 SQL 批量清除，替代逐条遍历
+     *
+     * @param agentId - Agent ID
+     */
+    async clearCurrent(agentId: number): Promise<void> {
+      const db = getDb()
+      const stmt = db.prepare('UPDATE agent_configs SET is_current = 0 WHERE agent_id = ?')
+      stmt.run([agentId])
+    },
+
+    /**
      * 删除配置
      * 当前激活的配置不可删除，防止误操作
      *

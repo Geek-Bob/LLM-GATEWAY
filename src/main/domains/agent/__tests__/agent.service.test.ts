@@ -191,41 +191,77 @@ describe('Agent Service', () => {
     })
 
     it('should throw error if agent not found', async () => {
-      // Create a config for agent 1, then try to switch for non-existent agent
+      // Create a config for agent 1, then try to switch for agent whose config belongs to agent 1
       const config = await service.createConfig({
         agentId: 1,
         name: 'no-agent',
         content: '{"no": true}',
       })
-      // Manually set config.agentId to non-existent agent
-      // This is a hack for testing; in real code, this shouldn't happen
+      // agentId 999 does not match config's agentId 1, so "does not belong" fires first
       await expect(
         service.switchConfig({ agentId: 999, configId: config.id })
       ).rejects.toThrow('does not belong to agent')
     })
 
-    it('should rollback database state on write failure', async () => {
+    it('should rollback to previous current on write failure', async () => {
       const { writeFile } = await import('fs/promises')
       const mockWriteFile = vi.mocked(writeFile)
 
-      // Make writeFile throw an error
+      // 创建两个配置
+      const configA = await service.createConfig({
+        agentId: 1,
+        name: 'configA',
+        content: '{"a": true}',
+      })
+      const configB = await service.createConfig({
+        agentId: 1,
+        name: 'configB',
+        content: '{"b": true}',
+      })
+
+      // 设置 configA 为 current
+      await service.switchConfig({ agentId: 1, configId: configA.id })
+
+      // 验证 configA 已成为 current
+      const before = await service.listConfigs(1)
+      expect(before.find(c => c.id === configA.id)?.isCurrent).toBe(1)
+
+      // Mock writeFile 在切换到 configB 时失败
       mockWriteFile.mockRejectedValueOnce(new Error('Write failed'))
 
+      // 尝试切换到 configB（写入失败）
+      await expect(
+        service.switchConfig({ agentId: 1, configId: configB.id })
+      ).rejects.toThrow('Write failed')
+
+      // 验证回滚：configA 仍然是 current，configB 不是 current
+      const after = await service.listConfigs(1)
+      expect(after.find(c => c.id === configA.id)?.isCurrent).toBe(1)
+      expect(after.find(c => c.id === configB.id)?.isCurrent).toBe(0)
+    })
+
+    it('should rollback by clearing current if no previous current existed', async () => {
+      const { writeFile } = await import('fs/promises')
+      const mockWriteFile = vi.mocked(writeFile)
+
+      // 创建配置，此时没有 current
       const config = await service.createConfig({
         agentId: 1,
-        name: 'fail-write',
-        content: '{"fail": true}',
+        name: 'no-prev-current',
+        content: '{"no-prev": true}',
       })
+
+      // Mock writeFile 失败
+      mockWriteFile.mockRejectedValueOnce(new Error('Write failed'))
 
       await expect(
         service.switchConfig({ agentId: 1, configId: config.id })
       ).rejects.toThrow('Write failed')
 
-      // Verify database state was rolled back
-      const current = await service.listConfigs(1)
-      const currentConfig = current.find(c => c.isCurrent === 1)
-      // Should not be the failed config
-      expect(currentConfig?.id).not.toBe(config.id)
+      // 验证回滚：没有 current 配置
+      const configs = await service.listConfigs(1)
+      const currentConfig = configs.find(c => c.isCurrent === 1)
+      expect(currentConfig).toBeUndefined()
     })
   })
 })

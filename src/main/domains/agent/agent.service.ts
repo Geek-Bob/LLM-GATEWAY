@@ -198,14 +198,7 @@ export function createAgentService(db: Database) {
           await configRepo.setCurrent(agentId, previousCurrent.id)
         } else {
           // 如果之前没有 current 配置，清除所有 current 标记
-          const configs = await configRepo.listByAgent(agentId)
-          for (const c of configs) {
-            if (c.isCurrent === 1) {
-              // 使用 SQL 直接清除标记
-              const stmt = db.prepare('UPDATE agent_configs SET is_current = 0 WHERE id = ?')
-              stmt.run([c.id])
-            }
-          }
+          await configRepo.clearCurrent(agentId)
         }
         throw error
       }
