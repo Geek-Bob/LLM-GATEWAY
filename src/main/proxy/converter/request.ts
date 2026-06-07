@@ -543,5 +543,5 @@ export function convertRequest(
   if (from === to) return { body, path: from === 'openai' ? '/v1/chat/completions' : '/v1/messages' }
   if (from === 'openai' && to === 'anthropic') return openaiToAnthropicRequest(body)
   if (from === 'anthropic' && to === 'openai') return anthropicToOpenAIRequest(body)
-  throw new Error(`Unsupported conversion: ${from} → ${to}`)
+  throw new Error(`Failed to convert request: unsupported conversion ${from} → ${to}`)
 }

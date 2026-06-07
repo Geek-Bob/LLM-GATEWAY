@@ -75,6 +75,12 @@ export interface ProviderEntity {
   updatedAt: string
 }
 
+/**
+ * 供应商类型别名，各层通过此别名引用共享基础定义。
+ * 由 ProviderEntity 派生，禁止在 db/ 或 domains/ 中重新定义同名 interface。
+ */
+export type Provider = ProviderEntity
+
 /** Gateway API Key 实体 */
 export interface ApiKeyEntity {
   id: number

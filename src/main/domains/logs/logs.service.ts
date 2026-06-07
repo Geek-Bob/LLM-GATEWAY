@@ -1,34 +1,59 @@
-import { queryLogs, getLogStats, getDetailedStats, type LogQuery } from '../../db/logs'
-import { listProviders } from '../../db/providers'
+/**
+ * 日志业务服务
+ *
+ * 提供三种粒度的日志查询：原始记录、概要统计、按供应商/模型分组的详细统计。
+ * 日志原始记录存储在 NDJSON 文件中（db/logs.ts），统计预聚合在 SQLite 中。
+ * 通过工厂注入 Database 实例，避免直接调用 getDb()。
+ */
+
+import type { Database } from '../../db/database'
+import { queryLogs, getLogStats, getDetailedStats } from '../../db/logs'
+import type {
+  LogQuery,
+  LogQueryResponse,
+  LogStatsResponse,
+  DetailedStatsProvider,
+} from './logs.types'
 
 /**
  * 创建日志业务服务
- * 提供三种粒度的日志查询：原始记录、概要统计、按供应商/模型分组的详细统计
+ * @param db - 注入的数据库实例，用于查询供应商名称等关联数据
  */
-export function createLogsService() {
+export function createLogsService(db: Database) {
   return {
     /** 按条件查询原始日志记录，支持分页和过滤 */
-    query: async (params: LogQuery) => {
+    query: async (params: LogQuery): Promise<LogQueryResponse> => {
       return queryLogs(params)
     },
 
     /** 获取指定时间范围的概要统计（总请求数、Token 用量等） */
-    stats: async (range: string) => {
-      return getLogStats({ range })
+    stats: async (range: string): Promise<LogStatsResponse> => {
+      const row = getLogStats(db, { range }) as Record<string, unknown>
+      return {
+        totalRequests: Number(row.total_requests ?? 0),
+        totalTokensIn: Number(row.total_tokens_in ?? 0),
+        totalTokensOut: Number(row.total_tokens_out ?? 0),
+        avgDurationMs: Number(row.avg_duration_ms ?? 0),
+        totalErrors: Number(row.total_errors ?? 0),
+      }
     },
 
     /**
      * 获取详细统计，按供应商 -> 模型 -> 时间点分层组织
      * 将 db/logs 返回的平铺行数据重组为嵌套结构，便于前端渲染 Dashboard 图表
      */
-    detailedStats: async (range: '24h' | '30d') => {
+    detailedStats: async (range: '24h' | '30d'): Promise<DetailedStatsProvider[]> => {
       const rows = getDetailedStats(range) as {
         provider_id: number; model: string;
         total_requests: number; total_tokens_in: number;
         total_tokens_out: number; total_errors: number;
         period: number | string
       }[]
-      const providers = listProviders()
+
+      // 通过注入的 db 查询供应商名称，避免依赖 db/providers 模块
+      const providers = db
+        .prepare('SELECT id, name FROM providers')
+        .all() as { id: number; name: string }[]
 
       // 第一层：按 provider_id 分组
       const providerMap = new Map<number, {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { DownloadProgress } from '../DownloadProgress'
+import { DownloadProgress } from '@/features/update/components/DownloadProgress'
 
 describe('DownloadProgress', () => {
   it('idle 状态应该返回 null', () => {

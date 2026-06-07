@@ -156,7 +156,7 @@ describe('Agent Config E2E', () => {
     const agents = await service.list()
     const builtin = agents.find(a => a.isBuiltin === 1)
 
-    await expect(service.remove(builtin!.id)).rejects.toThrow('Cannot delete builtin agent')
+    await expect(service.remove(builtin!.id)).rejects.toThrow('Failed to delete agent: cannot delete builtin agent')
   })
 
   it('should not allow deleting current config', async () => {
@@ -173,7 +173,7 @@ describe('Agent Config E2E', () => {
     await service.switchConfig({ agentId: claude.id, configId: config.id })
 
     // 尝试删除当前配置，应抛出错误
-    await expect(service.deleteConfig(config.id)).rejects.toThrow('Cannot delete current config')
+    await expect(service.deleteConfig(config.id)).rejects.toThrow('Failed to delete config: cannot delete current config')
   })
 
   it('should rollback to previous current on write failure', async () => {
@@ -216,7 +216,7 @@ describe('Agent Config E2E', () => {
     const claude = agents.find(a => a.name === 'claude')!
 
     await expect(service.switchConfig({ agentId: claude.id, configId: 999 }))
-      .rejects.toThrow('Config 999 not found')
+      .rejects.toThrow('Failed to switch config: config 999 not found')
   })
 
   it('should throw error when config does not belong to agent', async () => {

@@ -64,7 +64,7 @@ describe('Agent Repository', () => {
   it('should not delete builtin agent', async () => {
     const agents = await repo.list()
     const builtin = agents.find(a => a.isBuiltin === 1)
-    await expect(repo.remove(builtin!.id)).rejects.toThrow('Cannot delete builtin agent')
+    await expect(repo.remove(builtin!.id)).rejects.toThrow('Failed to delete agent: cannot delete builtin agent')
   })
 
   it('should get agent by name', async () => {

@@ -26,6 +26,7 @@ interface ChatToolbarProps {
   onSelectApiKey: (id: number | null) => void
 }
 
+/** Provider / Model / API Key 三联选择器工具栏。 @returns 工具栏 JSX。 */
 export function ChatToolbar({
   providers,
   selectedProviderId,

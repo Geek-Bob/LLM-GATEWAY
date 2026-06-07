@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { UpdateDialog } from '../UpdateDialog'
+import { UpdateDialog } from '@/features/update/components/UpdateDialog'
 
 describe('UpdateDialog', () => {
   const defaultProps = {

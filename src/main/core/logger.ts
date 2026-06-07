@@ -41,8 +41,8 @@ function sanitize(data: Record<string, unknown>): Record<string, unknown> {
       key === 'authorization' &&
       typeof value === 'string'
     ) {
-      // 截断为前缀，隐藏完整密钥
-      result[key] = value.length > 20 ? value.slice(0, 20) + '...' : value
+      // 只保留后 4 位，其余用 *** 替代，防止 API Key 泄漏
+      result[key] = value.length > 4 ? '***' + value.slice(-4) : value
     } else if (value && typeof value === 'object' && !Array.isArray(value)) {
       result[key] = sanitize(value as Record<string, unknown>)
     } else {

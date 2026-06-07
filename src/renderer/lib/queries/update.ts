@@ -21,6 +21,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import type { UpdateCheckResult, UpdateConfig } from '../../../shared/types'
 
+/** 查询当前更新配置（自动检查、预发布版本等）。 @returns TanStack Query 结果，data 为 UpdateConfig。 */
 export function useUpdateConfig() {
   return useQuery<UpdateConfig>({
     queryKey: ['update-config'],
@@ -28,6 +29,7 @@ export function useUpdateConfig() {
   })
 }
 
+/** 查询当前应用版本号。 @returns TanStack Query 结果，data 为版本字符串。 */
 export function useCurrentVersion() {
   return useQuery<string>({
     queryKey: ['current-version'],
@@ -35,12 +37,14 @@ export function useCurrentVersion() {
   })
 }
 
+/** 手动触发远程版本检查 mutation。 @returns TanStack Mutation 对象。 */
 export function useCheckUpdate() {
   return useMutation<UpdateCheckResult>({
     mutationFn: () => api.update.check(),
   })
 }
 
+/** 下载更新 mutation，成功后自动刷新更新配置缓存。 @returns TanStack Mutation 对象。 */
 export function useDownloadUpdate() {
   const queryClient = useQueryClient()
 
@@ -52,12 +56,14 @@ export function useDownloadUpdate() {
   })
 }
 
+/** 安装已下载更新 mutation。 @returns TanStack Mutation 对象。 */
 export function useInstallUpdate() {
   return useMutation({
     mutationFn: () => api.update.install(),
   })
 }
 
+/** 跳过指定版本 mutation，成功后自动刷新更新配置缓存。 @returns TanStack Mutation 对象。 */
 export function useSkipVersion() {
   const queryClient = useQueryClient()
 
@@ -69,6 +75,7 @@ export function useSkipVersion() {
   })
 }
 
+/** 修改更新配置 mutation，支持外部 onError 回调。 @param options - 可选配置，包含 onError 回调。 @returns TanStack Mutation 对象。 */
 export function useUpdateConfigMutation(
   options?: Partial<{ onError: (error: Error) => void }>
 ) {

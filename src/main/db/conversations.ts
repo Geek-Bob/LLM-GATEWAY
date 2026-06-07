@@ -10,9 +10,11 @@
  * - 添加消息时会自动更新父会话的 updated_at
  * - messages.thinking 字段用于存储 Anthropic 的思考过程（streaming 模式）
  * - provider_id 可为 null，兼容未选择供应商的历史会话
+ *
+ * 所有函数通过参数注入 Database 实例，禁止内部调用 getDb()。
  */
 
-import { getDb } from './connection'
+import type { Database } from './database'
 
 export interface ConversationRow {
   id: number
@@ -34,19 +36,18 @@ export interface MessageRow {
 }
 
 /** 列出所有会话，按最近更新时间降序排列。 */
-export function listConversations(): ConversationRow[] {
-  const db = getDb()
+export function listConversations(db: Database): ConversationRow[] {
   return db.prepare('SELECT * FROM conversations ORDER BY updated_at DESC').all() as unknown as ConversationRow[]
 }
 
 /** 创建新会话，关联可选的供应商和 API 密钥。返回新会话的自增主键 ID。 */
 export function createConversation(
+  db: Database,
   title: string,
   model: string,
   providerId?: number | null,
   apiKeyId?: number | null
 ): number {
-  const db = getDb()
   const result = db
     .prepare(
       `INSERT INTO conversations (title, provider_id, model, api_key_id)
@@ -67,6 +68,7 @@ export function createConversation(
  * 每次更新自动刷新 updated_at 时间戳。
  */
 export function updateConversation(
+  db: Database,
   id: number,
   data: {
     title?: string
@@ -75,7 +77,6 @@ export function updateConversation(
     api_key_id?: number | null
   }
 ): void {
-  const db = getDb()
   const fields: string[] = ["updated_at = datetime('now')"]
   const params: Record<string, unknown> = { id }
 
@@ -102,22 +103,19 @@ export function updateConversation(
 }
 
 /** 删除会话。注意：不会级联删除关联的消息（SQLite 外键默认行为），需待 schema 层 CASCADE 支持。 */
-export function deleteConversation(id: number): void {
-  const db = getDb()
+export function deleteConversation(db: Database, id: number): void {
   db.prepare('DELETE FROM conversations WHERE id = ?').run(id)
 }
 
 /** 按 ID 获取单个会话，找不到返回 undefined。 */
-export function getConversation(id: number): ConversationRow | undefined {
-  const db = getDb()
+export function getConversation(db: Database, id: number): ConversationRow | undefined {
   return db
     .prepare('SELECT * FROM conversations WHERE id = ?')
     .get(id) as ConversationRow | undefined
 }
 
 /** 获取某会话的所有消息，按 id ASC 升序（即对话发生的自然时序）。 */
-export function listMessages(conversationId: number): MessageRow[] {
-  const db = getDb()
+export function listMessages(db: Database, conversationId: number): MessageRow[] {
   return db
     .prepare(
       'SELECT * FROM messages WHERE conversation_id = ? ORDER BY id ASC'
@@ -132,12 +130,12 @@ export function listMessages(conversationId: number): MessageRow[] {
  * - 新消息插入后自动更新父会话的 updated_at，确保会话列表按最新消息活动排序
  */
 export function addMessage(
+  db: Database,
   conversationId: number,
   role: 'user' | 'assistant',
   content: string,
   thinking?: string
 ): number {
-  const db = getDb()
   const result = db
     .prepare(
       `INSERT INTO messages (conversation_id, role, content, thinking)

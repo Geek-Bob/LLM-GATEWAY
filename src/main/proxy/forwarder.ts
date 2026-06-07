@@ -9,7 +9,7 @@
  * 安全要点：decryptedKey 来自供应商记录的 apiKey 字段，通过 Bearer 头透传给上游。
  */
 
-import type { Provider } from '../db/providers'
+import type { Provider } from '../../shared/types'
 
 /**
  * 构建最终的上游请求 URL。
@@ -63,7 +63,7 @@ export function buildProxyHeaders(
   if (provider.providerType === 'anthropic') {
     // Anthropic API 使用 x-api-key header
     headers['x-api-key'] = decryptedKey
-    headers['anthropic-version'] = '2023-06-01'
+    headers['anthropic-version'] = '2023-06-01' // Anthropic API version
   } else {
     // OpenAI 兼容 API 使用 Authorization: Bearer header
     headers['authorization'] = `Bearer ${decryptedKey}`

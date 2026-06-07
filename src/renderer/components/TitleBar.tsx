@@ -11,6 +11,7 @@ import { Minus, Square, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 
+/** Electron 无边框窗口标题栏，提供最小化、最大化、关闭按钮。 @returns 标题栏 JSX。 */
 export function TitleBar() {
   const handleMinimize = () => api.window.minimize()
   const handleMaximize = () => api.window.maximize()

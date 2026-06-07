@@ -23,11 +23,11 @@ describe('parseModelId', () => {
   })
 
   it('should throw error for string without "/"', () => {
-    expect(() => parseModelId('invalid-model-id')).toThrow('Invalid model ID format')
+    expect(() => parseModelId('invalid-model-id')).toThrow('Failed to parse model ID: invalid format')
   })
 
   it('should throw error for empty string', () => {
-    expect(() => parseModelId('')).toThrow('Invalid model ID format')
+    expect(() => parseModelId('')).toThrow('Failed to parse model ID: invalid format')
   })
 
   it('should parse model with slashes after prefix', () => {
@@ -72,7 +72,7 @@ describe('resolveProvider', () => {
   })
 
   it('should resolve a valid model ID with active provider', () => {
-    const result = resolveProvider('test-provider/gpt-4')
+    const result = resolveProvider('test-provider/gpt-4', getProviderByName)
     expect(result).toBeDefined()
     expect(result.prefix).toBe('test-provider')
     expect(result.modelName).toBe('gpt-4')
@@ -81,23 +81,23 @@ describe('resolveProvider', () => {
   })
 
   it('should throw for non-existent provider prefix', () => {
-    expect(() => resolveProvider('nonexistent/gpt-4')).toThrow('Provider not found')
+    expect(() => resolveProvider('nonexistent/gpt-4', getProviderByName)).toThrow('Failed to resolve provider: provider not found')
   })
 
   it('should throw for inactive provider', () => {
-    expect(() => resolveProvider('inactive-provider/claude-3-opus-20240229')).toThrow('not active')
+    expect(() => resolveProvider('inactive-provider/claude-3-opus-20240229', getProviderByName)).toThrow('Failed to resolve provider: provider is disabled')
   })
 
   it('should throw for model not in provider models list', () => {
-    expect(() => resolveProvider('test-provider/nonexistent-model')).toThrow('not found')
+    expect(() => resolveProvider('test-provider/nonexistent-model', getProviderByName)).toThrow('Failed to resolve model: model not in provider whitelist')
   })
 
   it('should throw for invalid model ID format (no slash)', () => {
-    expect(() => resolveProvider('no-slash-here')).toThrow('Invalid model ID format')
+    expect(() => resolveProvider('no-slash-here', getProviderByName)).toThrow('Failed to parse model ID: invalid format')
   })
 
   it('should resolve model with slash in model name', () => {
-    const result = resolveProvider('test-provider/gpt-4')
+    const result = resolveProvider('test-provider/gpt-4', getProviderByName)
     expect(result.modelName).toBe('gpt-4')
     expect(result.provider.name).toBe('test-provider')
   })

@@ -15,6 +15,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import type { Provider } from '@/lib/types'
 
+/** 查询所有供应商列表。 @returns TanStack Query 结果，data 为 Provider 数组。 */
 export function useProviders() {
   return useQuery<Provider[]>({
     queryKey: ['providers'],
@@ -22,6 +23,7 @@ export function useProviders() {
   })
 }
 
+/** 创建供应商 mutation，成功后自动刷新供应商列表缓存。 @returns TanStack Mutation 对象。 */
 export function useCreateProvider() {
   const qc = useQueryClient()
   return useMutation({
@@ -31,6 +33,7 @@ export function useCreateProvider() {
   })
 }
 
+/** 更新供应商 mutation，成功后自动刷新供应商列表缓存。 @returns TanStack Mutation 对象。 */
 export function useUpdateProvider() {
   const qc = useQueryClient()
   return useMutation({
@@ -40,6 +43,7 @@ export function useUpdateProvider() {
   })
 }
 
+/** 删除供应商 mutation，成功后自动刷新供应商列表缓存。 @returns TanStack Mutation 对象。 */
 export function useDeleteProvider() {
   const qc = useQueryClient()
   return useMutation({

@@ -10,8 +10,10 @@
  * 3. 激活状态 + 模型白名单校验
  */
 
-import type { Provider } from '../db/providers'
-import { getProviderByName } from '../db/providers'
+import type { Provider } from '../../shared/types'
+
+/** 按名称查找供应商的函数签名（由调用方注入，解耦 db 层） */
+type ProviderLookup = (name: string) => Provider | undefined
 
 interface ModelRoute {
   prefix: string
@@ -26,7 +28,7 @@ interface ModelRoute {
 export function parseModelId(modelId: string): { prefix: string; modelName: string } {
   const slashIndex = modelId.indexOf('/')
   if (slashIndex === -1) {
-    throw new Error(`Invalid model ID format: "${modelId}". Expected "provider-name/model-id"`)
+    throw new Error(`Failed to parse model ID: invalid format "${modelId}", expected "provider-name/model-id"`)
   }
   return {
     prefix: modelId.slice(0, slashIndex),
@@ -41,21 +43,24 @@ export function parseModelId(modelId: string): { prefix: string; modelName: stri
  * 2. 供应商必须存在于数据库中
  * 3. 供应商必须处于激活状态（isActive === 1）
  * 4. 模型必须在供应商的 models 白名单中
+ *
+ * @param modelId - 复合模型 ID（如 "anthropic/claude-sonnet-4"）
+ * @param lookupProvider - 按名称查找供应商的函数（由调用方注入）
  */
-export function resolveProvider(modelId: string): ModelRoute {
+export function resolveProvider(modelId: string, lookupProvider: ProviderLookup): ModelRoute {
   const { prefix, modelName } = parseModelId(modelId)
-  const provider = getProviderByName(prefix)
+  const provider = lookupProvider(prefix)
 
   if (!provider) {
-    throw new Error(`Provider not found: "${prefix}"`)
+    throw new Error(`Failed to resolve provider: provider not found "${prefix}"`)
   }
 
   if (provider.isActive !== 1) {
-    throw new Error(`Provider "${prefix}" is not active`)
+    throw new Error(`Failed to resolve provider: provider is disabled "${prefix}"`)
   }
 
   if (!provider.models.includes(modelName)) {
-    throw new Error(`Model "${modelName}" not found in provider "${prefix}" models`)
+    throw new Error(`Failed to resolve model: model not in provider whitelist "${modelName}" (provider "${prefix}")`)
   }
 
   return { prefix, modelName, provider }

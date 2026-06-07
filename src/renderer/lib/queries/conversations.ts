@@ -14,6 +14,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import type { Conversation } from '@/lib/types'
 
+/** 查询所有会话列表。 @returns TanStack Query 结果，data 为 Conversation 数组。 */
 export function useConversations() {
   return useQuery<Conversation[]>({
     queryKey: ['conversations'],
@@ -21,6 +22,7 @@ export function useConversations() {
   })
 }
 
+/** 创建会话 mutation，支持可选的 providerId 和 apiKeyId 关联。 @returns TanStack Mutation 对象。 */
 export function useCreateConversation() {
   const qc = useQueryClient()
   return useMutation({
@@ -30,6 +32,7 @@ export function useCreateConversation() {
   })
 }
 
+/** 删除会话 mutation，成功后自动刷新列表缓存。 @returns TanStack Mutation 对象。 */
 export function useDeleteConversation() {
   const qc = useQueryClient()
   return useMutation({

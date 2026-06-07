@@ -60,9 +60,9 @@ src/main/
   ├── 禁止导入：db/, domains/
   ├── 可导入：core/
 业务层：domains/
-  ├── 禁止导入：db/, proxy/
-  ├── 数据通过工厂参数注入（见 31-domain-modeling.md 工厂注入模式）
-  ├── 可导入：core/, 其他 domains/ 的 service
+  ├── 禁止导入：proxy/
+  ├── 数据层访问模式见 31-domain-modeling.md（当前模式 A：直接导入 db/*.ts 函数；目标模式 B：通过注入 db 参数）
+  ├── 可导入：db/（通过数据层函数）、core/, 其他 domains/ 的 service
 数据层：db/
   ├── 禁止导入：domains/, proxy/, ipc/
   ├── 可导入：core/

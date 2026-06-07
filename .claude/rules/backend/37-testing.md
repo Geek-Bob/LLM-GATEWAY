@@ -14,9 +14,9 @@ paths:
 - 命令：`npm test`（全量）、`npm run test:frontend`、`npm run test:backend`
 
 ## 测试金字塔
-- 单元测试（service、schema）：占比最大，快速、隔离、可重复
-- 集成测试（IPC handler、代理路由）：验证层间协作
-- 端到端测试（完整请求链路）：验证系统行为，数量最少
+- 单元测试（service、schema）：每个 service/schema 必须有单元测试，快速、隔离、可重复
+- 集成测试（IPC handler、代理路由）：每个 IPC handler 必须有集成测试，验证层间协作
+- 端到端测试（完整请求链路）：仅覆盖核心热路径（如代理请求链路），数量最少
 
 ## Mock 边界
 - Mock 外部依赖（上游 API、文件系统），不 mock 内部模块

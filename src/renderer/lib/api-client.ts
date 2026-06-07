@@ -9,23 +9,26 @@
  * - 详见 .claude/rules/00-core.md 和 .claude/rules/20-directory.md 中的约定
  *
  * 模块状态：
- * - baseUrl：代理服务器地址，默认 localhost:8080
+ * - BASE_URL：代理服务器地址，默认 localhost:8080
  * - apiKey：通过 setApiKey 注入，自动附加 Authorization header
  *
  * ApiError：非 2xx 响应时抛出，携带 status 和解析后的 JSON body
  * header 归一化：统一 Headers 对象 / 元组数组 / 普通对象三种输入格式为 Record<string, string>
  */
-const baseUrl = 'http://localhost:8080'
+const BASE_URL = 'http://localhost:8080'
 let apiKey = ''
 
+/** 设置 HTTP 客户端的 API Key，后续请求自动附加 Authorization header。 @param key - API Key 明文。 */
 export function setApiKey(key: string) {
   apiKey = key
 }
 
+/** 获取当前 HTTP 客户端的 API Key。 @returns 当前 API Key 字符串。 */
 export function getApiKey(): string {
   return apiKey
 }
 
+/** HTTP 非 2xx 响应错误，携带 HTTP 状态码和解析后的 JSON body。 */
 export class ApiError extends Error {
   status: number
   body: Record<string, unknown>
@@ -38,6 +41,7 @@ export class ApiError extends Error {
   }
 }
 
+/** 向本地 Hono 代理发送 HTTP 请求（仅用于 Chat 流式对话），自动附加 API Key。 @param path - 请求路径。 @param init - 可选的 fetch 配置。 @returns 响应对象。 @throws {ApiError} 非 2xx 响应时抛出。 */
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const headers: Record<string, string> = {}
   if (init?.headers) {
@@ -58,7 +62,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     headers['Authorization'] = `Bearer ${apiKey}`
   }
 
-  const response = await fetch(`${baseUrl}${path}`, {
+  const response = await fetch(`${BASE_URL}${path}`, {
     ...init,
     headers
   })

@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, PanelLeftClose, PanelLeft, Trash2 } from 'lucide-react'
 import type { Conversation } from '@/lib/types'
 import { formatRelativeDate } from '@/lib/utils'
+import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 
 interface ConversationSidebarProps {
@@ -30,6 +31,7 @@ interface ConversationSidebarProps {
   onToggleCollapse: () => void
 }
 
+/** 会话列表面板，支持展开/收起、新建和删除会话。 @returns 会话侧栏 JSX。 */
 export function ConversationSidebar({
   conversations,
   activeId,
@@ -62,22 +64,26 @@ export function ConversationSidebar({
       <div className="flex items-center justify-between px-3 py-3 border-b border-border/50">
         <span className="text-xs font-semibold tracking-wider uppercase text-muted-foreground">会话</span>
         <div className="flex items-center gap-1">
-          <motion.button
-            type="button"
-            onClick={onNew}
-            className="flex items-center gap-1 px-2 py-1 text-xs rounded-lg transition-all text-primary bg-primary/10 hover:bg-primary/20"
-            whileTap={{ scale: 0.95 }}
-          >
-            <Plus className="w-3.5 h-3.5" />
-            新建
-          </motion.button>
-          <motion.button
-            type="button"
-            onClick={onToggleCollapse}
-            className="p-1 rounded-lg transition-all text-muted-foreground hover:bg-muted/50"
-          >
-            <PanelLeftClose className="w-4 h-4" />
-          </motion.button>
+          <Button asChild variant="ghost" size="sm">
+            <motion.button
+              type="button"
+              onClick={onNew}
+              className="text-primary bg-primary/10 hover:bg-primary/20"
+              whileTap={{ scale: 0.95 }}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              新建
+            </motion.button>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <motion.button
+              type="button"
+              onClick={onToggleCollapse}
+              whileTap={{ scale: 0.95 }}
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </motion.button>
+          </Button>
         </div>
       </div>
 
@@ -109,15 +115,18 @@ export function ConversationSidebar({
                     {conv.title}
                   </p>
                   {activeId === conv.id && (
-                    <motion.button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
-                      className="p-0.5 rounded shrink-0 ml-1 text-muted-foreground hover:text-destructive"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </motion.button>
+                    <Button asChild variant="ghost" size="sm">
+                      <motion.button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onDelete(conv.id) }}
+                        className="p-0.5 shrink-0 ml-1 text-muted-foreground hover:text-destructive"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        whileTap={{ scale: 0.95 }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </motion.button>
+                    </Button>
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">

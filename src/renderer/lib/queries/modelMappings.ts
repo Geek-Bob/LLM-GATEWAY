@@ -16,6 +16,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import type { ModelMapping, ModelInfo } from '../../../shared/types'
 
+/** 查询所有模型映射列表。 @returns TanStack Query 结果，data 为 ModelMapping 数组。 */
 export function useModelMappings() {
   return useQuery<ModelMapping[]>({
     queryKey: ['model-mappings'],
@@ -23,6 +24,7 @@ export function useModelMappings() {
   })
 }
 
+/** 查询所有可用模型列表。 @returns TanStack Query 结果，data 为 ModelInfo 数组。 */
 export function useModels() {
   return useQuery<ModelInfo[]>({
     queryKey: ['models'],
@@ -30,6 +32,7 @@ export function useModels() {
   })
 }
 
+/** 创建模型映射 mutation，成功后自动刷新列表缓存。 @returns TanStack Mutation 对象。 */
 export function useCreateModelMapping() {
   const qc = useQueryClient()
   return useMutation({
@@ -39,6 +42,7 @@ export function useCreateModelMapping() {
   })
 }
 
+/** 更新模型映射 mutation，成功后自动刷新列表缓存。 @returns TanStack Mutation 对象。 */
 export function useUpdateModelMapping() {
   const qc = useQueryClient()
   return useMutation({
@@ -48,6 +52,7 @@ export function useUpdateModelMapping() {
   })
 }
 
+/** 删除模型映射 mutation，成功后自动刷新列表缓存。 @returns TanStack Mutation 对象。 */
 export function useDeleteModelMapping() {
   const qc = useQueryClient()
   return useMutation({

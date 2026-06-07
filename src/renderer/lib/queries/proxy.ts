@@ -17,6 +17,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import type { ProxyStatus } from '@/lib/types'
 
+/** 查询代理服务器运行状态。 @returns TanStack Query 结果，data 为 ProxyStatus。 */
 export function useProxyStatus() {
   return useQuery<ProxyStatus>({
     queryKey: ['proxy', 'status'],
@@ -24,6 +25,7 @@ export function useProxyStatus() {
   })
 }
 
+/** 启停代理服务器 mutation，根据当前 running 状态自动切换。 @returns TanStack Mutation 对象。 */
 export function useToggleProxy() {
   const qc = useQueryClient()
   return useMutation({
@@ -39,6 +41,7 @@ export function useToggleProxy() {
   })
 }
 
+/** 查询当前调试模式状态。 @returns TanStack Query 结果，data 为 boolean。 */
 export function useDebugMode() {
   return useQuery<boolean>({
     queryKey: ['proxy', 'debugMode'],
@@ -46,6 +49,7 @@ export function useDebugMode() {
   })
 }
 
+/** 设置调试模式 mutation，成功后自动刷新缓存。 @returns TanStack Mutation 对象。 */
 export function useSetDebugMode() {
   const qc = useQueryClient()
   return useMutation({

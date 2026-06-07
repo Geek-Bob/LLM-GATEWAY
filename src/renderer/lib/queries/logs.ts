@@ -19,6 +19,7 @@ interface LogsResult {
   total: number
 }
 
+/** 分页查询请求日志。 @param page - 页码。 @param limit - 每页条数。 @returns TanStack Query 结果，data 包含 logs 和 total。 */
 export function useLogs(page: number, limit: number) {
   return useQuery<LogsResult>({
     queryKey: ['logs', page, limit],

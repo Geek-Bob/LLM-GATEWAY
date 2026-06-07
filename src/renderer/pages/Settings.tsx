@@ -22,6 +22,7 @@ import { UpdateButton } from '@/features/update/components/UpdateButton'
 import { PageHeader } from '@/components/ui/page-header'
 import { pageVariants, childVariants } from '@/lib/animations'
 
+/** 应用设置页面，管理自动更新配置和应用信息。 @returns 设置页面 JSX。 */
 export function SettingsPage() {
   const { data: config, isLoading } = useUpdateConfig()
   const { data: currentVersion } = useCurrentVersion()

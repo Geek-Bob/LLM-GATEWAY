@@ -13,13 +13,18 @@
 
 import { useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
+import { Textarea } from '@/components/ui/textarea'
 import { Send } from 'lucide-react'
+
+/** 输入框最大高度（px），超过此值出现滚动条 */
+const MAX_INPUT_HEIGHT_PX = 200
 
 interface ChatInputProps {
   onSend: (message: string) => void
   disabled?: boolean
 }
 
+/** 聊天消息输入框，支持自动扩展高度、Enter 发送、Shift+Enter 换行。 @returns 输入框 JSX。 */
 export function ChatInput({ onSend, disabled }: ChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -54,20 +59,19 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     const el = inputRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = Math.min(el.scrollHeight, 200) + 'px'
+    el.style.height = Math.min(el.scrollHeight, MAX_INPUT_HEIGHT_PX) + 'px'
   }
 
   return (
     <div className="flex items-end gap-2">
-      <textarea
+      <Textarea
         ref={inputRef}
         onKeyDown={handleKeyDown}
         onInput={handleInput}
         placeholder="输入消息... (Shift+Enter 换行)"
         rows={1}
         disabled={disabled}
-        className="flex-1 min-h-9 w-full rounded-md border border-input bg-transparent px-3 py-2.5 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 resize-none"
-        style={{ maxHeight: 200, fontFamily: 'inherit' }}
+        className="flex-1 min-h-9 py-2.5 shadow-sm focus-visible:ring-1 max-h-[200px] resize-none"
       />
       <Button onClick={handleSend} disabled={disabled} size="default" className="px-4 py-2.5">
         <Send className="w-4 h-4" />

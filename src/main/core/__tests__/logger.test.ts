@@ -62,9 +62,9 @@ describe('createLogger with file transport', () => {
     await new Promise(resolve => setTimeout(resolve, 200))
 
     const content = fs.readFileSync(logPath, 'utf-8')
-    // 应脱敏为短前缀
+    // 应脱敏为后4位
     expect(content).not.toContain('sk-secret-key-12345')
-    expect(content).toContain('Bearer ')
+    expect(content).toContain('***2345')
   })
 
   it('should not affect console output when file transport is enabled', () => {

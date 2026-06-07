@@ -17,9 +17,34 @@ description: 动效规范（入场/退出/过渡动画），始终加载
 - 统一使用 `pageVariants` + `childVariants`（来自 `lib/animations.ts`）
 - 禁止内联定义 `initial` / `animate` / `transition`
 
+```tsx
+import { motion } from 'framer-motion'
+import { pageVariants, childVariants } from '@/lib/animations'
+
+export default function MyPage() {
+  return (
+    <motion.div variants={pageVariants} initial="hidden" animate="show">
+      <motion.div variants={childVariants}>区块 1</motion.div>
+      <motion.div variants={childVariants}>区块 2</motion.div>
+    </motion.div>
+  )
+}
+```
+
 # 列表行入场
 - 使用 `rowFadeIn(idx)` 工具函数（来自 `lib/animations.ts`）
 - 禁止手写行动画
+
+```tsx
+import { motion } from 'framer-motion'
+import { rowFadeIn } from '@/lib/animations'
+
+{items.map((item, idx) => (
+  <motion.tr key={item.id} {...rowFadeIn(idx)}>
+    <td>{item.name}</td>
+  </motion.tr>
+))}
+```
 
 # 自定义 keyframes
 - `index.css` 中仅保留全局高频使用的 keyframes（如 `animate-pulse-cyan`）

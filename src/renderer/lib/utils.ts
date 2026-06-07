@@ -1,6 +1,9 @@
 import { type ClassValue, clsx } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 
+/** 一天的毫秒数 */
+const MS_PER_DAY = 86_400_000
+
 /**
  * Tailwind CSS 类名合并工具
  * clsx 负责条件类名拼接，twMerge 负责解决 Tailwind 类名冲突（后定义的覆盖先定义的）。
@@ -37,7 +40,7 @@ export function formatRelativeDate(iso: string): string {
   const d = new Date(iso)
   const now = new Date()
   const diffMs = now.getTime() - d.getTime()
-  const diffDays = Math.floor(diffMs / 86400000)
+  const diffDays = Math.floor(diffMs / MS_PER_DAY)
   if (diffDays === 0) return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
   if (diffDays === 1) return '昨天'
   if (diffDays < 7) return `${diffDays}天前`

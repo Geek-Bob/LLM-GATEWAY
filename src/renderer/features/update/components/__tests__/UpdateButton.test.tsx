@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { UpdateButton } from '../UpdateButton'
+import { UpdateButton } from '@/features/update/components/UpdateButton'
 import * as updateQueries from '@/lib/queries/update'
 
 vi.mock('@/lib/queries/update', () => ({

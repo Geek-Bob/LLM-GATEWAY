@@ -16,6 +16,7 @@ interface HourlyBarChartProps {
   height?: number
 }
 
+/** 24 小时柱状图，缺失时段自动补 0。 @returns 柱状图 JSX。 */
 export function HourlyBarChart({ data, height = 100 }: HourlyBarChartProps) {
   // 补齐 24 小时中缺失的时段，确保柱状图连贯
   const filled = Array.from({ length: 24 }, (_, i) => {
@@ -43,6 +44,7 @@ interface DailyAreaChartProps {
   height?: number
 }
 
+/** 30 天面积图，带渐变填充。 @returns 面积图 JSX。 */
 export function DailyAreaChart({ data, height = 100 }: DailyAreaChartProps) {
   // 将 period 截取为 MM-DD 格式用于横轴标签
   const filled = data.map((d) => ({

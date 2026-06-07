@@ -3,12 +3,12 @@
  *
  * 封装 Agent 和 AgentConfig 的业务操作，包括：
  * - Agent CRUD（依赖注入模式，接收 Database 实例）
- * - AgentConfig CRUD（无状态模式，内部通过 getDb() 访问数据库）
+ * - AgentConfig CRUD（依赖注入模式，接收 Database 实例）
  * - 配置切换（原子写入到 Agent 配置路径）
  *
  * 关键设计决策：
  * - Agent Repository 使用依赖注入模式（Pattern A），便于测试
- * - AgentConfig Repository 使用无状态模式（Pattern B），内部管理数据库连接
+ * - AgentConfig Repository 使用依赖注入模式（Pattern A），接收 Database 实例
  * - switchConfig 使用原子写入（临时文件 + rename），确保配置一致性
  * - 写入失败时回滚数据库状态
  */
@@ -53,7 +53,7 @@ function expandHomePath(p: string): string {
  */
 export function createAgentService(db: Database) {
   const agentRepo = createAgentRepository(db)
-  const configRepo = createAgentConfigRepository()
+  const configRepo = createAgentConfigRepository(db)
 
   return {
     /**
@@ -169,11 +169,11 @@ export function createAgentService(db: Database) {
 
       // 1. 读取配置和 Agent 信息
       const config = await configRepo.getById(configId)
-      if (!config) throw new Error(`Config ${configId} not found`)
-      if (config.agentId !== agentId) throw new Error(`Config ${configId} does not belong to agent ${agentId}`)
+      if (!config) throw new Error(`Failed to switch config: config ${configId} not found`)
+      if (config.agentId !== agentId) throw new Error(`Failed to switch config: config ${configId} does not belong to agent ${agentId}`)
 
       const agent = await agentRepo.getById(agentId)
-      if (!agent) throw new Error(`Agent ${agentId} not found`)
+      if (!agent) throw new Error(`Failed to switch config: agent ${agentId} not found`)
 
       // 2. 保存当前状态（用于回滚）
       const previousCurrent = await configRepo.getCurrent(agentId)

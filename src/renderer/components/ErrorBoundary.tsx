@@ -22,6 +22,7 @@ interface ErrorBoundaryState {
   error?: Error
 }
 
+/** React 错误边界，捕获子组件渲染错误并显示 fallback UI。 */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props)

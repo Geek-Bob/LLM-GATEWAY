@@ -98,35 +98,40 @@ describe('Conversations CRUD', () => {
   })
 
   it('should create a conversation and return a positive id', () => {
-    const id = createConversation('Test Conversation', 'gpt-4')
+    const db = getDb()
+    const id = createConversation(db, 'Test Conversation', 'gpt-4')
     expect(id).toBeGreaterThan(0)
     expect(Number.isInteger(id)).toBe(true)
   })
 
   it('should create conversation with default title', () => {
-    const id = createConversation('', 'gpt-4')
-    const conv = getConversation(id)!
+    const db = getDb()
+    const id = createConversation(db, '', 'gpt-4')
+    const conv = getConversation(db, id)!
     expect(conv.title).toBe('')
   })
 
   it('should create conversation with provider_id and api_key_id', () => {
-    const id = createConversation('Test', 'gpt-4', 1, 2)
-    const conv = getConversation(id)!
+    const db = getDb()
+    const id = createConversation(db, 'Test', 'gpt-4', 1, 2)
+    const conv = getConversation(db, id)!
     expect(conv.provider_id).toBe(1)
     expect(conv.api_key_id).toBe(2)
   })
 
   it('should create conversation with nullable provider_id and api_key_id', () => {
-    const id = createConversation('Test', 'gpt-4', null, null)
-    const conv = getConversation(id)!
+    const db = getDb()
+    const id = createConversation(db, 'Test', 'gpt-4', null, null)
+    const conv = getConversation(db, id)!
     expect(conv.provider_id).toBeNull()
     expect(conv.api_key_id).toBeNull()
   })
 
   it('should get a conversation by id', () => {
-    const id = createConversation('My Chat', 'claude-3-opus')
+    const db = getDb()
+    const id = createConversation(db, 'My Chat', 'claude-3-opus')
 
-    const conv = getConversation(id)
+    const conv = getConversation(db, id)
     expect(conv).toBeDefined()
     expect(conv!.id).toBe(id)
     expect(conv!.title).toBe('My Chat')
@@ -136,18 +141,20 @@ describe('Conversations CRUD', () => {
   })
 
   it('should return undefined for non-existent conversation', () => {
-    const conv = getConversation(999)
+    const db = getDb()
+    const conv = getConversation(db, 999)
     expect(conv).toBeUndefined()
   })
 
   it('should list all conversations ordered by updated_at desc', async () => {
-    const id1 = createConversation('Chat A', 'gpt-4')
+    const db = getDb()
+    const id1 = createConversation(db, 'Chat A', 'gpt-4')
     await new Promise((resolve) => setTimeout(resolve, 1100))
-    const id2 = createConversation('Chat B', 'gpt-3.5-turbo')
+    const id2 = createConversation(db, 'Chat B', 'gpt-3.5-turbo')
     await new Promise((resolve) => setTimeout(resolve, 1100))
-    const id3 = createConversation('Chat C', 'claude-3-opus')
+    const id3 = createConversation(db, 'Chat C', 'claude-3-opus')
 
-    const convs = listConversations()
+    const convs = listConversations(db)
     expect(convs).toHaveLength(3)
 
     // Most recently updated should appear first (updated_at defaults to created_at)
@@ -156,70 +163,78 @@ describe('Conversations CRUD', () => {
   })
 
   it('should update conversation title', () => {
-    const id = createConversation('Original Title', 'gpt-4')
-    updateConversation(id, { title: 'Updated Title' })
+    const db = getDb()
+    const id = createConversation(db, 'Original Title', 'gpt-4')
+    updateConversation(db, id, { title: 'Updated Title' })
 
-    const conv = getConversation(id)!
+    const conv = getConversation(db, id)!
     expect(conv.title).toBe('Updated Title')
     expect(conv.model).toBe('gpt-4')
   })
 
   it('should update conversation model', () => {
-    const id = createConversation('Test', 'gpt-4')
-    updateConversation(id, { model: 'gpt-4-turbo' })
+    const db = getDb()
+    const id = createConversation(db, 'Test', 'gpt-4')
+    updateConversation(db, id, { model: 'gpt-4-turbo' })
 
-    const conv = getConversation(id)!
+    const conv = getConversation(db, id)!
     expect(conv.model).toBe('gpt-4-turbo')
   })
 
   it('should update conversation provider_id', () => {
-    const id = createConversation('Test', 'gpt-4')
-    updateConversation(id, { provider_id: 5 })
+    const db = getDb()
+    const id = createConversation(db, 'Test', 'gpt-4')
+    updateConversation(db, id, { provider_id: 5 })
 
-    const conv = getConversation(id)!
+    const conv = getConversation(db, id)!
     expect(conv.provider_id).toBe(5)
   })
 
   it('should update conversation api_key_id', () => {
-    const id = createConversation('Test', 'gpt-4')
-    updateConversation(id, { api_key_id: 10 })
+    const db = getDb()
+    const id = createConversation(db, 'Test', 'gpt-4')
+    updateConversation(db, id, { api_key_id: 10 })
 
-    const conv = getConversation(id)!
+    const conv = getConversation(db, id)!
     expect(conv.api_key_id).toBe(10)
   })
 
   it('should set provider_id and api_key_id to null', () => {
-    const id = createConversation('Test', 'gpt-4', 1, 2)
-    updateConversation(id, { provider_id: null, api_key_id: null })
+    const db = getDb()
+    const id = createConversation(db, 'Test', 'gpt-4', 1, 2)
+    updateConversation(db, id, { provider_id: null, api_key_id: null })
 
-    const conv = getConversation(id)!
+    const conv = getConversation(db, id)!
     expect(conv.provider_id).toBeNull()
     expect(conv.api_key_id).toBeNull()
   })
 
   it('should update updated_at on modification', async () => {
-    const id = createConversation('Test', 'gpt-4')
-    const original = getConversation(id)!
+    const db = getDb()
+    const id = createConversation(db, 'Test', 'gpt-4')
+    const original = getConversation(db, id)!
     const originalUpdatedAt = original.updated_at
 
     await new Promise((resolve) => setTimeout(resolve, 1100))
 
-    updateConversation(id, { title: 'Updated' })
-    const updated = getConversation(id)!
+    updateConversation(db, id, { title: 'Updated' })
+    const updated = getConversation(db, id)!
 
     expect(updated.updated_at).not.toBe(originalUpdatedAt)
   })
 
   it('should delete a conversation', () => {
-    const id = createConversation('To Delete', 'gpt-4')
-    expect(getConversation(id)).toBeDefined()
+    const db = getDb()
+    const id = createConversation(db, 'To Delete', 'gpt-4')
+    expect(getConversation(db, id)).toBeDefined()
 
-    deleteConversation(id)
-    expect(getConversation(id)).toBeUndefined()
+    deleteConversation(db, id)
+    expect(getConversation(db, id)).toBeUndefined()
   })
 
   it('should handle delete of non-existent id without error', () => {
-    expect(() => deleteConversation(999)).not.toThrow()
+    const db = getDb()
+    expect(() => deleteConversation(db, 999)).not.toThrow()
   })
 })
 
@@ -234,19 +249,21 @@ describe('Messages', () => {
   })
 
   it('should add a message to a conversation', () => {
-    const convId = createConversation('Test', 'gpt-4')
-    const msgId = addMessage(convId, 'user', 'Hello!')
+    const db = getDb()
+    const convId = createConversation(db, 'Test', 'gpt-4')
+    const msgId = addMessage(db, convId, 'user', 'Hello!')
 
     expect(msgId).toBeGreaterThan(0)
     expect(Number.isInteger(msgId)).toBe(true)
   })
 
   it('should add messages with correct fields', () => {
-    const convId = createConversation('Test', 'gpt-4')
-    addMessage(convId, 'user', 'Hello')
-    const msgId = addMessage(convId, 'assistant', 'Hi there!', 'thinking...')
+    const db = getDb()
+    const convId = createConversation(db, 'Test', 'gpt-4')
+    addMessage(db, convId, 'user', 'Hello')
+    const msgId = addMessage(db, convId, 'assistant', 'Hi there!', 'thinking...')
 
-    const messages = listMessages(convId)
+    const messages = listMessages(db, convId)
     expect(messages).toHaveLength(2)
 
     const assistantMsg = messages.find((m) => m.role === 'assistant')!
@@ -256,20 +273,22 @@ describe('Messages', () => {
   })
 
   it('should default thinking to empty string', () => {
-    const convId = createConversation('Test', 'gpt-4')
-    addMessage(convId, 'user', 'Hello')
+    const db = getDb()
+    const convId = createConversation(db, 'Test', 'gpt-4')
+    addMessage(db, convId, 'user', 'Hello')
 
-    const messages = listMessages(convId)
+    const messages = listMessages(db, convId)
     expect(messages[0].thinking).toBe('')
   })
 
   it('should list messages in insertion order (ASC by id)', () => {
-    const convId = createConversation('Test', 'gpt-4')
-    const id1 = addMessage(convId, 'user', 'First')
-    const id2 = addMessage(convId, 'assistant', 'Second')
-    const id3 = addMessage(convId, 'user', 'Third')
+    const db = getDb()
+    const convId = createConversation(db, 'Test', 'gpt-4')
+    const id1 = addMessage(db, convId, 'user', 'First')
+    const id2 = addMessage(db, convId, 'assistant', 'Second')
+    const id3 = addMessage(db, convId, 'user', 'Third')
 
-    const messages = listMessages(convId)
+    const messages = listMessages(db, convId)
     expect(messages).toHaveLength(3)
     expect(messages[0].id).toBe(id1)
     expect(messages[1].id).toBe(id2)
@@ -280,34 +299,37 @@ describe('Messages', () => {
   })
 
   it('should return empty array for conversation with no messages', () => {
-    const convId = createConversation('Test', 'gpt-4')
-    const messages = listMessages(convId)
+    const db = getDb()
+    const convId = createConversation(db, 'Test', 'gpt-4')
+    const messages = listMessages(db, convId)
     expect(messages).toEqual([])
   })
 
   it('should update conversation updated_at when adding message', async () => {
-    const convId = createConversation('Test', 'gpt-4')
-    const originalUpdatedAt = getConversation(convId)!.updated_at
+    const db = getDb()
+    const convId = createConversation(db, 'Test', 'gpt-4')
+    const originalUpdatedAt = getConversation(db, convId)!.updated_at
 
     await new Promise((resolve) => setTimeout(resolve, 1100))
 
-    addMessage(convId, 'user', 'New message')
-    const updated = getConversation(convId)!
+    addMessage(db, convId, 'user', 'New message')
+    const updated = getConversation(db, convId)!
     expect(updated.updated_at).not.toBe(originalUpdatedAt)
   })
 
   it('should cascade delete messages when conversation is deleted', () => {
-    const convId = createConversation('Test', 'gpt-4')
-    addMessage(convId, 'user', 'Msg 1')
-    addMessage(convId, 'user', 'Msg 2')
+    const db = getDb()
+    const convId = createConversation(db, 'Test', 'gpt-4')
+    addMessage(db, convId, 'user', 'Msg 1')
+    addMessage(db, convId, 'user', 'Msg 2')
 
-    expect(listMessages(convId)).toHaveLength(2)
+    expect(listMessages(db, convId)).toHaveLength(2)
 
-    deleteConversation(convId)
-    expect(getConversation(convId)).toBeUndefined()
+    deleteConversation(db, convId)
+    expect(getConversation(db, convId)).toBeUndefined()
 
     // Verify messages table no longer has these messages
-    const remaining = getDb()
+    const remaining = db
       .prepare('SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = ?')
       .all(convId) as Array<{ cnt: number }>
     expect(remaining[0].cnt).toBe(0)

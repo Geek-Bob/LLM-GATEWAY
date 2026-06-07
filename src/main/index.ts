@@ -7,10 +7,14 @@
 
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron'
 import path from 'path'
-import { initDatabase, closeDatabase } from './db/connection'
+import { initDatabase, closeDatabase, getDb } from './db/connection'
 import { createTables } from './db/schema'
-import { initLogsDir } from './db/logs'
-import { startProxy, setProxyPort } from './proxy/manager'
+import { initLogsDir, createLogEntry, updateRequestStats, updateProviderStats } from './db/logs'
+import { verifyApiKey } from './db/api-keys'
+import { getProviderByName } from './db/providers'
+import { createModelsService } from './domains/models/models.service'
+import { getDebugMode } from './proxy/manager'
+import { startProxy, setProxyPort, initProxyServices } from './proxy/manager'
 import { setupIpcHandlers } from './ipc'
 import { UpdateManager } from './update/manager'
 
@@ -179,6 +183,17 @@ async function startServer(): Promise<void> {
   initLogsDir(logsDir)
 
   // Start unified server (proxy + admin API on single port)
+  // 组装代理服务依赖并注入，保持 proxy/ 模块不直接依赖 db/ 层
+  const modelsService = createModelsService(getDb())
+  initProxyServices({
+    verifyApiKey,
+    createLogEntry,
+    updateRequestStats,
+    updateProviderStats,
+    modelsService,
+    getDebugMode,
+    lookupProvider: (name) => getProviderByName(name) as any,
+  })
   setProxyPort(PROXY_PORT)
   startProxy()
 }

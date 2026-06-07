@@ -20,14 +20,27 @@ interface RateLimitResult {
   resetAt: number
 }
 
+/**
+ * 滑动窗口限流器，以 API Key 为粒度限制每分钟最大请求数。
+ * 使用内存 Map 存储时间戳数组，窗口外的时间戳自动过期。
+ */
 export class RateLimiter {
   private windows: Map<string, number[]> = new Map()
   private windowMs: number
 
+  /**
+   * @param windowMs - 滑动窗口时长（毫秒），默认 60000（1 分钟）
+   */
   constructor(windowMs: number = 60000) {
     this.windowMs = windowMs
   }
 
+  /**
+   * 检查指定 key 是否允许通过限流。
+   * @param key - 限流键（通常为 API Key ID）
+   * @param limit - 窗口内最大允许请求数
+   * @returns 包含 allowed（是否允许）、remaining（剩余配额）、resetAt（重置时间戳）的结果
+   */
   check(key: string, limit: number): RateLimitResult {
     const now = Date.now()
     const windowStart = now - this.windowMs

@@ -7,6 +7,7 @@ interface DownloadProgressProps {
   error?: string
 }
 
+/** 更新下载进度组件，展示下载中/完成/失败三种状态。 @returns 下载进度 JSX。 */
 export function DownloadProgress({ status, percent = 0, error }: DownloadProgressProps) {
   if (status === 'idle') {
     return null

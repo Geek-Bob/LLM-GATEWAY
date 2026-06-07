@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import path from 'path'
 import fs from 'fs'
-import { initDatabase, closeDatabase } from '../connection'
+import { initDatabase, closeDatabase, getDb } from '../connection'
 import { createTables } from '../schema'
 import {
   initLogsDir,
@@ -414,7 +414,7 @@ describe('Pre-computed Stats', () => {
   })
 
   it('should return zero stats for empty stats table', () => {
-    const stats = getLogStats({ range: '24h' })
+    const stats = getLogStats(getDb(), { range: '24h' })
     expect(stats.total_requests).toBe(0)
     expect(stats.total_tokens_in).toBe(0)
     expect(stats.total_tokens_out).toBe(0)
@@ -436,7 +436,7 @@ describe('Pre-computed Stats', () => {
       statusCode: 500
     })
 
-    const stats = getLogStats({ range: '24h' })
+    const stats = getLogStats(getDb(), { range: '24h' })
     expect(stats.total_requests).toBe(2)
     expect(stats.total_tokens_in).toBe(600)
     expect(stats.total_tokens_out).toBe(300)
@@ -452,10 +452,10 @@ describe('Pre-computed Stats', () => {
       statusCode: 200
     })
 
-    const stats7d = getLogStats({ range: '7d' })
+    const stats7d = getLogStats(getDb(), { range: '7d' })
     expect(stats7d.total_requests).toBe(1)
 
-    const stats30d = getLogStats({ range: '30d' })
+    const stats30d = getLogStats(getDb(), { range: '30d' })
     expect(stats30d.total_requests).toBe(1)
   })
 })

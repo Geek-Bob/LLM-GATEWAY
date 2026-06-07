@@ -15,6 +15,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import type { ApiKey } from '@/lib/types'
 
+/** 查询所有 API Key 列表。 @returns TanStack Query 结果，data 为 ApiKey 数组。 */
 export function useApiKeys() {
   return useQuery<ApiKey[]>({
     queryKey: ['apiKeys'],
@@ -22,6 +23,7 @@ export function useApiKeys() {
   })
 }
 
+/** 创建 API Key mutation，成功后自动刷新列表缓存。 @returns TanStack Mutation 对象。 */
 export function useCreateApiKey() {
   const qc = useQueryClient()
   return useMutation({
@@ -31,6 +33,7 @@ export function useCreateApiKey() {
   })
 }
 
+/** 删除 API Key mutation，成功后自动刷新列表缓存。 @returns TanStack Mutation 对象。 */
 export function useDeleteApiKey() {
   const qc = useQueryClient()
   return useMutation({

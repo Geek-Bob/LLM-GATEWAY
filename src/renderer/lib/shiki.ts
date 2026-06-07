@@ -16,6 +16,7 @@ import { createHighlighter, type Highlighter } from 'shiki'
 /** 模块级惰性单例：初始化成本高，只创建一次 */
 let highlighter: Highlighter | null = null
 
+/** 获取 Shiki 代码高亮器惰性单例（首次调用时创建，后续复用）。 @returns Shiki 高亮器实例。 */
 export async function getHighlighter(): Promise<Highlighter> {
   if (!highlighter) {
     highlighter = await createHighlighter({

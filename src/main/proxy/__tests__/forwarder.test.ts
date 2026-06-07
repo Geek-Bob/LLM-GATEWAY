@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { buildProxyUrl, buildProxyHeaders } from '../forwarder'
-import type { Provider } from '../../db/providers'
+import type { Provider } from '../../../shared/types'
 
 function makeProvider(overrides: Partial<Provider> = {}): Provider {
   return {

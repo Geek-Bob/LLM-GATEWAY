@@ -3,14 +3,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { initDatabase, closeDatabase } from '../connection'
 import { createTables } from '../schema'
 import { createAgentConfigRepository } from '../agent-configs'
+import type { Database } from '../database'
 
 describe('Agent Config Repository', () => {
+  let db: Database
   let repo: ReturnType<typeof createAgentConfigRepository>
 
   beforeEach(async () => {
-    await initDatabase(':memory:')
+    db = await initDatabase(':memory:')
     createTables()
-    repo = createAgentConfigRepository()
+    repo = createAgentConfigRepository(db)
   })
 
   afterEach(() => {
@@ -72,7 +74,7 @@ describe('Agent Config Repository', () => {
       content: '{}',
     })
     await repo.setCurrent(1, created.id)
-    await expect(repo.remove(created.id)).rejects.toThrow(`Cannot delete current config ${created.id}`)
+    await expect(repo.remove(created.id)).rejects.toThrow(`Failed to delete config: cannot delete current config ${created.id}`)
   })
 
   it('should switch current config', async () => {
@@ -134,21 +136,21 @@ describe('Agent Config Repository', () => {
   })
 
   it('should throw when setCurrent with non-existent config', async () => {
-    await expect(repo.setCurrent(1, 999)).rejects.toThrow('Config 999 not found')
+    await expect(repo.setCurrent(1, 999)).rejects.toThrow('Failed to set current config: config 999 not found')
   })
 
   it('should throw when setCurrent with config from different agent', async () => {
     const config = await repo.create({ agentId: 1, name: 'c1', content: '{}' })
     await expect(repo.setCurrent(2, config.id)).rejects.toThrow(
-      `Config ${config.id} does not belong to agent 2`
+      `Failed to set current config: config ${config.id} does not belong to agent 2`
     )
   })
 
   it('should throw when removing non-existent config', async () => {
-    await expect(repo.remove(999)).rejects.toThrow('Config 999 not found')
+    await expect(repo.remove(999)).rejects.toThrow('Failed to delete config: config 999 not found')
   })
 
   it('should throw when updating non-existent config', async () => {
-    await expect(repo.updateContent(999, '{}')).rejects.toThrow('Config 999 not found')
+    await expect(repo.updateContent(999, '{}')).rejects.toThrow('Failed to update config: config 999 not found')
   })
 })

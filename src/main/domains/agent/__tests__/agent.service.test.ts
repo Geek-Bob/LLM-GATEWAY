@@ -87,7 +87,7 @@ describe('Agent Service', () => {
     })
 
     it('should not delete builtin agent', async () => {
-      await expect(service.remove(1)).rejects.toThrow('Cannot delete builtin agent')
+      await expect(service.remove(1)).rejects.toThrow('Failed to delete agent: cannot delete builtin agent')
     })
   })
 
@@ -154,7 +154,7 @@ describe('Agent Service', () => {
       await service.switchConfig({ agentId: 1, configId: config.id })
 
       // Try to delete the current config
-      await expect(service.deleteConfig(config.id)).rejects.toThrow('Cannot delete current config')
+      await expect(service.deleteConfig(config.id)).rejects.toThrow('Failed to delete config: cannot delete current config')
     })
   })
 
@@ -176,7 +176,7 @@ describe('Agent Service', () => {
     it('should throw error if config not found', async () => {
       await expect(
         service.switchConfig({ agentId: 1, configId: 999 })
-      ).rejects.toThrow('Config 999 not found')
+      ).rejects.toThrow('Failed to switch config: config 999 not found')
     })
 
     it('should throw error if config does not belong to agent', async () => {

@@ -8,12 +8,13 @@
 
 import { useClipboard } from '@/hooks/useClipboard'
 import { useProxyStatus } from '@/lib/queries/proxy'
-import { Card, CardContent } from './ui/card'
-import { Button } from './ui/button'
-import { Skeleton } from './ui/skeleton'
+import { Card, CardContent } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Copy, Check, Wifi, WifiOff } from 'lucide-react'
 import { motion } from 'framer-motion'
 
+/** 代理服务状态栏，展示 HTTP 代理运行状态和监听地址。 @returns 状态栏 JSX。 */
 export function StatusBar() {
   const { data: status, isLoading } = useProxyStatus()
   const { copied, copy } = useClipboard()

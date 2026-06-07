@@ -15,6 +15,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/ipc'
 import type { DashboardStats, ProviderStatsGroup } from '@/lib/types'
 
+/** 查询近 7 天概览统计数据。 @returns TanStack Query 结果，data 为 DashboardStats。 */
 export function useDashboardStats() {
   return useQuery<DashboardStats>({
     queryKey: ['stats', '7d'],
@@ -22,6 +23,7 @@ export function useDashboardStats() {
   })
 }
 
+/** 查询近 24 小时明细统计数据。 @returns TanStack Query 结果，data 为 ProviderStatsGroup 数组。 */
 export function useHourlyStats() {
   return useQuery<ProviderStatsGroup[]>({
     queryKey: ['stats', '24h'],
@@ -29,6 +31,7 @@ export function useHourlyStats() {
   })
 }
 
+/** 查询近 30 天日维度明细统计数据。 @returns TanStack Query 结果，data 为 ProviderStatsGroup 数组。 */
 export function useDailyStats() {
   return useQuery<ProviderStatsGroup[]>({
     queryKey: ['stats', '30d'],

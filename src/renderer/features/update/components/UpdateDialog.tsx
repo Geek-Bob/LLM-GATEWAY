@@ -23,6 +23,7 @@ interface UpdateDialogProps {
   onSkip: (version: string) => void
 }
 
+/** 应用更新对话框，展示新版本信息、更新内容和跳过选项。 @returns 更新对话框 JSX。 */
 export function UpdateDialog({
   open,
   onOpenChange,

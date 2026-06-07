@@ -1,9 +1,11 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
-import { initDatabase, closeDatabase } from '../../db/connection'
+import { initDatabase, closeDatabase, getDb } from '../../db/connection'
 import { createTables } from '../../db/schema'
-import { createApiKey } from '../../db/api-keys'
-import { createProvider } from '../../db/providers'
+import { createApiKey, verifyApiKey } from '../../db/api-keys'
+import { createProvider, getProviderByName } from '../../db/providers'
+import { createLogEntry, updateRequestStats, updateProviderStats } from '../../db/logs'
+import { createModelsService } from '../../domains/models/models.service'
 import { createServer } from '../server'
 
 describe('Hono Proxy Server', () => {
@@ -29,7 +31,16 @@ describe('Hono Proxy Server', () => {
       models: ['gpt-4', 'gpt-3.5-turbo']
     })
 
-    app = createServer()
+    const modelsService = createModelsService(getDb())
+    app = createServer({
+      verifyApiKey,
+      createLogEntry,
+      updateRequestStats,
+      updateProviderStats,
+      modelsService,
+      getDebugMode: () => false,
+      lookupProvider: (name) => getProviderByName(name) as any,
+    })
   })
 
   let originalFetch: typeof globalThis.fetch
@@ -236,7 +247,7 @@ describe('Hono Proxy Server', () => {
       expect(data.error).toBe('model is required')
     })
 
-    it('should return 404 for raw model name without provider prefix (no slash)', async () => {
+    it('should return 400 for raw model name without provider prefix (no slash)', async () => {
       const res = await app.request('/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -248,9 +259,9 @@ describe('Hono Proxy Server', () => {
           messages: [{ role: 'user', content: 'Hi' }]
         })
       })
-      expect(res.status).toBe(404)
+      expect(res.status).toBe(400)
       const data = await res.json()
-      expect(data.error).toContain('Invalid model ID format')
+      expect(data.error).toContain('Failed to parse model ID: invalid format')
     })
 
     it('should return 502 when upstream fetch fails', async () => {

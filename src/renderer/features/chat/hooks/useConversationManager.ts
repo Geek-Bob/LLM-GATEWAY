@@ -19,6 +19,7 @@ export interface UseConversationManagerParams {
   setActiveConversationId: (id: number | null) => void
 }
 
+/** 会话 CRUD 逻辑封装 Hook，管理切换/新建/删除会话及用户消息保存。 @param params - 包含 activeConversationId 及其 setter。 @returns 会话列表和操作方法。 */
 export function useConversationManager({ activeConversationId, setActiveConversationId }: UseConversationManagerParams) {
   const { data: conversations = [] } = useConversations()
   const queryClient = useQueryClient()

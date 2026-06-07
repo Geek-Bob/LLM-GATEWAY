@@ -10,7 +10,7 @@
  * - icon: 图标 ReactNode
  */
 
-import { Card, CardContent } from './ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { motion } from 'framer-motion'
 
 interface StatsCardProps {
@@ -19,6 +19,7 @@ interface StatsCardProps {
   icon: React.ReactNode
 }
 
+/** 仪表盘统计卡片，显示单个指标（请求数/Token/供应商数/延迟）。 @returns 统计卡片 JSX。 */
 export function StatsCard({ title, value, icon }: StatsCardProps) {
   return (
     <motion.div whileHover={{ y: -2, transition: { duration: 0.2 } }}>

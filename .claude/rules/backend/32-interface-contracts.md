@@ -22,7 +22,7 @@ description: IPC/代理接口契约（输入校验、输出格式），始终加
 
 ## IPC handler 规范
 - handler 参数必须有显式类型标注（禁止隐式 any）
-- handler 只做：校验输入 → 调用 service → 返回结果
+- handler 只做：校验输入 → 调用 service → 捕获错误并映射 → 返回结果（错误映射规则见 34-error-handling.md）
 - handler 内禁止 catch 后返回 null 或静默吞没错误（错误映射规则见 34-error-handling）
 
 ## 代理路由规范
@@ -35,4 +35,21 @@ description: IPC/代理接口契约（输入校验、输出格式），始终加
 - IPC create/update handler 入口缺少 Zod `.parse()` 验证
 - handler 中编写业务逻辑（Map 聚合、条件判断、数据转换）
 - 返回值类型与 service 返回类型不一致（handler 做了额外转换）
-- 代理路由（proxy/）导入 db/、domains/ 下的文件
+- 代理路由（proxy/）导入 db/、domains/ 下的文件（导入约束见 30-layered-architecture.md 导入路径约束）
+
+```typescript
+// ❌ 错误：隐式 any + 缺少 Zod 校验 + handler 内写业务逻辑
+ipcMain.handle('agents:create', async (_event, data) => {  // data 隐式 any
+  const agent = await agentService.create(data)             // 无 Zod 校验
+  const config = await agentService.getConfig(agent.id)     // 业务逻辑应在 service
+  if (!config) throw new Error('no config')
+  return { ...agent, config }
+})
+
+// ✅ 正确：显式类型 + Zod 校验 + 委托 service
+const createAgentSchema = z.object({ name: z.string().min(1), providerId: z.number() })
+ipcMain.handle('agents:create', async (_event, data: CreateAgentInput) => {
+  const parsed = createAgentSchema.parse(data)  // 校验在入口
+  return agentService.create(parsed)            // 透传 service 返回值
+})
+```

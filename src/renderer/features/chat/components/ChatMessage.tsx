@@ -32,6 +32,7 @@ interface ChatMessageProps {
   onRegenerate?: () => void  /** 重新生成按钮回调 */
 }
 
+/** 单条聊天消息气泡，支持 Markdown 渲染、思考过程折叠、复制和重新生成。 @returns 消息气泡 JSX。 */
 export function ChatMessage({ role, content, thinking, isThinking, model, isStreaming, error, onRegenerate }: ChatMessageProps) {
   const isUser = role === 'user'
   const [thinkingExpanded, setThinkingExpanded] = useState(true)

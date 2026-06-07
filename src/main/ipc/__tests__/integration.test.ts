@@ -1,9 +1,11 @@
 // @vitest-environment node
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import { initDatabase, closeDatabase } from '../../db/connection'
+import { initDatabase, closeDatabase, getDb } from '../../db/connection'
 import { createTables } from '../../db/schema'
-import { createApiKey, listApiKeys } from '../../db/api-keys'
-import { createProvider, listProviders } from '../../db/providers'
+import { createApiKey, listApiKeys, verifyApiKey } from '../../db/api-keys'
+import { createProvider, listProviders, getProviderByName } from '../../db/providers'
+import { createLogEntry, updateRequestStats, updateProviderStats } from '../../db/logs'
+import { createModelsService } from '../../domains/models/models.service'
 import {
   listConversations, createConversation, updateConversation,
   getConversation, addMessage, listMessages, deleteConversation
@@ -61,42 +63,46 @@ describe('IPC Integration (Renderer → Main process)', () => {
     let conversationId: number
 
     it('should create a conversation', async () => {
-      conversationId = createConversation('Test Chat', 'gpt-4', 1, 1)
+      const db = getDb()
+      conversationId = createConversation(db, 'Test Chat', 'gpt-4', 1, 1)
       expect(conversationId).toBeGreaterThan(0)
 
-      const conv = getConversation(conversationId)
+      const conv = getConversation(db, conversationId)
       expect(conv).toBeDefined()
       expect(conv!.title).toBe('Test Chat')
       expect(conv!.model).toBe('gpt-4')
     })
 
     it('should return full object from create (not just id)', async () => {
+      const db = getDb()
       // This is the bug fix - ensure getConversation works right after create
-      const id = createConversation('Verify Object', 'claude-3', null, null)
-      const conv = getConversation(id)
+      const id = createConversation(db, 'Verify Object', 'claude-3', null, null)
+      const conv = getConversation(db, id)
       expect(conv).toBeDefined()
       expect(conv!.id).toBe(id)
       expect(conv!.title).toBe('Verify Object')
     })
 
     it('should update conversation fields selectively', async () => {
+      const db = getDb()
       // Simulate what Chat.tsx does: update model/providerId/apiKeyId
-      updateConversation(conversationId, {
+      updateConversation(db, conversationId, {
         provider_id: 1,
         model: 'gpt-3.5-turbo',
         api_key_id: 1
       })
 
-      const conv = getConversation(conversationId)
+      const conv = getConversation(db, conversationId)
       expect(conv!.model).toBe('gpt-3.5-turbo')
       expect(conv!.provider_id).toBe(1)
       expect(conv!.api_key_id).toBe(1)
     })
 
     it('should update only title without affecting other fields', async () => {
-      updateConversation(conversationId, { title: 'Updated Title' })
+      const db = getDb()
+      updateConversation(db, conversationId, { title: 'Updated Title' })
 
-      const conv = getConversation(conversationId)
+      const conv = getConversation(db, conversationId)
       expect(conv!.title).toBe('Updated Title')
       // Other fields should be unchanged
       expect(conv!.model).toBe('gpt-3.5-turbo')
@@ -104,10 +110,11 @@ describe('IPC Integration (Renderer → Main process)', () => {
     })
 
     it('should add and list messages', async () => {
-      addMessage(conversationId, 'user', 'Hello, world!')
-      addMessage(conversationId, 'assistant', 'Hi there!', 'thinking...')
+      const db = getDb()
+      addMessage(db, conversationId, 'user', 'Hello, world!')
+      addMessage(db, conversationId, 'assistant', 'Hi there!', 'thinking...')
 
-      const msgs = listMessages(conversationId)
+      const msgs = listMessages(db, conversationId)
       expect(msgs.length).toBe(2)
       expect(msgs[0].role).toBe('user')
       expect(msgs[0].content).toBe('Hello, world!')
@@ -117,8 +124,9 @@ describe('IPC Integration (Renderer → Main process)', () => {
     })
 
     it('should list conversations ordered by updated_at DESC', async () => {
-      createConversation('Second Chat', 'gpt-4', 1, 1)
-      const convs = listConversations()
+      const db = getDb()
+      createConversation(db, 'Second Chat', 'gpt-4', 1, 1)
+      const convs = listConversations(db)
       expect(convs.length).toBeGreaterThanOrEqual(2)
       // ordered by updated_at DESC — the most recently modified is first
       const titles = convs.map(c => c.title)
@@ -126,19 +134,29 @@ describe('IPC Integration (Renderer → Main process)', () => {
     })
 
     it('should delete conversation', async () => {
-      const id = createConversation('To Delete', 'gpt-4', null, null)
-      const before = getConversation(id)
+      const db = getDb()
+      const id = createConversation(db, 'To Delete', 'gpt-4', null, null)
+      const before = getConversation(db, id)
       expect(before).toBeDefined()
 
-      deleteConversation(id)
-      const after = getConversation(id)
+      deleteConversation(db, id)
+      const after = getConversation(db, id)
       expect(after).toBeUndefined()
     })
   })
 
   describe('Proxy server (chat stream)', () => {
     it('should create server and serve chat stream', async () => {
-      const app = createServer()
+      const modelsService = createModelsService(getDb())
+      const app = createServer({
+        verifyApiKey,
+        createLogEntry,
+        updateRequestStats,
+        updateProviderStats,
+        modelsService,
+        getDebugMode: () => false,
+        lookupProvider: (name) => getProviderByName(name) as any,
+      })
       expect(app).toBeDefined()
 
       // Test health endpoint (no auth)

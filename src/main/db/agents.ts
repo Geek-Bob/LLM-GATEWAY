@@ -134,7 +134,7 @@ export function createAgentRepository(db: Database) {
       )
       const result = stmt.run([input.name, input.displayName, input.configPath, input.configFormat])
       const agent = await this.getById(result.lastInsertRowid)
-      if (!agent) throw new Error('Failed to create agent')
+      if (!agent) throw new Error(`Failed to create agent: record not found after insert`)
       return agent
     },
 
@@ -168,7 +168,7 @@ export function createAgentRepository(db: Database) {
       // 无更新字段时直接返回当前 Agent
       if (updates.length === 0) {
         const agent = await this.getById(id)
-        if (!agent) throw new Error('Agent not found')
+        if (!agent) throw new Error(`Failed to get agent: agent ${id} not found`)
         return agent
       }
 
@@ -182,7 +182,7 @@ export function createAgentRepository(db: Database) {
       stmt.run(values)
 
       const agent = await this.getById(id)
-      if (!agent) throw new Error('Agent not found')
+      if (!agent) throw new Error(`Failed to get agent: agent ${id} not found`)
       return agent
     },
 
@@ -195,8 +195,8 @@ export function createAgentRepository(db: Database) {
      */
     async remove(id: number): Promise<void> {
       const agent = await this.getById(id)
-      if (!agent) throw new Error('Agent not found')
-      if (agent.isBuiltin === 1) throw new Error('Cannot delete builtin agent')
+      if (!agent) throw new Error(`Failed to delete agent: agent ${id} not found`)
+      if (agent.isBuiltin === 1) throw new Error(`Failed to delete agent: cannot delete builtin agent ${id}`)
       const stmt = db.prepare('DELETE FROM agents WHERE id = ?')
       stmt.run(id)
     },

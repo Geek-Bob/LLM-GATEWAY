@@ -7,6 +7,7 @@ interface UpdateButtonProps {
   onUpdateAvailable?: (version: string) => void
 }
 
+/** 手动检查更新按钮，点击后触发远程版本检查。 @returns 检查更新按钮 JSX。 */
 export function UpdateButton({ onUpdateAvailable }: UpdateButtonProps) {
   const checkUpdate = useCheckUpdate()
 

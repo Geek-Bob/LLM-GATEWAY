@@ -70,6 +70,7 @@ function DebugJSON({ label, json }: { label: string; json: string }) {
   )
 }
 
+/** 请求日志页面，支持分页查看、详情面板和 Debug 模式切换。 @returns 日志页面 JSX。 */
 export function LogsPage() {
   const [page, setPage] = useState(1)
   const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)

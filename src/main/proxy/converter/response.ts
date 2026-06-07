@@ -177,5 +177,5 @@ export function convertResponse(
   if (from === to) return body
   if (from === 'anthropic' && to === 'openai') return anthropicToOpenAIResponse(body)
   if (from === 'openai' && to === 'anthropic') return openAIToAnthropicResponse(body)
-  throw new Error(`Unsupported conversion: ${from} → ${to}`)
+  throw new Error(`Failed to convert response: unsupported conversion ${from} → ${to}`)
 }

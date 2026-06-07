@@ -16,7 +16,7 @@ import { LayoutDashboard, Building2, Key, ScrollText, MessageSquare, ArrowLeftRi
 import { TitleBar } from './TitleBar'
 import { cn } from '@/lib/utils'
 
-const navItems = [
+const NAV_ITEMS = [
   { to: '/', label: '仪表盘', icon: LayoutDashboard },
   { to: '/providers', label: '供应商', icon: Building2 },
   { to: '/api-keys', label: 'API Keys', icon: Key },
@@ -27,6 +27,7 @@ const navItems = [
   { to: '/settings', label: '设置', icon: Settings },
 ]
 
+/** 应用主布局组件，包含 TitleBar、左侧导航栏和右侧内容区。 @returns 应用主布局 JSX。 */
 export function Layout() {
   const [collapsed, setCollapsed] = useState(true)
 
@@ -42,7 +43,7 @@ export function Layout() {
           onMouseEnter={() => setCollapsed(false)}
           onMouseLeave={() => setCollapsed(true)}
         >
-          {navItems.map((item) => (
+          {NAV_ITEMS.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}

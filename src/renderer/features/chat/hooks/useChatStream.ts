@@ -43,6 +43,7 @@ interface UseChatStreamReturn {
   error: string | null
 }
 
+/** Chat 流式对话 Hook，调用 /v1/chat/completions 端点消费 OpenAI SSE 流。 @param onUpdate - 每次流数据更新时的回调。 @returns send/abort 方法及加载状态。 */
 export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatStreamReturn {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
