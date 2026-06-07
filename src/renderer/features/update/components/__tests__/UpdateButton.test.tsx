@@ -54,7 +54,7 @@ describe('UpdateButton', () => {
   })
 
   it('检查成功且有更新时应该调用 onUpdateAvailable', async () => {
-    mockMutateAsync.mockResolvedValue({ available: true, version: '2.0.0' })
+    mockMutateAsync.mockResolvedValue({ isAvailable: true, version: '2.0.0' })
     const onUpdateAvailable = vi.fn()
 
     renderWithQuery(<UpdateButton onUpdateAvailable={onUpdateAvailable} />)
@@ -68,7 +68,7 @@ describe('UpdateButton', () => {
 
   it('检查成功但无更新时应该显示 toast', async () => {
     const { toast } = await import('sonner')
-    mockMutateAsync.mockResolvedValue({ available: false })
+    mockMutateAsync.mockResolvedValue({ isAvailable: false })
 
     renderWithQuery(<UpdateButton />)
 

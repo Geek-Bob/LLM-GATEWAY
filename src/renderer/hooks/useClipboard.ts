@@ -1,5 +1,8 @@
 import { useState, useCallback } from 'react'
 
+/** copied 状态自动重置为 false 的延迟时间（毫秒） */
+const RESET_DELAY_MS = 2000
+
 /**
  * 剪贴板复制 hook — 封装 clipboard write + 2s 自动重置
  *
@@ -17,7 +20,7 @@ export function useClipboard() {
     try {
       await navigator.clipboard.writeText(text)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setTimeout(() => setCopied(false), RESET_DELAY_MS)
     } catch {
       // clipboard write failed — silently ignore
     }

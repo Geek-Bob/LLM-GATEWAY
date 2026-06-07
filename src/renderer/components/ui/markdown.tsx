@@ -165,10 +165,10 @@ export const Markdown = memo(function Markdown({
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw, rehypeStripColorStyle]}
         components={{
-          a: ({ node, ...props }) => (
+          a: ({ node: _node, ...props }) => (
             <a {...props} target="_blank" rel="noopener noreferrer" />
           ),
-          code: ({ node, className, children, ...props }) => {
+          code: ({ node: _node, className, children, ...props }) => {
             const match = /language-(\w+)/.exec(className || '')
 
             // Mermaid 图表渲染：流式时不渲染以避免频繁重绘导致崩溃

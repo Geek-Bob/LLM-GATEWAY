@@ -14,7 +14,7 @@ export function UpdateButton({ onUpdateAvailable }: UpdateButtonProps) {
   const handleCheck = async () => {
     try {
       const result = await checkUpdate.mutateAsync()
-      if (result.available && result.version) {
+      if (result.isAvailable && result.version) {
         onUpdateAvailable?.(result.version)
       } else {
         toast.info('当前已是最新版本')

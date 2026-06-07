@@ -19,6 +19,7 @@ import {
   updateModelMapping as updateModelMappingInDb,
   getModelMapping,
   deleteModelMapping as deleteModelMappingFromDb,
+  type ModelMappingRow,
 } from '../../db/model-mappings'
 import type {
   ModelMapping,
@@ -49,11 +50,12 @@ export function createModelsService(_db: Database) {
 
       const result: ModelInfo[] = []
       for (const provider of providers) {
-        for (const model of provider.models) {
+        const models = JSON.parse(provider.models) as string[]
+        for (const model of models) {
           result.push({
             id: `${provider.name}/${model}`,
             provider: provider.name,
-            providerType: provider.providerType,
+            providerType: provider.provider_type,
           })
         }
       }
@@ -70,13 +72,7 @@ export function createModelsService(_db: Database) {
     findModelMapping: (sourceModel: string): ModelMapping | null => {
       const row = findActiveModelMapping(sourceModel)
       if (!row) return null
-      return {
-        id: row.id,
-        sourceModel: row.sourceModel,
-        targetModel: row.targetModel,
-        isActive: row.isActive,
-        createdAt: row.createdAt,
-      }
+      return modelMappingRowToEntity(row)
     },
 
     /**
@@ -85,7 +81,7 @@ export function createModelsService(_db: Database) {
      * 供 IPC handler 的 list 接口使用，返回完整映射列表。
      */
     listModelMappings: (): ModelMapping[] => {
-      return listModelMappingsFromDb()
+      return listModelMappingsFromDb().map(modelMappingRowToEntity)
     },
 
     /**
@@ -96,7 +92,7 @@ export function createModelsService(_db: Database) {
      * 注意：source_model 有 UNIQUE 约束，重复插入会抛异常。
      */
     createModelMapping: (data: CreateModelMappingInput): ModelMapping => {
-      return insertModelMapping(data.sourceModel, data.targetModel)
+      return modelMappingRowToEntity(insertModelMapping(data.sourceModel, data.targetModel))
     },
 
     /**
@@ -114,7 +110,7 @@ export function createModelsService(_db: Database) {
       if (!row) {
         throw new Error(`Failed to update model mapping: id ${id} not found`)
       }
-      return row
+      return modelMappingRowToEntity(row)
     },
 
     /**
@@ -125,6 +121,19 @@ export function createModelsService(_db: Database) {
     deleteModelMapping: (id: number): void => {
       deleteModelMappingFromDb(id)
     },
+  }
+}
+
+/**
+ * 将数据库层 snake_case ModelMappingRow 转换为 camelCase ModelMapping。
+ */
+function modelMappingRowToEntity(row: ModelMappingRow): ModelMapping {
+  return {
+    id: row.id,
+    sourceModel: row.source_model,
+    targetModel: row.target_model,
+    isActive: row.is_active,
+    createdAt: row.created_at,
   }
 }
 

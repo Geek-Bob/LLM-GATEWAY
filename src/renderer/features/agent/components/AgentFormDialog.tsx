@@ -41,7 +41,7 @@ import {
 /** AgentFormDialog 组件属性 */
 interface AgentFormDialogProps {
   /** 添加配置对话框是否打开 */
-  showAddDialog: boolean
+  isAddDialogVisible: boolean
   /** 设置添加配置对话框打开状态 */
   onShowAddDialogChange: (open: boolean) => void
   /** 当前展开的 Agent ID */
@@ -59,7 +59,7 @@ interface AgentFormDialogProps {
  * 包括配置的创建、编辑，以及自定义 Agent 的创建。
  */
 export function AgentFormDialog({
-  showAddDialog,
+  isAddDialogVisible,
   onShowAddDialogChange,
   expandedAgent,
   editingConfig,
@@ -83,11 +83,11 @@ export function AgentFormDialog({
 
   /** 打开添加配置对话框时重置表单 */
   useEffect(() => {
-    if (showAddDialog) {
+    if (isAddDialogVisible) {
       setNewConfigName('')
       setNewConfigContent('{\n  \n}')
     }
-  }, [showAddDialog])
+  }, [isAddDialogVisible])
 
   /** 编辑配置变更时同步内容到编辑器 */
   useEffect(() => {
@@ -151,7 +151,7 @@ export function AgentFormDialog({
   return (
     <>
       {/* 添加配置对话框 */}
-      <Dialog open={showAddDialog} onOpenChange={onShowAddDialogChange}>
+      <Dialog open={isAddDialogVisible} onOpenChange={onShowAddDialogChange}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>添加配置</DialogTitle>

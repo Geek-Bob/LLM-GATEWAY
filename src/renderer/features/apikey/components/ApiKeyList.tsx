@@ -121,7 +121,7 @@ export function ApiKeyList({ keys, onDelete }: ApiKeyListProps) {
                 {formatRateLimit(key.rate_limit)}
               </TableCell>
               <TableCell>
-                <StatusBadge active={key.is_active === 1} />
+                <StatusBadge isActive={key.is_active === 1} />
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
                 {formatDate(key.created_at)}

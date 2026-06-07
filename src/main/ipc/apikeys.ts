@@ -18,8 +18,8 @@ export function registerApiKeyHandlers(db: Database): void {
     return apiKeyService.list()
   })
 
-  ipcMain.handle('apikey:create', async (_event, name: string, rateLimit?: number) => {
-    const input = createApiKeySchema.parse({ name, rateLimit })
+  ipcMain.handle('apikey:create', async (_event, data: { name: string; rateLimit?: number }) => {
+    const input = createApiKeySchema.parse(data)
     return apiKeyService.create(input)
   })
 

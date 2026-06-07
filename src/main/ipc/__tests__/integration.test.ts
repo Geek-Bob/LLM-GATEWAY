@@ -41,7 +41,7 @@ describe('IPC Integration (Renderer → Main process)', () => {
       const providers = listProviders()
       expect(providers.length).toBe(1)
       expect(providers[0].name).toBe('Test Provider')
-      expect(providers[0].models).toEqual(['gpt-4', 'gpt-3.5-turbo'])
+      expect(JSON.parse(providers[0].models)).toEqual(['gpt-4', 'gpt-3.5-turbo'])
     })
   })
 

@@ -15,8 +15,8 @@ const debugModeSchema = z.boolean()
  * 无需数据库实例，代理管理器为模块级单例
  */
 export function registerProxyHandlers(): void {
-  ipcMain.handle('proxy:status', async () => {
-    return getProxyConfig()
+  ipcMain.handle('proxy:get', async () => {
+    return { ...getProxyConfig(), debugMode: getDebugMode() }
   })
 
   ipcMain.handle('proxy:start', async (_event, port?: unknown) => {
@@ -26,6 +26,7 @@ export function registerProxyHandlers(): void {
 
   ipcMain.handle('proxy:stop', async () => {
     stopProxy()
+    return { success: true }
   })
 
   ipcMain.handle('proxy:restart', async (_event, port?: unknown) => {
@@ -33,17 +34,15 @@ export function registerProxyHandlers(): void {
     return restartProxy(validPort)
   })
 
-  ipcMain.handle('proxy:setPort', async (_event, port: unknown) => {
+  ipcMain.handle('proxy:updatePort', async (_event, port: unknown) => {
     const validPort = requiredPortSchema.parse(port)
     setProxyPort(validPort)
+    return { success: true }
   })
 
-  ipcMain.handle('proxy:getDebugMode', async () => {
-    return getDebugMode()
-  })
-
-  ipcMain.handle('proxy:setDebugMode', async (_event, enabled: unknown) => {
+  ipcMain.handle('proxy:update', async (_event, enabled: unknown) => {
     const validEnabled = debugModeSchema.parse(enabled)
     setDebugMode(validEnabled)
+    return { success: true }
   })
 }

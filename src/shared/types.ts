@@ -45,18 +45,18 @@ export interface UpdateProgress {
   total: number
 }
 
-/** 更新检查结果：available=是否有新版本, version=版本号(如有), error=错误信息(如有) */
+/** 更新检查结果：isAvailable=是否有新版本, version=版本号(如有), error=错误信息(如有) */
 export interface UpdateCheckResult {
-  available: boolean
+  isAvailable: boolean
   version?: string
   error?: string
 }
 
-/** 更新配置：autoCheck=自动检查, checkInterval=检查间隔(ms), allowPrerelease=允许预发布, skipVersion=跳过的版本 */
+/** 更新配置：isAutoCheckEnabled=自动检查, checkInterval=检查间隔(ms), isPrereleaseAllowed=允许预发布, skipVersion=跳过的版本 */
 export interface UpdateConfig {
-  autoCheck: boolean
+  isAutoCheckEnabled: boolean
   checkInterval: number
-  allowPrerelease: boolean
+  isPrereleaseAllowed: boolean
   skipVersion: string | null
 }
 

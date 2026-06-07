@@ -32,16 +32,16 @@ export function registerConversationHandlers(db: Database): void {
     return conversationService.remove(id)
   })
 
-  ipcMain.handle('conversation:get', async (_event, id: number) => {
+  ipcMain.handle('conversation:getById', async (_event, id: number) => {
     return conversationService.getById(id) || null
   })
 
-  ipcMain.handle('conversation:messages', async (_event, conversationId: number) => {
+  ipcMain.handle('conversation:listMessages', async (_event, conversationId: number) => {
     return conversationService.messages(conversationId)
   })
 
-  ipcMain.handle('conversation:addMessage', async (_event, conversationId: number, role: 'user' | 'assistant', content: string, thinking?: string) => {
-    const input = addMessageSchema.parse({ conversationId, role, content, thinking })
+  ipcMain.handle('conversation:createMessage', async (_event, data: { conversationId: number; role: 'user' | 'assistant'; content: string; thinking?: string }) => {
+    const input = addMessageSchema.parse(data)
     return conversationService.addMessage(input)
   })
 }

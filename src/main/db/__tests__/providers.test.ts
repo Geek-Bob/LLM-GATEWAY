@@ -44,12 +44,12 @@ describe('Providers CRUD', () => {
     expect(provider).toBeDefined()
     expect(provider!.id).toBe(id)
     expect(provider!.name).toBe('Test Provider')
-    expect(provider!.providerType).toBe('openai')
-    expect(provider!.baseUrl).toBe('https://api.openai.com/v1')
-    expect(provider!.apiKey).toBe('sk-test-plaintext-key')
-    expect(provider!.models).toEqual(['gpt-4', 'gpt-3.5-turbo'])
-    expect(provider!.createdAt).toBeTruthy()
-    expect(provider!.updatedAt).toBeTruthy()
+    expect(provider!.provider_type).toBe('openai')
+    expect(provider!.base_url).toBe('https://api.openai.com/v1')
+    expect(provider!.api_key).toBe('sk-test-plaintext-key')
+    expect(JSON.parse(provider!.models)).toEqual(['gpt-4', 'gpt-3.5-turbo'])
+    expect(provider!.created_at).toBeTruthy()
+    expect(provider!.updated_at).toBeTruthy()
   })
 
   it('should get a provider by name', () => {
@@ -79,7 +79,7 @@ describe('Providers CRUD', () => {
     const names = providers.map(p => p.name).sort()
     expect(names).toEqual(['Provider A', 'Provider B', 'Provider C'])
     providers.forEach(p => {
-      expect(p.createdAt).toBeTruthy()
+      expect(p.created_at).toBeTruthy()
     })
   })
 
@@ -101,9 +101,9 @@ describe('Providers CRUD', () => {
     updateProvider(id, { baseUrl: 'https://new-url.com' })
 
     const updated = getProvider(id)!
-    expect(updated.baseUrl).toBe('https://new-url.com')
+    expect(updated.base_url).toBe('https://new-url.com')
     expect(updated.name).toBe('Test Provider')
-    expect(updated.providerType).toBe('openai')
+    expect(updated.provider_type).toBe('openai')
   })
 
   it('should update models field', () => {
@@ -111,28 +111,28 @@ describe('Providers CRUD', () => {
     updateProvider(id, { models: ['gpt-4-turbo'] })
 
     const updated = getProvider(id)!
-    expect(updated.models).toEqual(['gpt-4-turbo'])
+    expect(JSON.parse(updated.models)).toEqual(['gpt-4-turbo'])
   })
 
   it('should update is_active field', () => {
     const id = createProvider(sampleInput)
-    expect(getProvider(id)!.isActive).toBe(1)
+    expect(getProvider(id)!.is_active).toBe(1)
 
     updateProvider(id, { isActive: 0 })
-    expect(getProvider(id)!.isActive).toBe(0)
+    expect(getProvider(id)!.is_active).toBe(0)
   })
 
   it('should update updated_at on modification', async () => {
     const id = createProvider(sampleInput)
     const original = getProvider(id)!
-    const originalUpdatedAt = original.updatedAt
+    const originalUpdatedAt = original.updated_at
 
     await new Promise(resolve => setTimeout(resolve, 1100))
 
     updateProvider(id, { baseUrl: 'https://updated.com' })
     const updated = getProvider(id)!
 
-    expect(updated.updatedAt).not.toBe(originalUpdatedAt)
+    expect(updated.updated_at).not.toBe(originalUpdatedAt)
   })
 
   it('should delete a provider', () => {
@@ -160,7 +160,7 @@ describe('Providers CRUD', () => {
     const id = createProvider(anthropicInput)
     const provider = getProvider(id)!
 
-    expect(provider.providerType).toBe('anthropic')
-    expect(provider.models).toEqual(['claude-3-opus', 'claude-3-sonnet'])
+    expect(provider.provider_type).toBe('anthropic')
+    expect(JSON.parse(provider.models)).toEqual(['claude-3-opus', 'claude-3-sonnet'])
   })
 })

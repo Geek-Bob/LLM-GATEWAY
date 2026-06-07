@@ -24,7 +24,7 @@ export function registerAgentHandlers(db: Database): void {
     return agentService.list()
   })
 
-  ipcMain.handle('agent:get', async (_event, id: number) => {
+  ipcMain.handle('agent:getById', async (_event, id: number) => {
     return agentService.getById(id)
   })
 

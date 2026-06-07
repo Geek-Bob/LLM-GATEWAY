@@ -38,7 +38,7 @@ function sanitize(data: Record<string, unknown>): Record<string, unknown> {
   const result: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(data)) {
     if (
-      key === 'authorization' &&
+      (key === 'authorization' || key === 'x-api-key' || key === 'token' || key === 'password' || key === 'secret') &&
       typeof value === 'string'
     ) {
       // 只保留后 4 位，其余用 *** 替代，防止 API Key 泄漏
@@ -73,7 +73,8 @@ export function createLogger(moduleName: string, opts?: FileTransportOptions): L
   const log = (level: LogLevel, message: string, data?: Record<string, unknown>) => {
     const ts = new Date().toISOString()
     const prefix = `[${ts}] [${level.toUpperCase()}] [${moduleName}]`
-    const payload = data ? ` ${JSON.stringify(data)}` : ''
+    const sanitizedForConsole = data ? sanitize(data) : undefined
+    const payload = sanitizedForConsole ? ` ${JSON.stringify(sanitizedForConsole)}` : ''
     const line = `${prefix} ${message}${payload}`
 
     // 控制台输出

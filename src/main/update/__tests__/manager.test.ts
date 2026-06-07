@@ -59,7 +59,7 @@ describe('UpdateManager', () => {
 
     const result = await updateManager.checkForUpdates()
     expect(result).toEqual({
-      available: true,
+      isAvailable: true,
       version: '1.1.0'
     })
   })
@@ -73,7 +73,7 @@ describe('UpdateManager', () => {
 
     const result = await updateManager.checkForUpdates()
     expect(result).toEqual({
-      available: false,
+      isAvailable: false,
       version: '1.0.0'
     })
   })
@@ -84,7 +84,7 @@ describe('UpdateManager', () => {
 
     const result = await updateManager.checkForUpdates()
     expect(result).toEqual({
-      available: false,
+      isAvailable: false,
       error: 'Network error'
     })
   })
@@ -180,7 +180,7 @@ describe('UpdateManager', () => {
 
     const result = await updateManager.checkForUpdates()
     expect(result).toEqual({
-      available: false,
+      isAvailable: false,
       version: '1.1.0'
     })
   })

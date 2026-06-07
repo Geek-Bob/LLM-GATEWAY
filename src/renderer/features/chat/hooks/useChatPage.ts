@@ -87,7 +87,7 @@ export function useChatPage() {
           isThinking: msg.isThinking,
           model: selectedModel || undefined,
           isStreaming: msg.isStreaming,
-          error: msg.error,
+          hasError: msg.hasError,
         }]
       }
       return prev.with(-1, {
@@ -96,12 +96,12 @@ export function useChatPage() {
         thinking: msg.thinking,
         isThinking: msg.isThinking,
         isStreaming: msg.isStreaming,
-        error: msg.error,
+        hasError: msg.hasError,
       })
     })
 
-    if (!msg.isStreaming && !msg.error && convIdRef.current && msg.content) {
-      api.conversations.addMessage(convIdRef.current, 'assistant', msg.content, msg.thinking || '')
+    if (!msg.isStreaming && !msg.hasError && convIdRef.current && msg.content) {
+      api.conversations.addMessage({ conversationId: convIdRef.current, role: 'assistant', content: msg.content, thinking: msg.thinking || '' })
         .then(() => api.conversations.get(convIdRef.current!))
         .then((conv) => {
           if (conv && conv.title === DEFAULT_CONVERSATION_TITLE) {
@@ -109,7 +109,7 @@ export function useChatPage() {
           }
           invalidateConversations()
         })
-        .catch(() => {})
+        .catch((e) => console.error('Title update failed', e))
     }
   }, [selectedModel, invalidateConversations])
 
@@ -125,7 +125,7 @@ export function useChatPage() {
     setMessages((prev) => [...prev, userMessage])
 
     saveUserMessage(content, selectedProvider.id, selectedModel, selectedApiKeyId)
-      .catch(() => {})
+      .catch((e) => console.error('Message save failed', e))
 
     const modelFull = `${selectedProvider.name}/${selectedModel}`
     send(modelFull, [

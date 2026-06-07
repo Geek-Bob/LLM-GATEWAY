@@ -24,7 +24,7 @@ export function useConversationManager({ activeConversationId, setActiveConversa
   const { data: conversations = [] } = useConversations()
   const queryClient = useQueryClient()
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['conversations'] })
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['conversations', 'list'] })
 
   /**
    * 切换会话 — 加载历史消息，恢复 provider/model/apiKey 选择。
@@ -113,7 +113,7 @@ export function useConversationManager({ activeConversationId, setActiveConversa
       }
     }
 
-    await api.conversations.addMessage(convId, 'user', content)
+    await api.conversations.addMessage({ conversationId: convId, role: 'user', content })
     return convId
   }
 

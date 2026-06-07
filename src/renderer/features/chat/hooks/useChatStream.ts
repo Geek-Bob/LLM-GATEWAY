@@ -33,7 +33,7 @@ export interface StreamMessage {
   thinking?: string
   isThinking: boolean
   isStreaming: boolean
-  error: boolean
+  hasError: boolean
 }
 
 interface UseChatStreamReturn {
@@ -107,7 +107,7 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
       thinking: '',
       isThinking: true,
       isStreaming: true,
-      error: false,
+      hasError: false,
     }
     messageRef.current = initialMsg
     onUpdate(initialMsg)
@@ -213,7 +213,7 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
           content: message,
           isStreaming: false,
           isThinking: false,
-          error: true,
+          hasError: true,
         }
         messageRef.current = errorMsg
         onUpdate(errorMsg)

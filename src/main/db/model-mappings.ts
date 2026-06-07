@@ -10,38 +10,23 @@ import { getDb } from './connection'
 
 export interface ModelMappingRow {
   id: number
-  sourceModel: string
-  targetModel: string
-  isActive: number
-  createdAt: string
+  source_model: string
+  target_model: string
+  is_active: number
+  created_at: string
 }
 
 /**
- * 将数据库行记录转换为 ModelMappingRow 对象
- */
-function rowToModelMapping(row: Record<string, unknown>): ModelMappingRow {
-  return {
-    id: row.id as number,
-    sourceModel: row.source_model as string,
-    targetModel: row.target_model as string,
-    isActive: row.is_active as number,
-    createdAt: row.created_at as string,
-  }
-}
-
-/**
- * 查找活跃的模型映射（按 sourceModel 精确匹配，仅返回 is_active=1）
+ * 查找活跃的模型映射（按 source_model 精确匹配，仅返回 is_active=1）
  *
  * @param sourceModel - 源模型名称
  * @returns 匹配的活跃映射，未找到时返回 undefined
  */
 export function findActiveModelMapping(sourceModel: string): ModelMappingRow | undefined {
   const db = getDb()
-  const row = db
+  return db
     .prepare('SELECT * FROM model_mappings WHERE source_model = ? AND is_active = 1')
-    .get([sourceModel]) as Record<string, unknown> | undefined
-
-  return row ? rowToModelMapping(row) : undefined
+    .get([sourceModel]) as ModelMappingRow | undefined
 }
 
 /**
@@ -51,11 +36,9 @@ export function findActiveModelMapping(sourceModel: string): ModelMappingRow | u
  */
 export function listModelMappings(): ModelMappingRow[] {
   const db = getDb()
-  const rows = db
+  return db
     .prepare('SELECT * FROM model_mappings ORDER BY id DESC')
-    .all() as Record<string, unknown>[]
-
-  return rows.map(rowToModelMapping)
+    .all() as ModelMappingRow[]
 }
 
 /**
@@ -71,11 +54,9 @@ export function insertModelMapping(sourceModel: string, targetModel: string): Mo
     .prepare('INSERT INTO model_mappings (source_model, target_model) VALUES (?, ?)')
     .run([sourceModel, targetModel])
 
-  const row = db
+  return db
     .prepare('SELECT * FROM model_mappings WHERE id = ?')
-    .get([result.lastInsertRowid]) as Record<string, unknown>
-
-  return rowToModelMapping(row)
+    .get([result.lastInsertRowid]) as ModelMappingRow
 }
 
 /**
@@ -115,11 +96,9 @@ export function updateModelMapping(
  */
 export function getModelMapping(id: number): ModelMappingRow | undefined {
   const db = getDb()
-  const row = db
+  return db
     .prepare('SELECT * FROM model_mappings WHERE id = ?')
-    .get([id]) as Record<string, unknown> | undefined
-
-  return row ? rowToModelMapping(row) : undefined
+    .get([id]) as ModelMappingRow | undefined
 }
 
 /**

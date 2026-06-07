@@ -20,7 +20,7 @@ import { Button } from '@/components/ui/button'
 
 interface ChatInputAreaProps {
   inputKey: number
-  streamLoading: boolean
+  isStreamLoading: boolean
   selectedModel: string | null
   selectedApiKeyId: number | null
   onSend: (content: string) => void
@@ -30,7 +30,7 @@ interface ChatInputAreaProps {
 /** 消息输入区域，包含 ChatInput 和流式传输时的停止按钮。 @returns 输入区域 JSX。 */
 export function ChatInputArea({
   inputKey,
-  streamLoading,
+  isStreamLoading,
   selectedModel,
   selectedApiKeyId,
   onSend,
@@ -39,9 +39,9 @@ export function ChatInputArea({
   return (
     <Card className="p-3 flex items-center gap-2 bg-background/50">
       <div className="flex-1">
-        <ChatInput key={inputKey} onSend={onSend} disabled={streamLoading || !selectedModel || !selectedApiKeyId} />
+        <ChatInput key={inputKey} onSend={onSend} disabled={isStreamLoading || !selectedModel || !selectedApiKeyId} />
       </div>
-      {streamLoading && (
+      {isStreamLoading && (
         <Button onClick={onStop} variant="destructive" size="default" className="px-3 py-2.5">
           <Square className="w-4 h-4" />
           停止

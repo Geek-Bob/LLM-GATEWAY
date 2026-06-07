@@ -71,7 +71,7 @@ interface ConversationMessage {
 
 /** 代理服务器运行状态 */
 export interface ProxyStatus {
-  running: boolean
+  isRunning: boolean
   port: number
   url: string | null
 }
@@ -99,7 +99,7 @@ declare global {
       }
       apiKeys: {
         list: () => Promise<ApiKey[]>
-        create: (name: string, rateLimit?: number) => Promise<{ plaintextKey: string; key: ApiKey }>
+        create: (data: { name: string; rateLimit?: number }) => Promise<{ plaintextKey: string; key: ApiKey }>
         delete: (id: number) => Promise<void>
       }
       logs: {
@@ -114,16 +114,16 @@ declare global {
         delete: (id: number) => Promise<void>
         get: (id: number) => Promise<Conversation | null>
         messages: (conversationId: number) => Promise<ConversationMessage[]>
-        addMessage: (conversationId: number, role: 'user' | 'assistant', content: string, thinking?: string) => Promise<ConversationMessage>
+        addMessage: (data: { conversationId: number; role: 'user' | 'assistant'; content: string; thinking?: string }) => Promise<ConversationMessage>
       }
       proxy: {
-        status: () => Promise<ProxyStatus>
+        status: () => Promise<ProxyStatus & { debugMode: boolean }>
         start: (port?: number) => Promise<boolean>
-        stop: () => Promise<void>
+        stop: () => Promise<{ success: true }>
         restart: (port?: number) => Promise<boolean>
-        setPort: (port: number) => Promise<void>
-        getDebugMode: () => Promise<boolean>
-        setDebugMode: (enabled: boolean) => Promise<void>
+        setPort: (port: number) => Promise<{ success: true }>
+        getDebugMode: () => Promise<ProxyStatus & { debugMode: boolean }>
+        setDebugMode: (enabled: boolean) => Promise<{ success: true }>
       }
       window: {
         minimize: () => void
@@ -133,10 +133,10 @@ declare global {
       update: {
         check: () => Promise<UpdateCheckResult>
         download: () => Promise<void>
-        install: () => Promise<void>
-        skipVersion: (version: string) => Promise<void>
+        install: () => Promise<{ success: true }>
+        skipVersion: (version: string) => Promise<{ success: true }>
         getConfig: () => Promise<UpdateConfig>
-        setConfig: (config: Partial<UpdateConfig>) => Promise<void>
+        setConfig: (config: Partial<UpdateConfig>) => Promise<{ success: true }>
         getCurrentVersion: () => Promise<string>
         onAvailable: (callback: (info: UpdateInfo) => void) => () => void
         onProgress: (callback: (progress: UpdateProgress) => void) => () => void

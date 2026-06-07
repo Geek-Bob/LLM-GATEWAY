@@ -46,10 +46,10 @@ function PageLoading() {
 function App() {
   const [backendReady, setBackendReady] = useState(false)
   const {
-    updateAvailable,
+    isUpdateAvailable,
     updateInfo,
     currentVersion,
-    setUpdateAvailable,
+    setUpdateAvailable: setIsUpdateAvailable,
     handleDownload,
     handleSkip,
   } = useUpdateCheck()
@@ -66,7 +66,7 @@ function App() {
     // 再主动查询一次（防止事件在监听器注册前就已发出）
     api.backend.isReady().then((ready) => {
       if (ready) setBackendReady(true)
-    }).catch(() => {})
+    }).catch((e) => console.error('Backend ready check failed', e))
     return unsubscribe
   }, [])
 
@@ -103,8 +103,8 @@ function App() {
       <Sonner />
 
       <UpdateDialog
-        open={updateAvailable}
-        onOpenChange={setUpdateAvailable}
+        open={isUpdateAvailable}
+        onOpenChange={setIsUpdateAvailable}
         currentVersion={currentVersion}
         newVersion={updateInfo?.version || ''}
         releaseNotes={updateInfo?.releaseNotes}

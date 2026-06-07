@@ -1,24 +1,27 @@
 import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
+import { createLogger } from '../core/logger'
+
+const logger = createLogger('update-config')
 
 /** 自动更新的用户配置项 */
 export interface UpdateConfig {
   /** 是否自动检查更新 */
-  autoCheck: boolean
+  isAutoCheckEnabled: boolean
   /** 检查更新的时间间隔（毫秒），默认 4 小时 */
   checkInterval: number
   /** 是否允许预发布版本 */
-  allowPrerelease: boolean
+  isPrereleaseAllowed: boolean
   /** 要跳过的版本号，用户可选择忽略某个版本 */
   skipVersion: string | null
 }
 
 /** 默认配置：每 4 小时自动检查，仅稳定版 */
 const defaultConfig: UpdateConfig = {
-  autoCheck: true,
+  isAutoCheckEnabled: true,
   checkInterval: 4 * 60 * 60 * 1000, // 4 小时
-  allowPrerelease: false,
+  isPrereleaseAllowed: false,
   skipVersion: null
 }
 
@@ -48,7 +51,7 @@ export class UpdateConfigManager {
         return this.config
       }
     } catch (err) {
-      console.warn('[UpdateConfig] loadConfig failed:', err)
+      logger.warn('loadConfig failed', { error: err instanceof Error ? err.message : String(err) })
     }
     this.config = { ...defaultConfig }
     return this.config
@@ -59,7 +62,7 @@ export class UpdateConfigManager {
     try {
       fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2))
     } catch (err) {
-      console.warn('[UpdateConfig] saveConfig failed:', err)
+      logger.warn('saveConfig failed', { error: err instanceof Error ? err.message : String(err) })
     }
   }
 

@@ -25,7 +25,7 @@ import { AgentFormDialog } from '@/features/agent/components/AgentFormDialog'
 /** Agent 配置管理页面，编排 Agent 列表与表单对话框。 @returns Agents 页面 JSX。 */
 export function AgentsPage() {
   const [expandedAgent, setExpandedAgent] = useState<number | null>(null)
-  const [showAddDialog, setShowAddDialog] = useState(false)
+  const [isAddDialogVisible, setIsAddDialogVisible] = useState(false)
   const [editingConfig, setEditingConfig] = useState<AgentConfigEntity | null>(null)
 
   const { data: agents = [] } = useAgents()
@@ -70,14 +70,14 @@ export function AgentsPage() {
           onSwitchConfig={handleSwitchConfig}
           onDeleteConfig={handleDeleteConfig}
           onEditConfig={(config) => setEditingConfig(config)}
-          onOpenAddDialog={() => setShowAddDialog(true)}
+          onOpenAddDialog={() => setIsAddDialogVisible(true)}
         />
       </motion.div>
 
       <motion.div variants={childVariants}>
         <AgentFormDialog
-          showAddDialog={showAddDialog}
-          onShowAddDialogChange={setShowAddDialog}
+          isAddDialogVisible={isAddDialogVisible}
+          onShowAddDialogChange={setIsAddDialogVisible}
           expandedAgent={expandedAgent}
           editingConfig={editingConfig}
           onEditingConfigChange={setEditingConfig}

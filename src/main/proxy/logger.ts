@@ -17,6 +17,9 @@ import type { LogDebugInfo } from '../../shared/types'
 /** 调试日志实例（代理日志模块内部使用） */
 const logger = createLogger('proxy:logger')
 
+/** 调试日志中 body 截断的最大字符数 */
+const MAX_DEBUG_BODY_LENGTH = 4000
+
 /**
  * 请求日志条目属性
  */
@@ -110,7 +113,7 @@ export function createProxyLogService(deps: {
       } catch {
         logger.debug('AUTH FAIL body unparseable', { textLen: text?.length })
       }
-    }).catch(() => {})
+    }).catch((e) => logger.debug('Request body read failed', { error: e instanceof Error ? e.message : String(e) }))
   }
 
   /**
@@ -144,7 +147,7 @@ export function createProxyLogService(deps: {
       // 调试模式下，提取完整响应内容用于日志
       if (debug) {
         const content = extractContentFromSSE(text, apiFormat)
-        debug.upstream.responseBody = content || text.slice(0, 4000) // 如果提取不到内容，保留原始文本
+        debug.upstream.responseBody = content || text.slice(0, MAX_DEBUG_BODY_LENGTH) // 如果提取不到内容，保留原始文本
         logger.debug('SSE_RESPONSE_EXTRACTED', { contentLength: content.length, textLength: text.length })
       }
       tryLogEntry({ ...logBase, ...usage, debug })

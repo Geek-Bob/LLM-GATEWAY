@@ -7,16 +7,23 @@
 
 import { app, BrowserWindow, Tray, Menu, nativeImage, ipcMain } from 'electron'
 import path from 'path'
+import { createLogger } from './core/logger'
 import { initDatabase, closeDatabase, getDb } from './db/connection'
 import { createTables } from './db/schema'
 import { initLogsDir, createLogEntry, updateRequestStats, updateProviderStats } from './db/logs'
 import { verifyApiKey } from './db/api-keys'
-import { getProviderByName } from './db/providers'
+import { getProviderByName, type ProviderRow } from './db/providers'
+import type { Provider } from './shared/types'
 import { createModelsService } from './domains/models/models.service'
 import { getDebugMode } from './proxy/manager'
 import { startProxy, setProxyPort, initProxyServices } from './proxy/manager'
 import { setupIpcHandlers } from './ipc'
 import { UpdateManager } from './update/manager'
+
+const logger = createLogger('main')
+
+/** 窗口加载完成后延迟检查更新的时间（毫秒），避免阻塞启动 */
+const UPDATE_CHECK_DELAY_MS = 3000
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -28,6 +35,24 @@ const isDev = !app.isPackaged
 /** 后端服务（数据库 + 代理）是否已初始化完成 */
 let backendReady = false
 ;(globalThis as any).appIsQuitting = false
+
+/**
+ * 将数据库层 snake_case ProviderRow 转换为 camelCase Provider。
+ * models 字段从 JSON 字符串反序列化为数组。
+ */
+function providerRowToProvider(row: ProviderRow): Provider {
+  return {
+    id: row.id,
+    name: row.name,
+    providerType: row.provider_type as 'anthropic' | 'openai',
+    baseUrl: row.base_url,
+    apiKey: row.api_key,
+    models: JSON.parse(row.models) as string[],
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
 
 /**
  * 获取应用图标路径
@@ -83,13 +108,13 @@ function createWindow(): void {
 
   // Log renderer console messages to main process for debugging
   mainWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
-    const levelName = ['verbose', 'info', 'warning', 'error'][level] || 'unknown'
-    const logFn = [console.log, console.info, console.warn, console.error][level] || console.log
-    logFn(`[renderer:${levelName}] ${message} (${sourceId}:${line})`)
+    const logMethods = [logger.debug, logger.info, logger.warn, logger.error] as const
+    const logFn = logMethods[level] ?? logger.debug
+    logFn(`[renderer] ${message}`, { sourceId, line })
   })
 
   mainWindow.webContents.on('did-finish-load', () => {
-    console.log('Renderer did-finish-load')
+    logger.info('Renderer did-finish-load')
     if (isDev) {
       mainWindow?.show()
       mainWindow?.webContents.openDevTools()
@@ -104,12 +129,12 @@ function createWindow(): void {
     if (!isDev) {
       setTimeout(() => {
         updateManager.checkForUpdates()
-      }, 3000)
+      }, UPDATE_CHECK_DELAY_MS)
     }
   })
 
   if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-    console.log('Loading dev URL:', process.env['ELECTRON_RENDERER_URL'])
+    logger.info('Loading dev URL', { url: process.env['ELECTRON_RENDERER_URL'] })
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else if (isDev) {
     mainWindow.loadURL('http://localhost:5173')
@@ -118,7 +143,7 @@ function createWindow(): void {
   }
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription) => {
-    console.error(`Renderer load failed: ${errorCode} ${errorDescription}`)
+    logger.error('Renderer load failed', { errorCode, errorDescription })
   })
 
   mainWindow.on('close', (event) => {
@@ -173,7 +198,7 @@ async function startServer(): Promise<void> {
   } else {
     const appData = process.env.APPDATA || path.join(process.env.HOME || '', '.config')
     dataDir = path.join(appData, 'llm-gateway')
-    console.log('[DEV] Using data dir:', dataDir)
+    logger.info('Using data dir', { dataDir })
   }
   await initDatabase(path.join(dataDir, 'config.db'))
   createTables()
@@ -192,7 +217,11 @@ async function startServer(): Promise<void> {
     updateProviderStats,
     modelsService,
     getDebugMode,
-    lookupProvider: (name) => getProviderByName(name) as any,
+    lookupProvider: (name) => {
+      const row = getProviderByName(name)
+      if (!row) return undefined
+      return providerRowToProvider(row)
+    },
   })
   setProxyPort(PROXY_PORT)
   startProxy()
@@ -233,7 +262,7 @@ app.whenReady().then(async () => {
     setupIpcHandlers(updateManager)
     notifyBackendReady()
   } catch (err) {
-    console.error('[STARTUP] Failed to initialize backend:', err)
+    logger.error('Failed to initialize backend', { error: err instanceof Error ? err.message : String(err) })
   }
 })
 

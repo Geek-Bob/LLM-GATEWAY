@@ -3,10 +3,26 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { initDatabase, closeDatabase, getDb } from '../../db/connection'
 import { createTables } from '../../db/schema'
 import { createApiKey, verifyApiKey } from '../../db/api-keys'
-import { createProvider, getProviderByName } from '../../db/providers'
+import { createProvider, getProviderByName, type ProviderRow } from '../../db/providers'
+import type { Provider } from '../../shared/types'
 import { createLogEntry, updateRequestStats, updateProviderStats } from '../../db/logs'
 import { createModelsService } from '../../domains/models/models.service'
 import { createServer } from '../server'
+
+/** 将 snake_case ProviderRow 转换为 camelCase Provider，供 proxy 路由使用 */
+function toProvider(row: ProviderRow): Provider {
+  return {
+    id: row.id,
+    name: row.name,
+    providerType: row.provider_type as 'anthropic' | 'openai',
+    baseUrl: row.base_url,
+    apiKey: row.api_key,
+    models: JSON.parse(row.models) as string[],
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
 
 describe('Hono Proxy Server', () => {
   let app: ReturnType<typeof createServer>
@@ -39,7 +55,10 @@ describe('Hono Proxy Server', () => {
       updateProviderStats,
       modelsService,
       getDebugMode: () => false,
-      lookupProvider: (name) => getProviderByName(name) as any,
+      lookupProvider: (name) => {
+        const row = getProviderByName(name)
+        return row ? toProvider(row) : undefined
+      },
     })
   })
 

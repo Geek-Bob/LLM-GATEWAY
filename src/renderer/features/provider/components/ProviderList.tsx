@@ -56,7 +56,7 @@ export function ProviderList({ providers, onEdit, onDelete }: ProviderListProps)
               </TableCell>
               <TableCell className="text-muted-foreground">{p.models.length}</TableCell>
               <TableCell>
-                <StatusBadge active={p.isActive === 1} />
+                <StatusBadge isActive={p.isActive === 1} />
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-2">

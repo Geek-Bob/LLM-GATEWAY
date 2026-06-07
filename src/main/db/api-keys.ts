@@ -15,6 +15,13 @@
 import crypto from 'crypto'
 import { getDb } from './connection'
 
+/** API Key 随机部分的字节数，base64url 编码后产生 48 字符 */
+const KEY_RANDOM_BYTES = 36
+/** keyPrefix 取明文密钥前 N 位，用于列表显示和快速识别 */
+const KEY_PREFIX_LENGTH = 8
+/** 未指定 rateLimit 时的默认每分钟最大请求数 */
+const DEFAULT_RATE_LIMIT = 60
+
 export interface ApiKeyRow {
   id: number
   name: string
@@ -39,9 +46,9 @@ interface ApiKeyResult {
  * 4. keyHash 使用 SHA-256 哈希，用于后续无明文验证
  */
 function generateApiKey(): { plaintextKey: string; keyPrefix: string; keyHash: string } {
-  const randomPart = crypto.randomBytes(36).toString('base64url')
+  const randomPart = crypto.randomBytes(KEY_RANDOM_BYTES).toString('base64url')
   const plaintextKey = 'sk-' + randomPart
-  const keyPrefix = plaintextKey.slice(0, 8)
+  const keyPrefix = plaintextKey.slice(0, KEY_PREFIX_LENGTH)
   const keyHash = crypto.createHash('sha256').update(plaintextKey).digest('hex')
   return { plaintextKey, keyPrefix, keyHash }
 }
@@ -55,7 +62,7 @@ function hashKey(plaintextKey: string): string {
  * - plaintextKey：完整的明文密钥（仅此一次，后续不再提供）
  * - key：除 key_hash 和 key 之外的数据库行信息
  */
-export function createApiKey(name: string, rateLimit: number = 60): ApiKeyResult {
+export function createApiKey(name: string, rateLimit: number = DEFAULT_RATE_LIMIT): ApiKeyResult {
   const db = getDb()
   const { plaintextKey, keyPrefix, keyHash } = generateApiKey()
 
@@ -123,7 +130,7 @@ export function listApiKeys(): (Omit<ApiKeyRow, 'key_hash' | 'key'> & { key_plai
   ).all() as unknown as ApiKeyRow[]
 
   return rows.map((row) => {
-    const { key_hash, key, ...rest } = row
+    const { key, ...rest } = row
     return { ...rest, key_plaintext: key }
   })
 }

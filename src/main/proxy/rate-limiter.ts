@@ -14,8 +14,11 @@
  * - 如果已满了，返回最早时间戳 + 窗口时长（即何时可恢复）
  * - 如果未满，返回窗口开始时间 + 窗口时长
  */
+/** 滑动窗口默认时长（毫秒），即 1 分钟 */
+const DEFAULT_WINDOW_MS = 60_000
+
 interface RateLimitResult {
-  allowed: boolean
+  isAllowed: boolean
   remaining: number
   resetAt: number
 }
@@ -31,7 +34,7 @@ export class RateLimiter {
   /**
    * @param windowMs - 滑动窗口时长（毫秒），默认 60000（1 分钟）
    */
-  constructor(windowMs: number = 60000) {
+  constructor(windowMs: number = DEFAULT_WINDOW_MS) {
     this.windowMs = windowMs
   }
 
@@ -58,7 +61,7 @@ export class RateLimiter {
         this.windows.delete(key)
       }, this.windowMs)
 
-      return { allowed: false, remaining: 0, resetAt }
+      return { isAllowed: false, remaining: 0, resetAt }
     }
 
     // 记录当前请求时间戳
@@ -70,6 +73,6 @@ export class RateLimiter {
         ? now + this.windowMs
         : timestamps[0] + this.windowMs
 
-    return { allowed: true, remaining: limit - timestamps.length, resetAt }
+    return { isAllowed: true, remaining: limit - timestamps.length, resetAt }
   }
 }

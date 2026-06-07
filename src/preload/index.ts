@@ -48,26 +48,26 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   apiKeys: {
     list: () => ipcRenderer.invoke('apikey:list'),
-    create: (name: string, rateLimit?: number) =>
-      ipcRenderer.invoke('apikey:create', name, rateLimit),
+    create: (data: { name: string; rateLimit?: number }) =>
+      ipcRenderer.invoke('apikey:create', data),
     delete: (id: number) => ipcRenderer.invoke('apikey:delete', id)
   },
   /**
    * 日志与统计
-   * query: 按条件查询日志条目（支持分页、过滤）
+   * list: 按条件查询日志条目（支持分页、过滤）
    * stats: 聚合统计概览数据
    * statsDetailed: 按供应商/模型维度的明细统计数据
    */
   logs: {
-    query: (params: Record<string, unknown>) => ipcRenderer.invoke('logs:query', params),
+    query: (params: Record<string, unknown>) => ipcRenderer.invoke('logs:list', params),
     stats: (range: string) => ipcRenderer.invoke('logs:stats', range),
     statsDetailed: (range: '24h' | '30d') => ipcRenderer.invoke('logs:statsDetailed', range),
   },
   /**
    * 对话 CRUD + 消息管理
    * 对话记录保存在本地 SQLite 数据库中
-   * messages: 获取指定对话的所有消息
-   * addMessage: 添加消息并记录思考过程（thinking 字段用于 Anthropic 扩展思维）
+   * listMessages: 获取指定对话的所有消息
+   * createMessage: 添加消息并记录思考过程（thinking 字段用于 Anthropic 扩展思维）
    */
   conversations: {
     list: () => ipcRenderer.invoke('conversation:list'),
@@ -76,23 +76,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     update: (id: number, data: Record<string, unknown>) =>
       ipcRenderer.invoke('conversation:update', id, data),
     delete: (id: number) => ipcRenderer.invoke('conversation:delete', id),
-    get: (id: number) => ipcRenderer.invoke('conversation:get', id),
-    messages: (conversationId: number) => ipcRenderer.invoke('conversation:messages', conversationId),
-    addMessage: (conversationId: number, role: 'user' | 'assistant', content: string, thinking?: string) =>
-      ipcRenderer.invoke('conversation:addMessage', conversationId, role, content, thinking),
+    get: (id: number) => ipcRenderer.invoke('conversation:getById', id),
+    messages: (conversationId: number) => ipcRenderer.invoke('conversation:listMessages', conversationId),
+    addMessage: (data: { conversationId: number; role: 'user' | 'assistant'; content: string; thinking?: string }) =>
+      ipcRenderer.invoke('conversation:createMessage', data),
   },
   /**
    * 代理服务器生命周期管理
    * 控制 Hono HTTP 代理的启动/停止/重启，查询状态和调试模式
    */
   proxy: {
-    status: () => ipcRenderer.invoke('proxy:status'),
+    status: () => ipcRenderer.invoke('proxy:get'),
     start: (port?: number) => ipcRenderer.invoke('proxy:start', port),
     stop: () => ipcRenderer.invoke('proxy:stop'),
     restart: (port?: number) => ipcRenderer.invoke('proxy:restart', port),
-    setPort: (port: number) => ipcRenderer.invoke('proxy:setPort', port),
-    getDebugMode: () => ipcRenderer.invoke('proxy:getDebugMode'),
-    setDebugMode: (enabled: boolean) => ipcRenderer.invoke('proxy:setDebugMode', enabled)
+    setPort: (port: number) => ipcRenderer.invoke('proxy:updatePort', port),
+    getDebugMode: () => ipcRenderer.invoke('proxy:get'),
+    setDebugMode: (enabled: boolean) => ipcRenderer.invoke('proxy:update', enabled)
   },
   /**
    * 窗口控制（Electron 窗口最小化/最大化/关闭）
@@ -113,9 +113,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     check: () => ipcRenderer.invoke('update:check'),
     download: () => ipcRenderer.invoke('update:download'),
     install: () => ipcRenderer.invoke('update:install'),
-    skipVersion: (version: string) => ipcRenderer.invoke('update:skip-version', version),
-    getConfig: () => ipcRenderer.invoke('update:get-config'),
-    setConfig: (config: unknown) => ipcRenderer.invoke('update:set-config', config),
+    skipVersion: (version: string) => ipcRenderer.invoke('update:skipVersion', version),
+    getConfig: () => ipcRenderer.invoke('update:getConfig'),
+    setConfig: (config: unknown) => ipcRenderer.invoke('update:setConfig', config),
     getCurrentVersion: () => ipcRenderer.invoke('update:getCurrentVersion'),
     onAvailable: (callback: (info: unknown) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, data: unknown) => callback(data)
@@ -163,7 +163,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   agents: {
     list: () => ipcRenderer.invoke('agent:list'),
-    get: (id: number) => ipcRenderer.invoke('agent:get', id),
+    get: (id: number) => ipcRenderer.invoke('agent:getById', id),
     create: (data: unknown) => ipcRenderer.invoke('agent:create', data),
     update: (id: number, data: unknown) => ipcRenderer.invoke('agent:update', id, data),
     delete: (id: number) => ipcRenderer.invoke('agent:delete', id),

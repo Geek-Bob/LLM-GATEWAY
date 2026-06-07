@@ -27,41 +27,12 @@ export interface AgentConfigRow {
 }
 
 /**
- * 应用层 AgentConfig 类型（camelCase 字段名）
- */
-export interface AgentConfig {
-  id: number
-  agentId: number
-  name: string
-  content: string
-  isCurrent: number
-  createdAt: string
-  updatedAt: string
-}
-
-/**
  * 创建 AgentConfig 的输入参数
  */
 export interface CreateAgentConfigInput {
   agentId: number
   name: string
   content: string
-}
-
-/**
- * 将 SQLite 返回的平铺行对象还原为 AgentConfig 类型。
- * 处理 snake_case 到 camelCase 的字段名转换。
- */
-function rowToConfig(row: AgentConfigRow): AgentConfig {
-  return {
-    id: row.id,
-    agentId: row.agent_id,
-    name: row.name,
-    content: row.content,
-    isCurrent: row.is_current,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  }
 }
 
 /**
@@ -78,36 +49,35 @@ export function createAgentConfigRepository(db: Database) {
     /**
      * 列出指定 Agent 的所有配置，按 name ASC 排序
      * @param agentId - Agent ID
-     * @returns AgentConfig 数组，无配置时返回空数组
+     * @returns AgentConfigRow 数组，无配置时返回空数组
      */
-    async listByAgent(agentId: number): Promise<AgentConfig[]> {
+    async listByAgent(agentId: number): Promise<AgentConfigRow[]> {
       const stmt = db.prepare('SELECT * FROM agent_configs WHERE agent_id = ? ORDER BY name')
-      const rows = stmt.all(agentId) as AgentConfigRow[]
-      return rows.map(rowToConfig)
+      return stmt.all(agentId) as AgentConfigRow[]
     },
 
     /**
      * 按主键查询单个配置
      * @param id - 配置 ID
-     * @returns AgentConfig 对象，不存在时返回 null
+     * @returns AgentConfigRow 对象，不存在时返回 null
      */
-    async getById(id: number): Promise<AgentConfig | null> {
+    async getById(id: number): Promise<AgentConfigRow | null> {
       const stmt = db.prepare('SELECT * FROM agent_configs WHERE id = ?')
       const row = stmt.get(id) as AgentConfigRow | undefined
-      return row ? rowToConfig(row) : null
+      return row ?? null
     },
 
     /**
      * 获取指定 Agent 的当前激活配置
      * @param agentId - Agent ID
-     * @returns 当前 AgentConfig 对象，无当前配置时返回 null
+     * @returns 当前 AgentConfigRow 对象，无当前配置时返回 null
      */
-    async getCurrent(agentId: number): Promise<AgentConfig | null> {
+    async getCurrent(agentId: number): Promise<AgentConfigRow | null> {
       const stmt = db.prepare(
         'SELECT * FROM agent_configs WHERE agent_id = ? AND is_current = 1'
       )
       const row = stmt.get(agentId) as AgentConfigRow | undefined
-      return row ? rowToConfig(row) : null
+      return row ?? null
     },
 
     /**
@@ -115,10 +85,10 @@ export function createAgentConfigRepository(db: Database) {
      * 新配置默认 is_current = 0（非当前配置）
      *
      * @param input - 创建参数
-     * @returns 创建后的完整 AgentConfig 对象
+     * @returns 创建后的完整 AgentConfigRow 对象
      * @throws 如果同名配置已存在则抛出 UNIQUE 约束错误
      */
-    async create(input: CreateAgentConfigInput): Promise<AgentConfig> {
+    async create(input: CreateAgentConfigInput): Promise<AgentConfigRow> {
       const stmt = db.prepare(
         'INSERT INTO agent_configs (agent_id, name, content) VALUES (?, ?, ?)'
       )
@@ -134,10 +104,10 @@ export function createAgentConfigRepository(db: Database) {
      *
      * @param id - 配置 ID
      * @param content - 新的配置内容
-     * @returns 更新后的完整 AgentConfig 对象
+     * @returns 更新后的完整 AgentConfigRow 对象
      * @throws 如果配置不存在则抛出错误
      */
-    async updateContent(id: number, content: string): Promise<AgentConfig> {
+    async updateContent(id: number, content: string): Promise<AgentConfigRow> {
       const stmt = db.prepare(
         "UPDATE agent_configs SET content = ?, updated_at = datetime('now') WHERE id = ?"
       )
@@ -158,7 +128,7 @@ export function createAgentConfigRepository(db: Database) {
       // 先校验 configId 存在性
       const config = await this.getById(configId)
       if (!config) throw new Error(`Failed to set current config: config ${configId} not found`)
-      if (config.agentId !== agentId) {
+      if (config.agent_id !== agentId) {
         throw new Error(`Failed to set current config: config ${configId} does not belong to agent ${agentId}`)
       }
 
@@ -204,7 +174,7 @@ export function createAgentConfigRepository(db: Database) {
     async remove(id: number): Promise<void> {
       const config = await this.getById(id)
       if (!config) throw new Error(`Failed to delete config: config ${id} not found`)
-      if (config.isCurrent === 1) throw new Error(`Failed to delete config: cannot delete current config ${id}`)
+      if (config.is_current === 1) throw new Error(`Failed to delete config: cannot delete current config ${id}`)
       const stmt = db.prepare('DELETE FROM agent_configs WHERE id = ?')
       stmt.run(id)
     },

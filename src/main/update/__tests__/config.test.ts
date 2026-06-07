@@ -35,17 +35,17 @@ describe('UpdateConfigManager', () => {
   it('应该返回默认配置', () => {
     const config = configManager.getConfig()
     expect(config).toEqual({
-      autoCheck: true,
+      isAutoCheckEnabled: true,
       checkInterval: 4 * 60 * 60 * 1000,
-      allowPrerelease: false,
+      isPrereleaseAllowed: false,
       skipVersion: null
     })
   })
 
   it('应该更新配置', () => {
-    configManager.updateConfig({ autoCheck: false })
+    configManager.updateConfig({ isAutoCheckEnabled: false })
     const config = configManager.getConfig()
-    expect(config.autoCheck).toBe(false)
+    expect(config.isAutoCheckEnabled).toBe(false)
   })
 
   it('应该设置跳过版本', () => {
@@ -69,29 +69,29 @@ describe('UpdateConfigManager', () => {
 
   it('应该从已有配置文件加载并 merge 到默认配置', () => {
     existsSyncMock.mockReturnValue(true)
-    readFileSyncMock.mockReturnValue(JSON.stringify({ autoCheck: false, skipVersion: '2.0.0' }))
+    readFileSyncMock.mockReturnValue(JSON.stringify({ isAutoCheckEnabled: false, skipVersion: '2.0.0' }))
 
     const mgr = new UpdateConfigManager()
     const config = mgr.getConfig()
 
     // 自定义字段覆盖默认值
-    expect(config.autoCheck).toBe(false)
+    expect(config.isAutoCheckEnabled).toBe(false)
     expect(config.skipVersion).toBe('2.0.0')
     // 未指定字段保留默认值
     expect(config.checkInterval).toBe(4 * 60 * 60 * 1000)
-    expect(config.allowPrerelease).toBe(false)
+    expect(config.isPrereleaseAllowed).toBe(false)
   })
 
   it('应该处理配置文件中只有部分字段的场景', () => {
     existsSyncMock.mockReturnValue(true)
-    readFileSyncMock.mockReturnValue(JSON.stringify({ allowPrerelease: true }))
+    readFileSyncMock.mockReturnValue(JSON.stringify({ isPrereleaseAllowed: true }))
 
     const mgr = new UpdateConfigManager()
     const config = mgr.getConfig()
 
-    expect(config.allowPrerelease).toBe(true)
+    expect(config.isPrereleaseAllowed).toBe(true)
     // 其余字段保持默认
-    expect(config.autoCheck).toBe(true)
+    expect(config.isAutoCheckEnabled).toBe(true)
     expect(config.checkInterval).toBe(4 * 60 * 60 * 1000)
     expect(config.skipVersion).toBeNull()
   })
@@ -105,14 +105,13 @@ describe('UpdateConfigManager', () => {
     const config = mgr.getConfig()
 
     expect(config).toEqual({
-      autoCheck: true,
+      isAutoCheckEnabled: true,
       checkInterval: 4 * 60 * 60 * 1000,
-      allowPrerelease: false,
+      isPrereleaseAllowed: false,
       skipVersion: null
     })
     expect(warnSpy).toHaveBeenCalledWith(
-      '[UpdateConfig] loadConfig failed:',
-      expect.any(SyntaxError)
+      expect.stringMatching(/^\[.+?\] \[WARN\] \[update-config\] loadConfig failed /)
     )
 
     warnSpy.mockRestore()
@@ -121,7 +120,7 @@ describe('UpdateConfigManager', () => {
   it('应该延迟读取配置文件（构造时不触发 fs.existsSync）', () => {
     vi.clearAllMocks()
     existsSyncMock.mockReturnValue(true)
-    readFileSyncMock.mockReturnValue(JSON.stringify({ autoCheck: false }))
+    readFileSyncMock.mockReturnValue(JSON.stringify({ isAutoCheckEnabled: false }))
 
     // 构造时不应触发任何 fs 调用
     const mgr = new UpdateConfigManager()
@@ -131,13 +130,13 @@ describe('UpdateConfigManager', () => {
     // 首次 getConfig() 才触发读取
     const config = mgr.getConfig()
     expect(existsSyncMock).toHaveBeenCalled()
-    expect(config.autoCheck).toBe(false)
+    expect(config.isAutoCheckEnabled).toBe(false)
   })
 
   it('应该缓存首次读取的结果，后续调用不重复 I/O', () => {
     vi.clearAllMocks()
     existsSyncMock.mockReturnValue(true)
-    readFileSyncMock.mockReturnValue(JSON.stringify({ autoCheck: false }))
+    readFileSyncMock.mockReturnValue(JSON.stringify({ isAutoCheckEnabled: false }))
 
     const mgr = new UpdateConfigManager()
     mgr.getConfig() // 首次 — 触发 I/O

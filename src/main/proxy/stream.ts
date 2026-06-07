@@ -54,6 +54,181 @@ export function createStreamService(deps: {
   ) => ReadableStream<Uint8Array>
 } {
   /**
+   * 将单个转换结果编码为 SSE 线格式
+   * @param r - 转换结果（含 event 和 data）
+   * @param encoder - TextEncoder 实例
+   * @returns SSE 格式的 Uint8Array
+   */
+  function encodeSSEEvent(
+    r: { event: string; data: any },
+    encoder: TextEncoder
+  ): Uint8Array {
+    const evt = r.event && r.event !== '' ? `event: ${r.event}\n` : ''
+    return encoder.encode(`${evt}data: ${JSON.stringify(r.data)}\n\n`)
+  }
+
+  /**
+   * 将转换结果数组编码并推送到流控制器
+   * @param results - 转换结果（单个或数组，可能含 null）
+   * @param encoder - TextEncoder
+   * @param controller - ReadableStream 控制器
+   */
+  function enqueueResults(
+    results: { event: string; data: any } | Array<{ event: string; data: any }> | null,
+    encoder: TextEncoder,
+    controller: ReadableStreamDefaultController<Uint8Array>
+  ): void {
+    if (!results) return
+    const arr = Array.isArray(results) ? results : [results]
+    for (const r of arr) {
+      if (!r) continue
+      controller.enqueue(encodeSSEEvent(r, encoder))
+    }
+  }
+
+  /**
+   * 处理 SSE data 行：解析 JSON、转换事件、推送结果
+   * @param dataStr - data: 后面的原始字符串
+   * @param state - 可变状态
+   * @param from - 上游协议格式
+   * @param to - 目标协议格式
+   * @param ctx - 流转换上下文
+   * @param encoder - TextEncoder
+   * @param controller - ReadableStream 控制器
+   */
+  function processSSEDataLine(
+    dataStr: string,
+    state: { currentEvent: string; streamDone: boolean },
+    from: 'openai' | 'anthropic',
+    to: 'openai' | 'anthropic',
+    ctx: StreamContext,
+    encoder: TextEncoder,
+    controller: ReadableStreamDefaultController<Uint8Array>
+  ): void {
+    // OpenAI 流结束标记：[DONE] -> 转换为目标格式的结束事件
+    if (from === 'openai' && dataStr === '[DONE]') {
+      enqueueResults(
+        deps.convertSSEEvent('done' as any, null as any, 'openai', 'anthropic', ctx),
+        encoder, controller
+      )
+      state.streamDone = true
+      return
+    }
+
+    // 流已结束后跳过后续事件
+    if (state.streamDone) return
+
+    // 解析 JSON 并转换
+    let parsedData: any
+    try { parsedData = JSON.parse(dataStr) } catch { return }
+
+    const results = deps.convertSSEEvent(state.currentEvent, parsedData, from, to, ctx)
+    enqueueResults(results, encoder, controller)
+
+    // 检查是否为终止事件（Anthropic message_stop）
+    const lastResult = Array.isArray(results) ? results?.[results.length - 1] : results
+    if (lastResult?.event === 'message_stop') {
+      state.streamDone = true
+    }
+  }
+
+  /**
+   * 处理单行 SSE：解析 event:/data: 字段，分发到对应处理器
+   * @param line - 一行 SSE 文本
+   * @param state - 可变状态
+   * @param from - 上游协议格式
+   * @param to - 目标协议格式
+   * @param ctx - 流转换上下文
+   * @param encoder - TextEncoder
+   * @param controller - ReadableStream 控制器
+   * @returns 更新后的 currentEvent 值
+   */
+  function processSSELine(
+    line: string,
+    state: { currentEvent: string; streamDone: boolean },
+    from: 'openai' | 'anthropic',
+    to: 'openai' | 'anthropic',
+    ctx: StreamContext,
+    encoder: TextEncoder,
+    controller: ReadableStreamDefaultController<Uint8Array>
+  ): string {
+    if (line.startsWith('event:')) {
+      return line.startsWith('event: ') ? line.slice(7) : line.slice(6)
+    }
+    if (line.startsWith('data:')) {
+      const dataStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
+      processSSEDataLine(dataStr, state, from, to, ctx, encoder, controller)
+      return '' // data 行处理后重置事件类型
+    }
+    // 空行表示事件边界，重置事件类型
+    return line === '' ? '' : state.currentEvent
+  }
+
+  /**
+   * 冲刷缓冲区中剩余的数据（流结束时可能还有未处理的行）
+   * @param buffer - 剩余缓冲文本
+   * @param currentEvent - 当前 SSE 事件类型
+   * @param streamDone - 流是否已结束
+   * @param from - 上游协议格式
+   * @param to - 目标协议格式
+   * @param ctx - 流转换上下文
+   * @param encoder - TextEncoder
+   * @param controller - ReadableStream 控制器
+   */
+  function flushBuffer(
+    buffer: string,
+    currentEvent: string,
+    streamDone: boolean,
+    from: 'openai' | 'anthropic',
+    to: 'openai' | 'anthropic',
+    ctx: StreamContext,
+    encoder: TextEncoder,
+    controller: ReadableStreamDefaultController<Uint8Array>
+  ): void {
+    if (!buffer || streamDone) return
+    const state = { currentEvent, streamDone }
+    for (const line of buffer.split('\n')) {
+      if (line.startsWith('data:')) {
+        const dataStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
+        if (from === 'openai' && dataStr === '[DONE]') break
+        let parsedData: any
+        try { parsedData = JSON.parse(dataStr) } catch { continue }
+        const results = deps.convertSSEEvent(state.currentEvent, parsedData, from, to, ctx)
+        if (!results) continue
+        const arr = Array.isArray(results) ? results : [results]
+        for (const r of arr) {
+          if (!r) continue
+          controller.enqueue(encodeSSEEvent(r, encoder))
+        }
+      }
+    }
+  }
+
+  /**
+   * 记录 SSE 转换错误的详细状态，用于调试
+   * @param err - 捕获的错误
+   * @param streamDone - 流是否已结束
+   * @param ctx - 流转换上下文
+   */
+  function logConversionError(
+    err: unknown,
+    streamDone: boolean,
+    ctx: StreamContext
+  ): void {
+    logger.error('SSE_CONVERSION_ERROR', {
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack?.slice(0, 1000) : undefined,
+      streamDone,
+      state: {
+        lastMessagesType: ctx.state.lastMessagesType,
+        index: ctx.state.index,
+        done: ctx.state.done,
+        finishReason: ctx.state.finishReason,
+      },
+    })
+  }
+
+  /**
    * SSE 流协议转换器
    *
    * 将上游 SSE 事件流从一种格式实时转换为另一种格式。
@@ -94,102 +269,23 @@ export function createStreamService(deps: {
             const lines = buffer.split('\n')
             buffer = lines.pop() ?? ''
 
-            // 逐行解析 SSE 协议（兼容 event: 和 event: 两种格式）
-            for (let i = 0; i < lines.length; i++) {
-              const line = lines[i]
-              if (line.startsWith('event:')) {
-                // SSE 事件类型行（兼容有空格和无空格）
-                currentEvent = line.startsWith('event: ') ? line.slice(7) : line.slice(6)
-              } else if (line.startsWith('data:')) {
-                // SSE 数据行（兼容有空格和无空格）
-                const dataStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
-
-                // OpenAI 流结束标记：[DONE]
-                if (from === 'openai' && dataStr === '[DONE]') {
-                  // 将 [DONE] 转换为目标格式的结束事件
-                  const results = deps.convertSSEEvent('done' as any, null as any, 'openai', 'anthropic', ctx)
-                  if (results) {
-                    const arr = Array.isArray(results) ? results : [results]
-                    for (const r of arr) {
-                      if (!r) continue
-                      const evt = r.event
-                      const evtStr = evt ? `event: ${evt}\n` : ''
-                      const dataJson = JSON.stringify(r.data)
-                      controller.enqueue(encoder.encode(`${evtStr}data: ${dataJson}\n\n`))
-                    }
-                  }
-                  streamDone = true
-                  continue
-                }
-
-                // 流已结束后跳过后续事件
-                if (streamDone) continue
-
-                // 解析 JSON 数据
-                let parsedData: any
-                try {
-                  parsedData = JSON.parse(dataStr)
-                } catch {
-                  continue
-                }
-
-                // 调用 convertSSEEvent 转换单个事件
-                const results = deps.convertSSEEvent(currentEvent, parsedData, from, to, ctx)
-                if (!results) continue
-
-                // 将转换结果编码为 SSE 文本推送给客户端
-                const arr = Array.isArray(results) ? results : [results]
-                for (const r of arr) {
-                  if (!r) continue
-                  const evt = r.event && r.event !== '' ? `event: ${r.event}\n` : ''
-                  const dataJson = JSON.stringify(r.data)
-                  controller.enqueue(encoder.encode(`${evt}data: ${dataJson}\n\n`))
-                }
-
-                // 重置事件类型（空行分隔不同事件）
-                currentEvent = ''
-              }
-              // 空行表示事件边界，重置事件类型
-              if (line === '') {
-                currentEvent = ''
-              }
+            // 逐行解析 SSE 协议
+            const lineState = { currentEvent, streamDone }
+            for (const line of lines) {
+              lineState.currentEvent = processSSELine(
+                line, lineState, from, to, ctx, encoder, controller
+              )
             }
+            currentEvent = lineState.currentEvent
+            streamDone = lineState.streamDone
           }
 
-          // 冲刷缓冲区中剩余的数据（流结束时可能还有未处理的行）
-          if (buffer && !streamDone) {
-            for (const line of buffer.split('\n')) {
-              if (line.startsWith('data: ')) {
-                const dataStr = line.slice(6)
-                if (from === 'openai' && dataStr === '[DONE]') break
-                let parsedData: any
-                try { parsedData = JSON.parse(dataStr) } catch { continue }
-                const results = deps.convertSSEEvent(currentEvent, parsedData, from, to, ctx)
-                if (!results) continue
-                const arr = Array.isArray(results) ? results : [results]
-                for (const r of arr) {
-                  if (!r) continue
-                  const evt = r.event && r.event !== '' ? `event: ${r.event}\n` : ''
-                  controller.enqueue(encoder.encode(`${evt}data: ${JSON.stringify(r.data)}\n\n`))
-                }
-              }
-            }
-          }
+          // 冲刷缓冲区中剩余的数据
+          flushBuffer(buffer, currentEvent, streamDone, from, to, ctx, encoder, controller)
 
           controller.close()
         } catch (err) {
-          // 转换过程中出错，记录详细状态用于调试
-          logger.info('SSE_CONVERSION_ERROR', {
-            error: err instanceof Error ? err.message : String(err),
-            stack: err instanceof Error ? err.stack?.slice(0, 1000) : undefined,
-            streamDone,
-            state: {
-              lastMessagesType: ctx.state.lastMessagesType,
-              index: ctx.state.index,
-              done: ctx.state.done,
-              finishReason: ctx.state.finishReason,
-            },
-          })
+          logConversionError(err, streamDone, ctx)
           controller.error(err)
         }
       }

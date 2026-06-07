@@ -28,12 +28,12 @@ interface ChatMessageProps {
   isThinking?: boolean       /** 是否处于思考中（流式场景，thinking 段尚未完成） */
   model?: string             /** 模型名称，显示在气泡顶部 */
   isStreaming?: boolean      /** 是否正在流式输出 */
-  error?: boolean            /** 是否出错 */
+  hasError?: boolean         /** 是否出错 */
   onRegenerate?: () => void  /** 重新生成按钮回调 */
 }
 
 /** 单条聊天消息气泡，支持 Markdown 渲染、思考过程折叠、复制和重新生成。 @returns 消息气泡 JSX。 */
-export function ChatMessage({ role, content, thinking, isThinking, model, isStreaming, error, onRegenerate }: ChatMessageProps) {
+export function ChatMessage({ role, content, thinking, isThinking, model, isStreaming, hasError, onRegenerate }: ChatMessageProps) {
   const isUser = role === 'user'
   const [thinkingExpanded, setThinkingExpanded] = useState(true)
 
@@ -55,11 +55,11 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
 
   const bubbleClass = isUser
     ? 'bg-primary/10 border-primary/20'
-    : error
+    : hasError
       ? 'bg-destructive/10 border-destructive/20 text-destructive'
       : 'bg-muted/30 border-border/50'
 
-  const showActions = !isUser && !isStreaming && !error && content
+  const showActions = !isUser && !isStreaming && !hasError && content
 
   return (
     <motion.div
@@ -104,7 +104,7 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
 
         {/* Main content */}
         {isUser ? (
-          <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words select-text ${error ? 'text-destructive' : 'text-foreground'}`}>
+          <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words select-text ${hasError ? 'text-destructive' : 'text-foreground'}`}>
             {content}
             {isStreaming && !thinking && (
               <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-primary" />
@@ -115,7 +115,7 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
             <Markdown
               enableMermaid
               isStreaming={isStreaming}
-              className={`text-sm ${error ? 'text-destructive' : 'text-foreground'}`}
+              className={`text-sm ${hasError ? 'text-destructive' : 'text-foreground'}`}
             >
               {content}
             </Markdown>

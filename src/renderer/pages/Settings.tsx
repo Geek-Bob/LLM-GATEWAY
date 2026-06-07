@@ -57,9 +57,9 @@ export function SettingsPage() {
                 </div>
                 <Switch
                   id="auto-check"
-                  checked={config?.autoCheck ?? true}
+                  checked={config?.isAutoCheckEnabled ?? true}
                   onCheckedChange={(checked) =>
-                    updateConfig.mutate({ autoCheck: checked })
+                    updateConfig.mutate({ isAutoCheckEnabled: checked })
                   }
                 />
               </div>
@@ -73,9 +73,9 @@ export function SettingsPage() {
                 </div>
                 <Switch
                   id="allow-prerelease"
-                  checked={config?.allowPrerelease ?? false}
+                  checked={config?.isPrereleaseAllowed ?? false}
                   onCheckedChange={(checked) =>
-                    updateConfig.mutate({ allowPrerelease: checked })
+                    updateConfig.mutate({ isPrereleaseAllowed: checked })
                   }
                 />
               </div>

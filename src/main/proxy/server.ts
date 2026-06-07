@@ -105,7 +105,7 @@ export function createServer(services: ProxyServices) {
     // 记录请求头用于调试（authorization 只保留后 4 位，避免泄露完整密钥）
     const allHeaders: Record<string, string> = {}
     c.req.raw.headers.forEach((v, k) => {
-      allHeaders[k] = k === 'authorization' ? '***' + v.slice(-4) : v
+      allHeaders[k] = k === 'authorization' || k === 'x-api-key' ? '***' + v.slice(-4) : v
     })
     logger.info('REQUEST', { path: c.req.path, method: c.req.method, allHeaders })
     // 支持两种认证方式：Authorization: Bearer xxx 或 X-Api-Key: xxx
@@ -132,7 +132,7 @@ export function createServer(services: ProxyServices) {
   app.use('/v1/*', async (c, next) => {
     const key = c.var.apiKey
     const result = rateLimiter.check(`apikey:${key.id}`, key.rate_limit)
-    if (!result.allowed) {
+    if (!result.isAllowed) {
       c.header(
         'Retry-After',
         String(Math.ceil((result.resetAt - Date.now()) / 1000))

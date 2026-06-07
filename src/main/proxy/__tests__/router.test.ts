@@ -2,8 +2,24 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { initDatabase, closeDatabase } from '../../db/connection'
 import { createTables } from '../../db/schema'
-import { createProvider, getProviderByName, updateProvider } from '../../db/providers'
+import { createProvider, getProviderByName, updateProvider, type ProviderRow } from '../../db/providers'
+import type { Provider } from '../../shared/types'
 import { parseModelId, resolveProvider } from '../router'
+
+/** 将 snake_case ProviderRow 转换为 camelCase Provider，供 proxy 路由使用 */
+function toProvider(row: ProviderRow): Provider {
+  return {
+    id: row.id,
+    name: row.name,
+    providerType: row.provider_type as 'anthropic' | 'openai',
+    baseUrl: row.base_url,
+    apiKey: row.api_key,
+    models: JSON.parse(row.models) as string[],
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
 
 describe('parseModelId', () => {
   it('should parse "prefix/model" correctly', () => {
@@ -40,6 +56,8 @@ describe('parseModelId', () => {
 })
 
 describe('resolveProvider', () => {
+  let lookupProvider: (name: string) => Provider | undefined
+
   beforeEach(async () => {
     await initDatabase(':memory:')
     createTables()
@@ -65,6 +83,12 @@ describe('resolveProvider', () => {
     // Mark inactive-provider as inactive
     const inactive = getProviderByName('inactive-provider')!
     updateProvider(inactive.id, { isActive: 0 })
+
+    // 转换函数：将 snake_case ProviderRow 转为 camelCase Provider
+    lookupProvider = (name: string) => {
+      const row = getProviderByName(name)
+      return row ? toProvider(row) : undefined
+    }
   })
 
   afterEach(() => {
@@ -72,7 +96,7 @@ describe('resolveProvider', () => {
   })
 
   it('should resolve a valid model ID with active provider', () => {
-    const result = resolveProvider('test-provider/gpt-4', getProviderByName)
+    const result = resolveProvider('test-provider/gpt-4', lookupProvider)
     expect(result).toBeDefined()
     expect(result.prefix).toBe('test-provider')
     expect(result.modelName).toBe('gpt-4')
@@ -81,23 +105,23 @@ describe('resolveProvider', () => {
   })
 
   it('should throw for non-existent provider prefix', () => {
-    expect(() => resolveProvider('nonexistent/gpt-4', getProviderByName)).toThrow('Failed to resolve provider: provider not found')
+    expect(() => resolveProvider('nonexistent/gpt-4', lookupProvider)).toThrow('Failed to resolve provider: provider not found')
   })
 
   it('should throw for inactive provider', () => {
-    expect(() => resolveProvider('inactive-provider/claude-3-opus-20240229', getProviderByName)).toThrow('Failed to resolve provider: provider is disabled')
+    expect(() => resolveProvider('inactive-provider/claude-3-opus-20240229', lookupProvider)).toThrow('Failed to resolve provider: provider is disabled')
   })
 
   it('should throw for model not in provider models list', () => {
-    expect(() => resolveProvider('test-provider/nonexistent-model', getProviderByName)).toThrow('Failed to resolve model: model not in provider whitelist')
+    expect(() => resolveProvider('test-provider/nonexistent-model', lookupProvider)).toThrow('Failed to resolve model: model not in provider whitelist')
   })
 
   it('should throw for invalid model ID format (no slash)', () => {
-    expect(() => resolveProvider('no-slash-here', getProviderByName)).toThrow('Failed to parse model ID: invalid format')
+    expect(() => resolveProvider('no-slash-here', lookupProvider)).toThrow('Failed to parse model ID: invalid format')
   })
 
   it('should resolve model with slash in model name', () => {
-    const result = resolveProvider('test-provider/gpt-4', getProviderByName)
+    const result = resolveProvider('test-provider/gpt-4', lookupProvider)
     expect(result.modelName).toBe('gpt-4')
     expect(result.provider.name).toBe('test-provider')
   })

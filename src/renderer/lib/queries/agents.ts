@@ -6,8 +6,8 @@
  * agent:updateConfig / agent:deleteConfig / agent:switchConfig
  *
  * TanStack Query 用法：
- * - useAgents: Agent 列表查询，queryKey=['agents']
- * - useAgent(id): 单个 Agent 查询，queryKey=['agents', id]
+ * - useAgents: Agent 列表查询，queryKey=['agents', 'list']
+ * - useAgent(id): 单个 Agent 查询，queryKey=['agents', 'getById', id]
  * - useCreateAgent: mutation 成功后自动 invalidate 'agents' 缓存触发刷新
  * - useUpdateAgent / useDeleteAgent: 同上
  * - useAgentConfigs(agentId): 指定 Agent 的配置列表
@@ -30,7 +30,7 @@ type AgentConfigResponse = AgentConfigEntity
 /** 查询所有 Agent 列表 */
 export function useAgents() {
   return useQuery<AgentResponse[]>({
-    queryKey: ['agents'],
+    queryKey: ['agents', 'list'],
     queryFn: () => api.agents.list(),
   })
 }
@@ -38,7 +38,7 @@ export function useAgents() {
 /** 查询单个 Agent（id 为 null 时跳过查询） */
 export function useAgent(id: number | null) {
   return useQuery<AgentResponse | null>({
-    queryKey: ['agents', id],
+    queryKey: ['agents', 'getById', id],
     queryFn: () => api.agents.get(id!),
     enabled: id !== null,
   })
@@ -49,7 +49,7 @@ export function useCreateAgent() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateAgentInput) => api.agents.create(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents', 'list'] }),
   })
 }
 
@@ -59,7 +59,7 @@ export function useUpdateAgent() {
   return useMutation({
     mutationFn: ({ id, data }: { id: number; data: UpdateAgentInput }) =>
       api.agents.update(id, data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents', 'list'] }),
   })
 }
 
@@ -68,7 +68,7 @@ export function useDeleteAgent() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: number) => api.agents.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['agents', 'list'] }),
   })
 }
 
@@ -77,7 +77,7 @@ export function useDeleteAgent() {
 /** 查询指定 Agent 的配置列表（agentId 为 null 时跳过查询） */
 export function useAgentConfigs(agentId: number | null) {
   return useQuery<AgentConfigResponse[]>({
-    queryKey: ['agent-configs', agentId],
+    queryKey: ['agentConfigs', 'list', agentId],
     queryFn: () => api.agents.listConfigs(agentId!),
     enabled: agentId !== null,
   })
@@ -89,7 +89,7 @@ export function useCreateAgentConfig() {
   return useMutation({
     mutationFn: (data: CreateAgentConfigInput) => api.agents.createConfig(data),
     onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ['agent-configs', variables.agentId] })
+      qc.invalidateQueries({ queryKey: ['agentConfigs', 'list', variables.agentId] })
     },
   })
 }
@@ -101,7 +101,7 @@ export function useUpdateAgentConfig() {
     mutationFn: ({ id, data }: { id: number; data: UpdateAgentConfigInput }) =>
       api.agents.updateConfig(id, data),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['agent-configs'] })
+      qc.invalidateQueries({ queryKey: ['agentConfigs', 'list'] })
     },
   })
 }
@@ -112,7 +112,7 @@ export function useDeleteAgentConfig() {
   return useMutation({
     mutationFn: (id: number) => api.agents.deleteConfig(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['agent-configs'] })
+      qc.invalidateQueries({ queryKey: ['agentConfigs', 'list'] })
     },
   })
 }
@@ -123,7 +123,7 @@ export function useSwitchAgentConfig() {
   return useMutation({
     mutationFn: (data: SwitchConfigInput) => api.agents.switchConfig(data),
     onSuccess: (_data, variables) => {
-      qc.invalidateQueries({ queryKey: ['agent-configs', variables.agentId] })
+      qc.invalidateQueries({ queryKey: ['agentConfigs', 'list', variables.agentId] })
     },
   })
 }

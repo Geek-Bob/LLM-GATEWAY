@@ -7,8 +7,9 @@ import {
   createProvider,
   updateProvider,
   deleteProvider,
-  type Provider,
+  type ProviderRow,
 } from '../../db/providers'
+import type { ProviderEntity } from '../../shared/types'
 
 /**
  * 创建供应商业务服务
@@ -18,20 +19,22 @@ export function createProviderService(_db: Database) {
   return {
     /** 获取所有供应商，按创建时间降序排列 */
     list: async (): Promise<ProviderResponse[]> => {
-      const providers = listProviders()
-      return providers.map(rowToResponse)
+      const rows = listProviders()
+      return rows.map(providerRowToResponse)
     },
 
     /** 根据 ID 获取单个供应商 */
     getById: async (id: number): Promise<ProviderResponse | undefined> => {
-      const provider = getProvider(id)
-      if (!provider) return undefined
-      return rowToResponse(provider)
+      const row = getProvider(id)
+      if (!row) return undefined
+      return providerRowToResponse(row)
     },
 
     /** 根据 name 精确匹配查询供应商（代理路由通过此方法解析模型 ID 中的前缀） */
-    getByName: (name: string): Provider | undefined => {
-      return getProviderByName(name)
+    getByName: (name: string): ProviderEntity | undefined => {
+      const row = getProviderByName(name)
+      if (!row) return undefined
+      return providerRowToResponse(row)
     },
 
     /** 创建新供应商，models 字段会自动序列化为 JSON 字符串 */
@@ -52,20 +55,20 @@ export function createProviderService(_db: Database) {
 }
 
 /**
- * 将数据库层 Provider 对象转换为对外响应对象（ProviderResponse）
- * 两个类型结构相同，此处显式映射确保字段对齐且未来字段变化不遗漏
+ * 将数据库层 snake_case ProviderRow 转换为 camelCase ProviderResponse。
+ * 特别处理 models 字段：数据库存的是 JSON 字符串，此处反序列化为数组。
  */
-function rowToResponse(provider: Provider): ProviderResponse {
+function providerRowToResponse(row: ProviderRow): ProviderResponse {
   return {
-    id: provider.id,
-    name: provider.name,
-    providerType: provider.providerType,
-    baseUrl: provider.baseUrl,
-    apiKey: provider.apiKey,
-    models: provider.models,
-    isActive: provider.isActive,
-    createdAt: provider.createdAt,
-    updatedAt: provider.updatedAt,
+    id: row.id,
+    name: row.name,
+    providerType: row.provider_type,
+    baseUrl: row.base_url,
+    apiKey: row.api_key,
+    models: JSON.parse(row.models) as string[],
+    isActive: row.is_active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }
 }
 

@@ -29,7 +29,7 @@ let cachedServices: ProxyServices | null = null
 
 export interface ProxyConfig {
   port: number
-  running: boolean
+  isRunning: boolean
   url: string | null
 }
 
@@ -63,7 +63,7 @@ export function setDebugMode(enabled: boolean): void {
 export function getProxyConfig(): ProxyConfig {
   return {
     port: currentPort,
-    running: server !== null,
+    isRunning: server !== null,
     url: server ? `http://localhost:${currentPort}` : null
   }
 }

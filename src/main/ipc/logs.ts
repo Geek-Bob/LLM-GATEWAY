@@ -16,7 +16,7 @@ export function registerLogHandlers(db: Database): void {
   const logsService = createLogsService(db)
   const statsService = createStatsService(db)
 
-  ipcMain.handle('logs:query', async (_event, params: unknown) => {
+  ipcMain.handle('logs:list', async (_event, params: unknown) => {
     const input = queryLogsSchema.parse(params)
     return logsService.query(input)
   })

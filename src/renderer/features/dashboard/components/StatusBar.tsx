@@ -45,14 +45,14 @@ export function StatusBar() {
         <CardContent className="p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              {status.running ? (
+              {status.isRunning ? (
                 <Wifi className="w-4 h-4 text-green-500 animate-pulse-cyan" />
               ) : (
                 <WifiOff className="w-4 h-4 text-destructive" />
               )}
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  {status.running ? '代理服务运行中' : '代理服务未运行'}
+                  {status.isRunning ? '代理服务运行中' : '代理服务未运行'}
                 </p>
                 <p className="text-xs font-mono mt-0.5 text-muted-foreground">{status.url || '-'}</p>
               </div>

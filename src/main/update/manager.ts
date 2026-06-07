@@ -1,11 +1,14 @@
 import type { UpdateInfo } from 'electron-updater'
 import { app, BrowserWindow } from 'electron'
+import { createLogger } from '../core/logger'
 import { type UpdateConfig, UpdateConfigManager } from './config'
+
+const logger = createLogger('update-manager')
 
 /** 更新检查结果，供渲染进程消费 */
 export interface UpdateCheckResult {
   /** 是否有可用更新 */
-  available: boolean
+  isAvailable: boolean
   /** 新版本号 */
   version?: string
   /** 检查过程中的错误信息 */
@@ -45,7 +48,7 @@ export class UpdateManager {
     }
 
     const config = this.configManager.getConfig()
-    autoUpdater.allowPrerelease = config.allowPrerelease
+    autoUpdater.allowPrerelease = config.isPrereleaseAllowed
 
     // 注册事件监听
     autoUpdater.on('update-available', (info: UpdateInfo) => {
@@ -102,41 +105,44 @@ export class UpdateManager {
   async checkForUpdates(): Promise<UpdateCheckResult> {
     try {
       const a = await this.ensureAutoUpdater()
-      console.log('[UpdateManager] Checking for updates...')
-      console.log('[UpdateManager] Current version:', this.getCurrentVersion())
-      console.log('[UpdateManager] isPackaged:', app.isPackaged)
-      console.log('[UpdateManager] forceDevUpdateConfig:', a.forceDevUpdateConfig)
+      logger.info('Checking for updates', {
+        currentVersion: this.getCurrentVersion(),
+        isPackaged: app.isPackaged,
+        forceDevUpdateConfig: a.forceDevUpdateConfig,
+      })
 
       const result = await a.checkForUpdates()
-      console.log('[UpdateManager] checkForUpdates result:', result)
+      logger.debug('checkForUpdates result', { result })
 
       if (!result) {
-        console.log('[UpdateManager] No result from checkForUpdates')
-        return { available: false }
+        logger.info('No result from checkForUpdates')
+        return { isAvailable: false }
       }
 
       const currentVersion = this.getCurrentVersion()
       const newVersion = result.updateInfo.version
-      console.log('[UpdateManager] Current:', currentVersion, 'New:', newVersion)
+      logger.info('Version comparison', { currentVersion, newVersion })
 
       // 跳过用户明确忽略的版本
       if (this.configManager.shouldSkipVersion(newVersion)) {
-        console.log('[UpdateManager] Version skipped:', newVersion)
-        return { available: false, version: newVersion }
+        logger.info('Version skipped', { version: newVersion })
+        return { isAvailable: false, version: newVersion }
       }
 
       // 版本相同说明已是最新
       if (newVersion === currentVersion) {
-        console.log('[UpdateManager] Same version, no update')
-        return { available: false, version: newVersion }
+        logger.info('Same version, no update needed')
+        return { isAvailable: false, version: newVersion }
       }
 
-      console.log('[UpdateManager] Update available:', newVersion)
-      return { available: true, version: newVersion }
+      logger.info('Update available', { version: newVersion })
+      return { isAvailable: true, version: newVersion }
     } catch (error) {
-      console.error('[UpdateManager] Error checking for updates:', error)
+      logger.error('Error checking for updates', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      })
       return {
-        available: false,
+        isAvailable: false,
         error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
@@ -158,7 +164,7 @@ export class UpdateManager {
   async setAllowPrerelease(allow: boolean): Promise<void> {
     const a = await this.ensureAutoUpdater()
     a.allowPrerelease = allow
-    this.configManager.updateConfig({ allowPrerelease: allow })
+    this.configManager.updateConfig({ isPrereleaseAllowed: allow })
   }
 
   /** 将指定版本加入跳过列表 */

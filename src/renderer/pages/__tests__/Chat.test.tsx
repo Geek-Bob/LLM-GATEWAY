@@ -63,7 +63,7 @@ window.electronAPI = {
   providers: { list: _providerList, create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   apiKeys: { list: _apiKeyList, create: vi.fn(), delete: vi.fn() },
   logs: { query: vi.fn(), stats: vi.fn(), statsDetailed: vi.fn() },
-  proxy: { status: vi.fn().mockResolvedValue({ running: true, port: 8080, url: 'http://localhost:8080' }), start: vi.fn(), stop: vi.fn(), restart: vi.fn(), setPort: vi.fn(), getDebugMode: vi.fn().mockResolvedValue(false), setDebugMode: vi.fn() },
+  proxy: { status: vi.fn().mockResolvedValue({ isRunning: true, port: 8080, url: 'http://localhost:8080' }), start: vi.fn(), stop: vi.fn(), restart: vi.fn(), setPort: vi.fn(), getDebugMode: vi.fn().mockResolvedValue(false), setDebugMode: vi.fn() },
   conversations: {
     list: _conversationsList,
     create: _conversationsCreate,
@@ -75,11 +75,11 @@ window.electronAPI = {
   },
   window: { minimize: vi.fn(), maximize: vi.fn(), close: vi.fn() },
   update: {
-    check: vi.fn().mockResolvedValue({ available: false }),
+    check: vi.fn().mockResolvedValue({ isAvailable: false }),
     download: vi.fn().mockResolvedValue(undefined),
     install: vi.fn().mockResolvedValue(undefined),
     skipVersion: vi.fn().mockResolvedValue(undefined),
-    getConfig: vi.fn().mockResolvedValue({ autoCheck: true, checkInterval: 3600000, allowPrerelease: false, skipVersion: null }),
+    getConfig: vi.fn().mockResolvedValue({ isAutoCheckEnabled: true, checkInterval: 3600000, isPrereleaseAllowed: false, skipVersion: null }),
     setConfig: vi.fn().mockResolvedValue(undefined),
     getCurrentVersion: vi.fn().mockResolvedValue('1.0.0'),
     onAvailable: vi.fn().mockReturnValue(() => {}),
@@ -665,7 +665,7 @@ console.log("hello")
       <ChatMessage
         role="assistant"
         content="发生错误"
-        error={true}
+        hasError={true}
       />
     )
 

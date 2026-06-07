@@ -23,12 +23,12 @@ export function ProxyControlCard() {
   const [proxyPort, setProxyPort] = useState(8080)
   const { copied, copy } = useClipboard()
 
-  const proxyRunning = proxyStatus?.running ?? false
+  const proxyRunning = proxyStatus?.isRunning ?? false
   const port = proxyStatus?.port ?? proxyPort
 
   const handleCopyUrl = () => copy(`http://localhost:${port}`)
   const handleToggleProxy = () => {
-    toggleProxy.mutate({ running: proxyRunning, port: proxyRunning ? port : proxyPort })
+    toggleProxy.mutate({ isRunning: proxyRunning, port: proxyRunning ? port : proxyPort })
   }
 
   return (

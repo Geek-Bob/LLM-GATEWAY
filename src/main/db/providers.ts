@@ -8,7 +8,7 @@
  * 关键设计决策：
  * - models 字段在 SQLite 中以 JSON 字符串存储，读写时自行序列化/反序列化
  * - 字段映射采用显式 columnMap 对象，便于在 update 时精确控制 SQL 列名
- * - isActive = 1 表示激活，代理路由只会选中活跃供应商
+ * - is_active = 1 表示激活，代理路由只会选中活跃供应商
  */
 
 import { getDb } from './connection'
@@ -21,16 +21,17 @@ export interface ProviderInput {
   models: string[]
 }
 
-export interface Provider {
+export interface ProviderRow {
   id: number
   name: string
-  providerType: string
-  baseUrl: string
-  apiKey: string
-  models: string[]
-  isActive: number
-  createdAt: string
-  updatedAt: string
+  provider_type: string
+  base_url: string
+  api_key: string
+  /** JSON 序列化的模型名数组，如 '["gpt-4","gpt-3.5-turbo"]' */
+  models: string
+  is_active: number
+  created_at: string
+  updated_at: string
 }
 
 interface ProviderUpdate {
@@ -59,25 +60,6 @@ const columnMap: Record<string, string> = {
   updatedAt: 'updated_at'
 }
 
-/**
- * 将 SQLite 返回的平铺行对象还原为 Provider 类型。
- * 特别处理 models 字段：数据库存的是 JSON 字符串，此处反序列化为数组。
- * 此函数假定所有查询都使用 SELECT *，保证字段名完整。
- */
-function rowToProvider(row: { [key: string]: unknown }): Provider {
-  return {
-    id: row.id as number,
-    name: row.name as string,
-    providerType: row.provider_type as string,
-    baseUrl: row.base_url as string,
-    apiKey: row.api_key as string,
-    models: JSON.parse(row.models as string) as string[],
-    isActive: row.is_active as number,
-    createdAt: row.created_at as string,
-    updatedAt: row.updated_at as string
-  }
-}
-
 /** 创建供应商记录，models 数组序列化为 JSON 存入数据库，返回自增主键 ID。 */
 export function createProvider(input: ProviderInput): number {
   const db = getDb()
@@ -96,44 +78,36 @@ export function createProvider(input: ProviderInput): number {
 }
 
 /** 按主键查询单个供应商，找不到时返回 undefined 而非抛异常。 */
-export function getProvider(id: number): Provider | undefined {
+export function getProvider(id: number): ProviderRow | undefined {
   const db = getDb()
-  const row = db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as
-    | { [key: string]: unknown }
+  return db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as
+    | ProviderRow
     | undefined
-  if (!row) return undefined
-  return rowToProvider(row)
 }
 
 /** 按 name 精确匹配查询供应商（代理路由通过此函数解析模型 ID 中的前缀）。 */
-export function getProviderByName(name: string): Provider | undefined {
+export function getProviderByName(name: string): ProviderRow | undefined {
   const db = getDb()
-  const row = db.prepare('SELECT * FROM providers WHERE name = ?').get(name) as
-    | { [key: string]: unknown }
+  return db.prepare('SELECT * FROM providers WHERE name = ?').get(name) as
+    | ProviderRow
     | undefined
-  if (!row) return undefined
-  return rowToProvider(row)
 }
 
 /** 列出所有供应商，按创建时间降序排列（新创建的排前面）。 */
-export function listProviders(): Provider[] {
+export function listProviders(): ProviderRow[] {
   const db = getDb()
-  const rows = db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as {
-    [key: string]: unknown
-  }[]
-  return rows.map(rowToProvider)
+  return db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as ProviderRow[]
 }
 
 /**
  * 仅列出活跃供应商（is_active = 1）。
  * 代理路由 resolveProvider() 依赖此函数，不活跃的供应商不会被选中做请求转发。
  */
-export function listActiveProviders(): Provider[] {
+export function listActiveProviders(): ProviderRow[] {
   const db = getDb()
-  const rows = db
+  return db
     .prepare('SELECT * FROM providers WHERE is_active = 1 ORDER BY created_at DESC')
-    .all() as { [key: string]: unknown }[]
-  return rows.map(rowToProvider)
+    .all() as ProviderRow[]
 }
 
 /**

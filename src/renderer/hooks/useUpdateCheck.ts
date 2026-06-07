@@ -7,6 +7,9 @@
  * 更新流程：onAvailable → 用户确认 → download → onProgress → onDownloaded → install
  */
 import { useEffect, useState } from 'react'
+
+/** 更新下载完成后延迟安装的时间（毫秒），等待 toast 提示展示 */
+const INSTALL_DELAY_MS = 1000
 import { toast } from 'sonner'
 import { api } from '@/lib/ipc'
 import { useSkipVersion } from '@/lib/queries/update'
@@ -14,7 +17,7 @@ import { useSkipVersion } from '@/lib/queries/update'
 /** useUpdateCheck hook 返回值 */
 export interface UpdateCheckState {
   /** 是否有可用更新（控制 UpdateDialog 显隐） */
-  updateAvailable: boolean
+  isUpdateAvailable: boolean
   /** 更新信息（版本号、releaseNotes） */
   updateInfo: { version: string; releaseNotes?: string | null } | null
   /** 当前应用版本号 */
@@ -38,7 +41,7 @@ export interface UpdateCheckState {
  * @returns 更新状态和操作方法，供 UpdateDialog 使用
  */
 export function useUpdateCheck(): UpdateCheckState {
-  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [isUpdateAvailable, setIsUpdateAvailable] = useState(false)
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseNotes?: string | null } | null>(null)
   const [currentVersion, setCurrentVersion] = useState('dev')
 
@@ -48,7 +51,7 @@ export function useUpdateCheck(): UpdateCheckState {
   useEffect(() => {
     if (!api) return
 
-    api.update.getCurrentVersion().then((v) => setCurrentVersion(v)).catch(() => {})
+    api.update.getCurrentVersion().then((v) => setCurrentVersion(v)).catch((e) => console.error('Version check failed', e))
   }, [])
 
   // 注册主进程推送的更新事件监听
@@ -59,7 +62,7 @@ export function useUpdateCheck(): UpdateCheckState {
 
     const unsubscribeAvailable = api.update.onAvailable((info) => {
       setUpdateInfo(info)
-      setUpdateAvailable(true)
+      setIsUpdateAvailable(true)
     })
 
     const unsubscribeProgress = api.update.onProgress((progress) => {
@@ -73,7 +76,7 @@ export function useUpdateCheck(): UpdateCheckState {
       // 自动安装更新
       setTimeout(() => {
         api?.update?.install()
-      }, 1000)
+      }, INSTALL_DELAY_MS)
     })
 
     const unsubscribeError = api.update.onError((error) => {
@@ -102,10 +105,10 @@ export function useUpdateCheck(): UpdateCheckState {
   }
 
   return {
-    updateAvailable,
+    isUpdateAvailable,
     updateInfo,
     currentVersion,
-    setUpdateAvailable,
+    setUpdateAvailable: setIsUpdateAvailable,
     handleDownload,
     handleSkip,
   }

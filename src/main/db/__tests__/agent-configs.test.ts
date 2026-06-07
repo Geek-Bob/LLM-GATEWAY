@@ -32,7 +32,7 @@ describe('Agent Config Repository', () => {
     })
     expect(config.id).toBeDefined()
     expect(config.name).toBe('default')
-    expect(config.isCurrent).toBe(0)
+    expect(config.is_current).toBe(0)
   })
 
   it('should get config by id', async () => {
@@ -125,14 +125,14 @@ describe('Agent Config Repository', () => {
 
     await repo.setCurrent(1, config1.id)
     const old1 = await repo.getById(config1.id)
-    expect(old1?.isCurrent).toBe(1)
+    expect(old1?.is_current).toBe(1)
 
     await repo.setCurrent(1, config2.id)
     const old2 = await repo.getById(config1.id)
-    expect(old2?.isCurrent).toBe(0)
+    expect(old2?.is_current).toBe(0)
 
     const new2 = await repo.getById(config2.id)
-    expect(new2?.isCurrent).toBe(1)
+    expect(new2?.is_current).toBe(1)
   })
 
   it('should throw when setCurrent with non-existent config', async () => {

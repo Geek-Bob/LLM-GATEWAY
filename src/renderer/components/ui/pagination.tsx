@@ -61,7 +61,7 @@ function generatePageNumbers(current: number, total: number): (number | '...')[]
 /**
  * 通用分页组件
  */
-export function Pagination({ page, totalPages, total, pageSize, onPageChange }: PaginationProps) {
+export function Pagination({ page, totalPages, total, pageSize: _pageSize, onPageChange }: PaginationProps) {
   const [jumpValue, setJumpValue] = useState('')
 
   /** 跳转到指定页码 */

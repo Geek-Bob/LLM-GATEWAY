@@ -1,17 +1,3 @@
-/** 数据库 providers 表的原始行记录，列名使用下划线命名（snake_case） */
-interface ProviderRow {
-  id: number
-  name: string
-  provider_type: 'anthropic' | 'openai'
-  base_url: string
-  api_key: string
-  /** JSON 序列化的模型名数组，如 '["gpt-4","gpt-3.5-turbo"]' */
-  models: string
-  is_active: number
-  created_at: string
-  updated_at: string
-}
-
 /** 对外返回的供应商信息，将下划线字段转为驼峰命名（camelCase） */
 export interface ProviderResponse {
   id: number

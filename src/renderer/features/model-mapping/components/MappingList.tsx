@@ -56,7 +56,7 @@ export function MappingList({ mappings, onEdit, onDelete }: MappingListProps) {
                 <code className="text-sm font-mono text-foreground">{m.targetModel}</code>
               </TableCell>
               <TableCell>
-                <StatusBadge active={m.isActive === 1} />
+                <StatusBadge isActive={m.isActive === 1} />
               </TableCell>
               <TableCell className="text-right">
                 <div className="flex items-center justify-end gap-2">

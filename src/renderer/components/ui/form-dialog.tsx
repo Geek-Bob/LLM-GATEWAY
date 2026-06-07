@@ -29,8 +29,8 @@ interface FormDialogProps {
   /** 取消按钮文字，默认 '取消' */
   cancelLabel?: string
   /** 提交按钮禁用状态 */
-  submitDisabled?: boolean
-  /** 提交按钮加载中文字（如 '保存中...'），传入时 submitDisabled 应为 true */
+  isSubmitDisabled?: boolean
+  /** 提交按钮加载中文字（如 '保存中...'），传入时 isSubmitDisabled 应为 true */
   submitLoadingLabel?: string
   /** 表单内容 */
   children: React.ReactNode
@@ -62,7 +62,7 @@ export function FormDialog({
   onSubmit,
   submitLabel = '保存',
   cancelLabel = '取消',
-  submitDisabled = false,
+  isSubmitDisabled = false,
   submitLoadingLabel,
   children,
   className,
@@ -88,8 +88,8 @@ export function FormDialog({
             >
               {cancelLabel}
             </Button>
-            <Button type="submit" disabled={submitDisabled}>
-              {submitDisabled && submitLoadingLabel ? submitLoadingLabel : submitLabel}
+            <Button type="submit" disabled={isSubmitDisabled}>
+              {isSubmitDisabled && submitLoadingLabel ? submitLoadingLabel : submitLabel}
             </Button>
           </DialogFooter>
         </form>

@@ -16,7 +16,7 @@ describe('RateLimiter', () => {
 
     for (let i = 0; i < 5; i++) {
       const result = limiter.check('test-key', 5)
-      expect(result.allowed).toBe(true)
+      expect(result.isAllowed).toBe(true)
       expect(result.remaining).toBe(5 - i - 1)
     }
   })
@@ -29,7 +29,7 @@ describe('RateLimiter', () => {
     }
 
     const result = limiter.check('test-key', 5)
-    expect(result.allowed).toBe(false)
+    expect(result.isAllowed).toBe(false)
     expect(result.remaining).toBe(0)
     expect(typeof result.resetAt).toBe('number')
   })
@@ -43,11 +43,11 @@ describe('RateLimiter', () => {
     }
 
     // key2 should still be fully available
-    expect(limiter.check('key2', 5).allowed).toBe(true)
+    expect(limiter.check('key2', 5).isAllowed).toBe(true)
     expect(limiter.check('key2', 5).remaining).toBe(3)
 
     // key1 should be blocked
-    expect(limiter.check('key1', 5).allowed).toBe(false)
+    expect(limiter.check('key1', 5).isAllowed).toBe(false)
   })
 
   it('should expire old entries after window', () => {
@@ -58,14 +58,14 @@ describe('RateLimiter', () => {
     }
 
     // Should be blocked
-    expect(limiter.check('test-key', 5).allowed).toBe(false)
+    expect(limiter.check('test-key', 5).isAllowed).toBe(false)
 
     // Advance time past the window
     vi.advanceTimersByTime(1000)
 
     // Should be allowed again
     const result = limiter.check('test-key', 5)
-    expect(result.allowed).toBe(true)
+    expect(result.isAllowed).toBe(true)
     expect(result.remaining).toBe(4)
   })
 
@@ -80,7 +80,7 @@ describe('RateLimiter', () => {
     const now = Date.now()
     const result = limiter.check('test-key', 5)
 
-    expect(result.allowed).toBe(false)
+    expect(result.isAllowed).toBe(false)
     // resetAt should be oldest timestamp + windowMs
     expect(result.resetAt).toBe(now + 5000)
   })
@@ -90,11 +90,11 @@ describe('RateLimiter', () => {
 
     // Access internal windowMs via behavior — after 60s entries should expire
     limiter.check('default-key', 1)
-    expect(limiter.check('default-key', 1).allowed).toBe(false)
+    expect(limiter.check('default-key', 1).isAllowed).toBe(false)
 
     vi.advanceTimersByTime(60000)
 
-    expect(limiter.check('default-key', 1).allowed).toBe(true)
+    expect(limiter.check('default-key', 1).isAllowed).toBe(true)
   })
 
   it('should handle multiple keys independently with different limits', () => {
@@ -102,16 +102,16 @@ describe('RateLimiter', () => {
 
     // key1 has limit 3, key2 has limit 5
     for (let i = 0; i < 3; i++) {
-      expect(limiter.check('key-low', 3).allowed).toBe(true)
+      expect(limiter.check('key-low', 3).isAllowed).toBe(true)
     }
     // key1 should now be blocked at limit 3
-    expect(limiter.check('key-low', 3).allowed).toBe(false)
+    expect(limiter.check('key-low', 3).isAllowed).toBe(false)
 
     // key2 should still allow up to 5
     for (let i = 0; i < 5; i++) {
-      expect(limiter.check('key-high', 5).allowed).toBe(true)
+      expect(limiter.check('key-high', 5).isAllowed).toBe(true)
     }
-    expect(limiter.check('key-high', 5).allowed).toBe(false)
+    expect(limiter.check('key-high', 5).isAllowed).toBe(false)
   })
 
   it('should allow requests again immediately after window passes for blocked key', () => {
@@ -122,13 +122,13 @@ describe('RateLimiter', () => {
     }
 
     // Blocked
-    expect(limiter.check('burst-key', 3).allowed).toBe(false)
+    expect(limiter.check('burst-key', 3).isAllowed).toBe(false)
 
     // Advance just past the window
     vi.advanceTimersByTime(501)
 
     // Should be allowed again
-    expect(limiter.check('burst-key', 3).allowed).toBe(true)
+    expect(limiter.check('burst-key', 3).isAllowed).toBe(true)
     expect(limiter.check('burst-key', 3).remaining).toBe(1)
   })
 })

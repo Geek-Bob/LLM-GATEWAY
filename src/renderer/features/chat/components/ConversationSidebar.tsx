@@ -27,7 +27,7 @@ interface ConversationSidebarProps {
   onSelect: (id: number) => void
   onNew: () => void
   onDelete: (id: number) => void
-  collapsed: boolean
+  isCollapsed: boolean
   onToggleCollapse: () => void
 }
 
@@ -38,10 +38,10 @@ export function ConversationSidebar({
   onSelect,
   onNew,
   onDelete,
-  collapsed,
+  isCollapsed,
   onToggleCollapse,
 }: ConversationSidebarProps) {
-  if (collapsed) {
+  if (isCollapsed) {
     return (
       <motion.div
         className="flex flex-col items-center py-3 gap-2 cursor-pointer shrink-0 w-10 border-r border-border/50 hover:bg-muted/30"

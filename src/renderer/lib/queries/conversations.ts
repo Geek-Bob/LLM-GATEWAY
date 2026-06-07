@@ -4,7 +4,7 @@
  * 封装的 IPC 通道：conversations.list / conversations.create / conversations.delete
  *
  * TanStack Query 用法：
- * - useConversations: 列表查询，queryKey=['conversations']
+ * - useConversations: 列表查询，queryKey=['conversations', 'list']
  * - useCreateConversation: 支持 providerId 和 apiKeyId 可选关联
  * - useDeleteConversation: 删除后 invalidate 缓存
  *
@@ -17,7 +17,7 @@ import type { Conversation } from '@/lib/types'
 /** 查询所有会话列表。 @returns TanStack Query 结果，data 为 Conversation 数组。 */
 export function useConversations() {
   return useQuery<Conversation[]>({
-    queryKey: ['conversations'],
+    queryKey: ['conversations', 'list'],
     queryFn: () => api.conversations.list(),
   })
 }
@@ -28,7 +28,7 @@ export function useCreateConversation() {
   return useMutation({
     mutationFn: (data: { title: string; model: string; providerId?: number | null; apiKeyId?: number | null }) =>
       api.conversations.create(data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations', 'list'] }),
   })
 }
 
@@ -38,6 +38,6 @@ export function useDeleteConversation() {
   return useMutation({
     mutationFn: (id: number) =>
       api.conversations.delete(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations'] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['conversations', 'list'] }),
   })
 }

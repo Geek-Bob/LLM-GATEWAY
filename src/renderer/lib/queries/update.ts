@@ -11,8 +11,8 @@
  *
  * 更新工作流：check → download → install
  * - useCheckUpdate: 纯 mutation，不缓存结果，每次调用触发远程检查
- * - useDownloadUpdate: 下载成功时 invalidate 'update-config'（版本状态可能变化）
- * - useSkipVersion: 跳过后 invalidate 'update-config'
+ * - useDownloadUpdate: 下载成功时 invalidate ['update', 'config']（版本状态可能变化）
+ * - useSkipVersion: 跳过后 invalidate ['update', 'config']
  * - useUpdateConfigMutation: 修改配置后 invalidate，支持外部 onError 回调
  *
  * useCurrentVersion / useUpdateConfig: 只读查询，有 TanStack Query 缓存
@@ -24,7 +24,7 @@ import type { UpdateCheckResult, UpdateConfig } from '../../../shared/types'
 /** 查询当前更新配置（自动检查、预发布版本等）。 @returns TanStack Query 结果，data 为 UpdateConfig。 */
 export function useUpdateConfig() {
   return useQuery<UpdateConfig>({
-    queryKey: ['update-config'],
+    queryKey: ['update', 'config'],
     queryFn: () => api.update.getConfig(),
   })
 }
@@ -32,7 +32,7 @@ export function useUpdateConfig() {
 /** 查询当前应用版本号。 @returns TanStack Query 结果，data 为版本字符串。 */
 export function useCurrentVersion() {
   return useQuery<string>({
-    queryKey: ['current-version'],
+    queryKey: ['update', 'currentVersion'],
     queryFn: () => api.update.getCurrentVersion(),
   })
 }
@@ -51,7 +51,7 @@ export function useDownloadUpdate() {
   return useMutation({
     mutationFn: () => api.update.download(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['update-config'] })
+      queryClient.invalidateQueries({ queryKey: ['update', 'config'] })
     },
   })
 }
@@ -70,7 +70,7 @@ export function useSkipVersion() {
   return useMutation({
     mutationFn: (version: string) => api.update.skipVersion(version),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['update-config'] })
+      queryClient.invalidateQueries({ queryKey: ['update', 'config'] })
     },
   })
 }
@@ -84,7 +84,7 @@ export function useUpdateConfigMutation(
   return useMutation({
     mutationFn: (config: Partial<UpdateConfig>) => api.update.setConfig(config),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['update-config'] })
+      queryClient.invalidateQueries({ queryKey: ['update', 'config'] })
     },
     onError: options?.onError,
   })

@@ -21,21 +21,24 @@ export function setupUpdateIpcHandlers(updateManager: UpdateManager): void {
   /** 安装更新并重启 */
   ipcMain.handle('update:install', async () => {
     await updateManager.installUpdate()
+    return { success: true }
   })
 
   /** 跳过指定版本号 */
-  ipcMain.handle('update:skip-version', async (_event, version: string) => {
+  ipcMain.handle('update:skipVersion', async (_event, version: string) => {
     updateManager.skipVersion(version)
+    return { success: true }
   })
 
   /** 获取当前更新配置 */
-  ipcMain.handle('update:get-config', async () => {
+  ipcMain.handle('update:getConfig', async () => {
     return updateManager.getConfig()
   })
 
   /** 更新配置项 */
-  ipcMain.handle('update:set-config', async (_event, config: Partial<UpdateConfig>) => {
+  ipcMain.handle('update:setConfig', async (_event, config: Partial<UpdateConfig>) => {
     updateManager.updateConfig(config)
+    return { success: true }
   })
 
   /** 获取当前应用版本号 */

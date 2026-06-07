@@ -32,7 +32,7 @@ export function ChatPage() {
     sidebarCollapsed,
     toggleSidebar,
     inputKey,
-    streamLoading,
+    streamLoading: isStreamLoading,
     handleSend,
     handleStop,
     handleRegenerate,
@@ -55,7 +55,7 @@ export function ChatPage() {
           onSelect={handleSelectConversation}
           onNew={handleNewConversation}
           onDelete={handleDeleteConversation}
-          collapsed={sidebarCollapsed}
+          isCollapsed={sidebarCollapsed}
           onToggleCollapse={toggleSidebar}
         />
       </motion.div>
@@ -77,7 +77,7 @@ export function ChatPage() {
 
         <ChatInputArea
           inputKey={inputKey}
-          streamLoading={streamLoading}
+          isStreamLoading={isStreamLoading}
           selectedModel={selectedModel}
           selectedApiKeyId={selectedApiKeyId}
           onSend={handleSend}

@@ -17,10 +17,12 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import * as os from 'os'
 import type { Database } from '../../db/database'
-import { createAgentRepository, type Agent } from '../../db/agents'
-import { createAgentConfigRepository, type AgentConfig } from '../../db/agent-configs'
+import { createAgentRepository, type AgentRow } from '../../db/agents'
+import { createAgentConfigRepository, type AgentConfigRow } from '../../db/agent-configs'
 import { createLogger } from '../../core/logger'
 import type {
+  AgentEntity,
+  AgentConfigEntity,
   CreateAgentInput,
   UpdateAgentInput,
   CreateAgentConfigInput,
@@ -58,40 +60,44 @@ export function createAgentService(db: Database) {
   return {
     /**
      * 列出所有 Agent
-     * @returns Agent 数组，按 is_builtin DESC, name ASC 排序
+     * @returns AgentEntity 数组，按 is_builtin DESC, name ASC 排序
      */
-    async list(): Promise<Agent[]> {
-      return agentRepo.list()
+    async list(): Promise<AgentEntity[]> {
+      const rows = await agentRepo.list()
+      return rows.map(agentRowToEntity)
     },
 
     /**
      * 获取单个 Agent
      * @param id - Agent ID
-     * @returns Agent 对象，不存在时返回 null
+     * @returns AgentEntity 对象，不存在时返回 null
      */
-    async getById(id: number): Promise<Agent | null> {
-      return agentRepo.getById(id)
+    async getById(id: number): Promise<AgentEntity | null> {
+      const row = await agentRepo.getById(id)
+      return row ? agentRowToEntity(row) : null
     },
 
     /**
      * 创建自定义 Agent
      * @param input - 创建参数
-     * @returns 创建后的完整 Agent 对象
+     * @returns 创建后的完整 AgentEntity 对象
      * @throws 如果 name 已存在则抛出 UNIQUE 约束错误
      */
-    async create(input: CreateAgentInput): Promise<Agent> {
-      return agentRepo.create(input)
+    async create(input: CreateAgentInput): Promise<AgentEntity> {
+      const row = await agentRepo.create(input)
+      return agentRowToEntity(row)
     },
 
     /**
      * 更新 Agent
      * @param id - Agent ID
      * @param input - 更新参数
-     * @returns 更新后的完整 Agent 对象
+     * @returns 更新后的完整 AgentEntity 对象
      * @throws 如果 Agent 不存在则抛出错误
      */
-    async update(id: number, input: UpdateAgentInput): Promise<Agent> {
-      return agentRepo.update(id, input)
+    async update(id: number, input: UpdateAgentInput): Promise<AgentEntity> {
+      const row = await agentRepo.update(id, input)
+      return agentRowToEntity(row)
     },
 
     /**
@@ -106,40 +112,44 @@ export function createAgentService(db: Database) {
     /**
      * 列出某个 Agent 的所有配置
      * @param agentId - Agent ID
-     * @returns AgentConfig 数组，按 name ASC 排序
+     * @returns AgentConfigEntity 数组，按 name ASC 排序
      */
-    async listConfigs(agentId: number): Promise<AgentConfig[]> {
-      return configRepo.listByAgent(agentId)
+    async listConfigs(agentId: number): Promise<AgentConfigEntity[]> {
+      const rows = await configRepo.listByAgent(agentId)
+      return rows.map(configRowToEntity)
     },
 
     /**
      * 获取单个配置
      * @param id - 配置 ID
-     * @returns AgentConfig 对象，不存在时返回 null
+     * @returns AgentConfigEntity 对象，不存在时返回 null
      */
-    async getConfig(id: number): Promise<AgentConfig | null> {
-      return configRepo.getById(id)
+    async getConfig(id: number): Promise<AgentConfigEntity | null> {
+      const row = await configRepo.getById(id)
+      return row ? configRowToEntity(row) : null
     },
 
     /**
      * 创建配置
      * @param input - 创建参数
-     * @returns 创建后的完整 AgentConfig 对象
+     * @returns 创建后的完整 AgentConfigEntity 对象
      * @throws 如果同名配置已存在则抛出 UNIQUE 约束错误
      */
-    async createConfig(input: CreateAgentConfigInput): Promise<AgentConfig> {
-      return configRepo.create(input)
+    async createConfig(input: CreateAgentConfigInput): Promise<AgentConfigEntity> {
+      const row = await configRepo.create(input)
+      return configRowToEntity(row)
     },
 
     /**
      * 更新配置内容
      * @param id - 配置 ID
      * @param input - 更新参数
-     * @returns 更新后的完整 AgentConfig 对象
+     * @returns 更新后的完整 AgentConfigEntity 对象
      * @throws 如果配置不存在则抛出错误
      */
-    async updateConfig(id: number, input: UpdateAgentConfigInput): Promise<AgentConfig> {
-      return configRepo.updateContent(id, input.content)
+    async updateConfig(id: number, input: UpdateAgentConfigInput): Promise<AgentConfigEntity> {
+      const row = await configRepo.updateContent(id, input.content)
+      return configRowToEntity(row)
     },
 
     /**
@@ -170,7 +180,7 @@ export function createAgentService(db: Database) {
       // 1. 读取配置和 Agent 信息
       const config = await configRepo.getById(configId)
       if (!config) throw new Error(`Failed to switch config: config ${configId} not found`)
-      if (config.agentId !== agentId) throw new Error(`Failed to switch config: config ${configId} does not belong to agent ${agentId}`)
+      if (config.agent_id !== agentId) throw new Error(`Failed to switch config: config ${configId} does not belong to agent ${agentId}`)
 
       const agent = await agentRepo.getById(agentId)
       if (!agent) throw new Error(`Failed to switch config: agent ${agentId} not found`)
@@ -182,7 +192,7 @@ export function createAgentService(db: Database) {
       await configRepo.setCurrent(agentId, configId)
 
       // 4. 原子写入到 Agent 路径
-      const configPath = expandHomePath(agent.configPath)
+      const configPath = expandHomePath(agent.config_path)
       const dir = path.dirname(configPath)
       const tmpPath = `${configPath}.tmp.${Date.now()}`
 
@@ -215,6 +225,37 @@ export function createAgentService(db: Database) {
         throw error
       }
     },
+  }
+}
+
+/**
+ * 将数据库层 snake_case AgentRow 转换为 camelCase AgentEntity。
+ */
+function agentRowToEntity(row: AgentRow): AgentEntity {
+  return {
+    id: row.id,
+    name: row.name,
+    displayName: row.display_name,
+    configPath: row.config_path,
+    configFormat: row.config_format,
+    isBuiltin: row.is_builtin,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+/**
+ * 将数据库层 snake_case AgentConfigRow 转换为 camelCase AgentConfigEntity。
+ */
+function configRowToEntity(row: AgentConfigRow): AgentConfigEntity {
+  return {
+    id: row.id,
+    agentId: row.agent_id,
+    name: row.name,
+    content: row.content,
+    isCurrent: row.is_current,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
   }
 }
 

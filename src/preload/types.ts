@@ -103,13 +103,13 @@ export interface ElectronAPI {
     statsDetailed: (range: '24h' | '30d') => Promise<{ providerId: number; providerName: string; models: { model: string; totalRequests: number; totalTokensIn: number; totalTokensOut: number; totalErrors: number; dataPoints: { period: number | string; requests: number; tokensIn: number; tokensOut: number }[] }[] }[]>
   }
   proxy: {
-    status: () => Promise<{ port: number; running: boolean; url: string | null }>
+    status: () => Promise<{ port: number; running: boolean; url: string | null; debugMode: boolean }>
     start: (port?: number) => Promise<boolean>
-    stop: () => Promise<void>
+    stop: () => Promise<{ success: true }>
     restart: (port?: number) => Promise<boolean>
-    setPort: (port: number) => Promise<void>
-    getDebugMode: () => Promise<boolean>
-    setDebugMode: (enabled: boolean) => Promise<void>
+    setPort: (port: number) => Promise<{ success: true }>
+    getDebugMode: () => Promise<{ port: number; running: boolean; url: string | null; debugMode: boolean }>
+    setDebugMode: (enabled: boolean) => Promise<{ success: true }>
   }
   window: {
     minimize: () => void
@@ -119,10 +119,10 @@ export interface ElectronAPI {
   update: {
     check: () => Promise<UpdateCheckResult>
     download: () => Promise<void>
-    install: () => Promise<void>
-    skipVersion: (version: string) => Promise<void>
+    install: () => Promise<{ success: true }>
+    skipVersion: (version: string) => Promise<{ success: true }>
     getConfig: () => Promise<UpdateConfig>
-    setConfig: (config: Partial<UpdateConfig>) => Promise<void>
+    setConfig: (config: Partial<UpdateConfig>) => Promise<{ success: true }>
     getCurrentVersion: () => Promise<string>
     onAvailable: (callback: (info: UpdateInfo) => void) => () => void
     onProgress: (callback: (progress: UpdateProgress) => void) => () => void

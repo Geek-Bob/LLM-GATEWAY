@@ -14,6 +14,8 @@ import type { LogDebugInfo } from '../../shared/types'
 
 const MAX_LINES = 500
 const MAX_FILES = 20
+/** countLines() 中直接读取文件内容的大小阈值（10MB），超过此值改用流式逐块计数 */
+const SMALL_FILE_THRESHOLD_BYTES = 10 * 1024 * 1024
 
 /** 日志系统元数据结构 */
 interface LogsMeta {
@@ -112,8 +114,8 @@ function countLines(filePath: string): number {
   try {
     const stat = fs.statSync(filePath)
     if (stat.size === 0) return 0
-    // 小文件（<10MB）直接读取，大文件用 buf 逐块计数
-    if (stat.size < 10 * 1024 * 1024) {
+    // 小文件直接读取，大文件用 buf 逐块计数
+    if (stat.size < SMALL_FILE_THRESHOLD_BYTES) {
       const content = fs.readFileSync(filePath, 'utf-8')
       return content ? content.trimEnd().split('\n').length : 0
     }

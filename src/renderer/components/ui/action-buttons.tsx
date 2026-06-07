@@ -21,9 +21,9 @@ interface ActionButtonsProps {
   /** 删除按钮 tooltip 文字，默认 '删除' */
   deleteLabel?: string
   /** 编辑按钮禁用状态 */
-  editDisabled?: boolean
+  isEditDisabled?: boolean
   /** 删除按钮禁用状态 */
-  deleteDisabled?: boolean
+  isDeleteDisabled?: boolean
   /** 附加 className */
   className?: string
 }
@@ -44,8 +44,8 @@ export function ActionButtons({
   onDelete,
   editLabel = '编辑',
   deleteLabel = '删除',
-  editDisabled = false,
-  deleteDisabled = false,
+  isEditDisabled = false,
+  isDeleteDisabled = false,
   className,
 }: ActionButtonsProps) {
   return (
@@ -56,7 +56,7 @@ export function ActionButtons({
             <Button
               variant="ghost"
               size="icon"
-              disabled={editDisabled}
+              disabled={isEditDisabled}
               onClick={onEdit}
               aria-label={editLabel}
             >
@@ -71,7 +71,7 @@ export function ActionButtons({
             <Button
               variant="ghost"
               size="icon"
-              disabled={deleteDisabled}
+              disabled={isDeleteDisabled}
               onClick={onDelete}
               className="text-destructive hover:text-destructive"
               aria-label={deleteLabel}

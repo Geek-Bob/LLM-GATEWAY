@@ -22,7 +22,7 @@ describe('Agent Repository', () => {
     expect(agents.length).toBeGreaterThan(0)
     expect(agents[0]).toHaveProperty('id')
     expect(agents[0]).toHaveProperty('name')
-    expect(agents[0]).toHaveProperty('displayName')
+    expect(agents[0]).toHaveProperty('display_name')
   })
 
   it('should get agent by id', async () => {
@@ -40,13 +40,13 @@ describe('Agent Repository', () => {
       configFormat: 'json'
     })
     expect(agent.id).toBeDefined()
-    expect(agent.isBuiltin).toBe(0)
+    expect(agent.is_builtin).toBe(0)
   })
 
   it('should update agent', async () => {
     const agents = await repo.list()
     const updated = await repo.update(agents[0].id, { displayName: 'Updated Name' })
-    expect(updated.displayName).toBe('Updated Name')
+    expect(updated.display_name).toBe('Updated Name')
   })
 
   it('should delete custom agent', async () => {
@@ -63,7 +63,7 @@ describe('Agent Repository', () => {
 
   it('should not delete builtin agent', async () => {
     const agents = await repo.list()
-    const builtin = agents.find(a => a.isBuiltin === 1)
+    const builtin = agents.find(a => a.is_builtin === 1)
     await expect(repo.remove(builtin!.id)).rejects.toThrow('Failed to delete agent: cannot delete builtin agent')
   })
 
@@ -71,7 +71,7 @@ describe('Agent Repository', () => {
     const agent = await repo.getByName('claude')
     expect(agent).toBeDefined()
     expect(agent?.name).toBe('claude')
-    expect(agent?.isBuiltin).toBe(1)
+    expect(agent?.is_builtin).toBe(1)
   })
 
   it('should return null for non-existent name', async () => {

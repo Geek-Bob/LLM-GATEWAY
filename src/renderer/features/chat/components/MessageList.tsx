@@ -25,7 +25,7 @@ export interface Message {
   isThinking?: boolean
   model?: string
   isStreaming?: boolean
-  error?: boolean
+  hasError?: boolean
 }
 
 interface MessageListProps {
