@@ -1,8 +1,8 @@
 /**
  * 模型映射业务逻辑
  *
- * 遵循 Domain Pattern 模式 B（无状态 service，内部通过模块级 import 访问 db）。
- * 提供模型列表查询（从 router.ts 迁移）和 model_mappings 表的 CRUD 操作。
+ * 遵循 Domain Pattern 模式 A（工厂注入 service）。
+ * 通过 createModelsService(db) 注入 Database 实例，与 provider/conversation 等 domain 统一。
  *
  * 主要职责：
  * - getAllModels(): 聚合所有活跃 provider 的模型列表，供 /v1/models 端点和配置 UI 使用
@@ -10,8 +10,7 @@
  * - CRUD 操作: 管理 model_mappings 表的增删改查
  */
 
-import { getDb } from '../../db/connection'
-import { listActiveProviders } from '../../db/providers'
+import type { Database } from '../../db/database'
 import type {
   ModelMapping,
   CreateModelMappingInput,
@@ -19,13 +18,26 @@ import type {
   ModelInfo,
 } from './models.types'
 
+/** 将数据库行记录转换为 ModelMapping 对象 */
+function rowToModelMapping(row: Record<string, unknown>): ModelMapping {
+  return {
+    id: row.id as number,
+    sourceModel: row.source_model as string,
+    targetModel: row.target_model as string,
+    isActive: row.is_active as number,
+    createdAt: row.created_at as string,
+  }
+}
+
 /**
  * 创建模型映射 service 实例
  *
- * 每次调用返回新的 service 对象，但内部共享同一个数据库连接。
- * 适用于 IPC handler 注册和 proxy 层调用。
+ * 采用依赖注入模式，接收 Database 实例，与 provider/conversation/agent 等 domain 统一。
+ *
+ * @param db - Database 实例
+ * @returns ModelsService 对象
  */
-export function createModelsService() {
+export function createModelsService(db: Database) {
   return {
     /**
      * 获取所有活跃 provider 的模型列表
@@ -35,14 +47,20 @@ export function createModelsService() {
      * 此函数从 proxy/router.ts 的 getAvailableModels() 迁移而来。
      */
     getAllModels: (): ModelInfo[] => {
-      const providers = listActiveProviders()
+      const rows = db
+        .prepare('SELECT * FROM providers WHERE is_active = 1 ORDER BY created_at DESC')
+        .all() as Record<string, unknown>[]
+
       const result: ModelInfo[] = []
-      for (const p of providers) {
-        for (const model of p.models) {
+      for (const row of rows) {
+        const providerName = row.name as string
+        const providerType = row.provider_type as string
+        const models = JSON.parse(row.models as string) as string[]
+        for (const model of models) {
           result.push({
-            id: `${p.name}/${model}`,
-            provider: p.name,
-            providerType: p.providerType,
+            id: `${providerName}/${model}`,
+            provider: providerName,
+            providerType,
           })
         }
       }
@@ -57,22 +75,13 @@ export function createModelsService() {
      * 未找到映射时返回 null（调用方应使用原始模型名）。
      */
     findModelMapping: (sourceModel: string): ModelMapping | null => {
-      const db = getDb()
       const row = db
         .prepare(
           'SELECT * FROM model_mappings WHERE source_model = ? AND is_active = 1'
         )
         .get([sourceModel]) as Record<string, unknown> | undefined
 
-      if (!row) return null
-
-      return {
-        id: row.id as number,
-        sourceModel: row.source_model as string,
-        targetModel: row.target_model as string,
-        isActive: row.is_active as number,
-        createdAt: row.created_at as string,
-      }
+      return row ? rowToModelMapping(row) : null
     },
 
     /**
@@ -81,18 +90,11 @@ export function createModelsService() {
      * 供 IPC handler 的 list 接口使用，返回完整映射列表。
      */
     listModelMappings: (): ModelMapping[] => {
-      const db = getDb()
       const rows = db
         .prepare('SELECT * FROM model_mappings ORDER BY id DESC')
         .all() as Record<string, unknown>[]
 
-      return rows.map((row) => ({
-        id: row.id as number,
-        sourceModel: row.source_model as string,
-        targetModel: row.target_model as string,
-        isActive: row.is_active as number,
-        createdAt: row.created_at as string,
-      }))
+      return rows.map(rowToModelMapping)
     },
 
     /**
@@ -103,25 +105,17 @@ export function createModelsService() {
      * 注意：source_model 有 UNIQUE 约束，重复插入会抛异常。
      */
     createModelMapping: (data: CreateModelMappingInput): ModelMapping => {
-      const db = getDb()
       const result = db
         .prepare(
           'INSERT INTO model_mappings (source_model, target_model) VALUES (?, ?)'
         )
         .run([data.sourceModel, data.targetModel])
 
-      // 查询刚创建的记录，返回完整对象
       const row = db
         .prepare('SELECT * FROM model_mappings WHERE id = ?')
         .get([result.lastInsertRowid]) as Record<string, unknown>
 
-      return {
-        id: row.id as number,
-        sourceModel: row.source_model as string,
-        targetModel: row.target_model as string,
-        isActive: row.is_active as number,
-        createdAt: row.created_at as string,
-      }
+      return rowToModelMapping(row)
     },
 
     /**
@@ -134,11 +128,9 @@ export function createModelsService() {
       id: number,
       data: UpdateModelMappingInput
     ): ModelMapping => {
-      const db = getDb()
       const setClauses: string[] = []
       const values: unknown[] = []
 
-      // 动态构建 SET 子句，仅包含传入的字段
       if (data.sourceModel !== undefined) {
         setClauses.push('source_model = ?')
         values.push(data.sourceModel)
@@ -148,7 +140,6 @@ export function createModelsService() {
         values.push(data.targetModel)
       }
 
-      // 有字段需要更新时才执行 SQL
       if (setClauses.length > 0) {
         values.push(id)
         db.prepare(
@@ -156,18 +147,11 @@ export function createModelsService() {
         ).run(values)
       }
 
-      // 查询更新后的记录
       const row = db
         .prepare('SELECT * FROM model_mappings WHERE id = ?')
         .get([id]) as Record<string, unknown>
 
-      return {
-        id: row.id as number,
-        sourceModel: row.source_model as string,
-        targetModel: row.target_model as string,
-        isActive: row.is_active as number,
-        createdAt: row.created_at as string,
-      }
+      return rowToModelMapping(row)
     },
 
     /**
@@ -176,7 +160,6 @@ export function createModelsService() {
      * 按 id 硬删除记录。如需软删除，调用方应使用 updateModelMapping 设置 is_active=0。
      */
     deleteModelMapping: (id: number): void => {
-      const db = getDb()
       db.prepare('DELETE FROM model_mappings WHERE id = ?').run([id])
     },
   }

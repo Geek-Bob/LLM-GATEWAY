@@ -3,7 +3,7 @@
  * models.service 单元测试
  *
  * 使用内存数据库测试模型映射 CRUD 和模型列表查询。
- * 遵循 Domain Pattern 模式 B（无状态 service，内部通过模块级 import 访问 db）。
+ * 遵循 Domain Pattern 模式 A（工厂注入 service，接收 Database 实例）。
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { initDatabase, closeDatabase, getDb } from '../../../db/connection'
@@ -26,7 +26,7 @@ describe('models.service', () => {
     // 每个测试前清理 model_mappings 表，确保测试隔离
     const db = getDb()
     db.exec('DELETE FROM model_mappings')
-    service = createModelsService()
+    service = createModelsService(getDb())
   })
 
   describe('getAllModels', () => {

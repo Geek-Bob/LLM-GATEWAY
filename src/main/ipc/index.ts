@@ -213,7 +213,7 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
   })
 
   // ====== 模型映射 ======
-  const modelsService = createModelsService()
+  const modelsService = createModelsService(db)
 
   ipcMain.handle('models:list', async () => modelsService.getAllModels())
 

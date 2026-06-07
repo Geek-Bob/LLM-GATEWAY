@@ -13,7 +13,7 @@
 |------|---------|---------|
 | TypeScript | 6.0 | `enum`、`namespace`、装饰器 |
 | ESLint | 10.x | `.eslintrc` 格式 |
-| 测试 | vitest + jsdom | — |
+| 测试 | vitest 4.x + jsdom 29.x | 前端 jsdom / 后端 node，配置分离 |
 
 ### 前端（renderer）
 | 技术 | 锁定版本 | 禁止使用 |
@@ -22,15 +22,21 @@
 | Tailwind | 4.3 | `tailwind.config.ts`、`@layer components` |
 | React Router | 7.x | `BrowserRouter`（Electron 用 HashRouter） |
 | TanStack Query | 5.x | 字符串 queryKey（用数组 `['key', id]`） |
-| Vite | 6.4 | 额外的 vite.config.ts |
-| Shiki | 最新 | 高亮超过 5 种语言（ts/js/python/json/bash） |
+| Vite | 6.4 | 额外的 vite.config.ts（受 electron-vite 5.x 约束） |
+| Shiki | 4.x | 高亮超过 5 种语言（ts/js/python/json/bash） |
 
 ### 后端（main）
 | 技术 | 锁定版本 | 禁止使用 |
 |------|---------|---------|
-| Electron | 42 | — |
+| Electron | 42.x | — |
 | Hono | 4.x | 在 `server.ts` 中写路由逻辑 |
-| sql.js/WASM | — | — |
+| sql.js/WASM | 1.x | — |
+
+### 构建与分发
+| 技术 | 锁定版本 | 用途 |
+|------|---------|------|
+| electron-vite | 5.x | main/preload/renderer 三进程构建 |
+| electron-builder | 26.x | Win(NSIS)/Mac(DMG)/Linux(AppImage+deb) |
 
 ### 目标平台
 Windows / macOS / Linux 桌面
@@ -46,7 +52,8 @@ Windows / macOS / Linux 桌面
 
 ## Build & Test
 - `npm run dev` — electron-vite dev | `npm run build` — 全量构建
-- `npm test` — vitest run | `npm run lint` — eslint src/
+- `npm test` — 前端 + 后端全量测试 | `npm run test:frontend` — 仅前端 | `npm run test:backend` — 仅后端
+- `npm run lint` — eslint src/
 - `npx tsc --noEmit` — 类型检查（不产出文件）
 - `npx vitest run <path>` — 单文件/目录测试
 

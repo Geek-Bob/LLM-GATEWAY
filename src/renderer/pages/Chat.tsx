@@ -15,7 +15,7 @@ import { pageVariants, childVariants } from '@/lib/animations'
 import { MessageSquare, Square } from 'lucide-react'
 
 import { api } from '@/lib/ipc'
-import { setApiKey } from '@/shared/lib/api-client'
+import { setApiKey } from '@/lib/api-client'
 import { useChatStream } from '@/features/chat/hooks/useChatStream'
 import {
   useConversationManager,

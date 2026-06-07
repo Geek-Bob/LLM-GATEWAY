@@ -19,7 +19,7 @@ import rehypeRaw from 'rehype-raw'
 import type { Root } from 'hast'
 import { cn } from '@/lib/utils'
 import { Mermaid } from './mermaid'
-import { highlightCode } from '@/shared/lib/shiki'
+import { highlightCode } from '@/lib/shiki'
 
 /**
  * rehype 插件：剥离 HTML 中 hardcoded 的 color/background 样式

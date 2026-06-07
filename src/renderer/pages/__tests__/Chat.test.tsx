@@ -9,7 +9,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Provider, ApiKey } from '../../lib/types'
 import { ChatMessage } from '../../features/chat/components/ChatMessage'
-import { setApiKey } from '@/shared/lib/api-client'
+import { setApiKey } from '@/lib/api-client'
 
 // ======================
 // Mocks

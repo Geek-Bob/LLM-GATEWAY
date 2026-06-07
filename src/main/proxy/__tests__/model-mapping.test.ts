@@ -28,7 +28,7 @@ describe('模型映射端到端', () => {
     // 每个测试前清理 model_mappings 表，确保测试隔离
     const db = getDb()
     db.exec('DELETE FROM model_mappings')
-    service = createModelsService()
+    service = createModelsService(getDb())
   })
 
   it('完整流程：创建映射 -> 查找映射 -> 删除映射', () => {

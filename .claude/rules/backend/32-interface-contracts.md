@@ -1,3 +1,7 @@
+---
+description: IPC/代理接口契约（输入校验、输出格式），始终加载
+---
+
 # 接口契约
 
 ## 输入校验
@@ -19,7 +23,7 @@
 ## IPC handler 规范
 - handler 参数必须有显式类型标注（禁止隐式 any）
 - handler 只做：校验输入 → 调用 service → 返回结果
-- 错误通过 throw 传播，不在 handler 内 catch 后返回 null
+- handler 内禁止 catch 后返回 null 或静默吞没错误（错误映射规则见 34-error-handling）
 
 ## 代理路由规范
 - 代理端点遵循标准 API 路径（如 `/v1/chat/completions`）
@@ -31,4 +35,4 @@
 - IPC create/update handler 入口缺少 Zod `.parse()` 验证
 - handler 中编写业务逻辑（Map 聚合、条件判断、数据转换）
 - 返回值类型与 service 返回类型不一致（handler 做了额外转换）
-- 代理路由中直接操作数据库
+- 代理路由（proxy/）导入 db/、domains/ 下的文件

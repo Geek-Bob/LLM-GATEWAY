@@ -1,4 +1,17 @@
+---
+description: 后端测试策略（vitest + node 环境），按需加载
+paths:
+  - "src/main/**/*.test.*"
+  - "src/main/**/__tests__/**"
+---
+
 # 测试策略
+
+## 测试框架
+- 框架：vitest 4.x（前后端共用，配置分离）
+- 前端配置：`vitest.config.ts`（environment: jsdom，覆盖 `src/renderer/`）
+- 后端配置：`vitest.backend.config.ts`（environment: node，覆盖 `src/main/`）
+- 命令：`npm test`（全量）、`npm run test:frontend`、`npm run test:backend`
 
 ## 测试金字塔
 - 单元测试（service、schema）：占比最大，快速、隔离、可重复
@@ -12,12 +25,12 @@
 - 代理测试使用 mock 的上游响应，不发起真实 HTTP 请求
 
 ## Service 测试
-- 每个 service.ts 必须有对应的 service.test.ts
+- 每个 `domains/{name}/{name}.service.ts` 必须有对应的 `{name}.service.test.ts`（同目录）
 - 覆盖：CRUD 操作、边界条件、错误处理
 - 测试数据使用工厂函数创建，不硬编码
 
 ## Schema 测试
-- 每个 schema.ts 必须有对应的 schema.test.ts
+- 每个 `domains/{name}/{name}.schema.ts` 必须有对应的 `{name}.schema.test.ts`（同目录）
 - 覆盖：合法输入接受 + 非法输入拒绝 + 边界值
 - 非法输入测试必须验证具体错误字段
 
@@ -29,10 +42,9 @@
 ## 测试数据管理
 - 每个测试用例自行创建所需数据，不依赖其他测试的副作用
 - 测试结束后清理数据（beforeEach / afterEach）
-- 使用工厂函数生成测试数据，避免重复代码
 
 ## 禁止
-- 测试文件导入未测试的 domain 模块的内部实现
+- 测试文件导入非本 domain 的 service 实现（如 `providers.service.test.ts` 不导入 `api-keys.service.ts`）
 - 测试依赖执行顺序（每个测试必须能独立运行）
 - 测试中使用真实的 API Key 或外部服务
 - 跳过失败的测试（修复或删除，不留 skip）

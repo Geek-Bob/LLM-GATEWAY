@@ -26,6 +26,7 @@ import { createLogger } from '../core/logger'
 
 import { createLogEntry, updateRequestStats, updateProviderStats } from '../db/logs'
 import { getDebugMode } from './manager'
+import { getDb } from '../db/connection'
 import { createModelsService } from '../domains/models/models.service'
 import type { LogDebugInfo } from '../../shared/types'
 
@@ -81,7 +82,7 @@ export function createServer() {
   const app = new Hono<AppEnv>()
   const rateLimiter = new RateLimiter()
   /** 模型映射 service 实例，供 handleProxyRequest 中查找映射使用 */
-  const modelsService = createModelsService()
+  const modelsService = createModelsService(getDb())
 
   // CORS 全局中间件：允许所有跨域请求
   app.use('*', cors())

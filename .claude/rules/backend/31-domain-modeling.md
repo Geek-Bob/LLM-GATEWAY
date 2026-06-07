@@ -1,9 +1,12 @@
+---
+description: 领域建模与服务结构（工厂注入模式），始终加载
+---
+
 # 领域建模
 
 ## 服务边界
-- 每个独立业务概念（Provider、ApiKey、Agent 等）为一个 domain
-- 每个 domain 有且仅一个 `service.ts` 作为业务入口
 - 按聚合根划分 domain，不按数据库表划分
+- 每个 domain 有且仅一个 `service.ts` 作为业务入口
 
 ## 服务内部结构
 每个 domain 目录包含三个文件：
@@ -11,19 +14,17 @@
 - `{name}.schema.ts` — Zod 校验 schema（create/update 必须）
 - `{name}.service.ts` — 业务逻辑入口
 
-## 服务函数规范
-- 服务函数是纯数据操作，不感知 HTTP/IPC 上下文
-- 服务函数的参数和返回值必须有明确类型
-- 服务函数内部流程：校验输入 → 执行业务规则 → 调用数据操作 → 返回结果
+## 工厂注入模式
+- 每个 service 通过工厂函数创建：`createXxxService(db: Database)`
+- Database 实例由调用方（IPC 层）通过 `getDb()` 获取后注入，service 自身禁止调用 `getDb()`
+- 工厂函数返回纯对象，方法通过闭包访问注入的 `db`
+- 类型导出：`export type XxxService = ReturnType<typeof createXxxService>`
 
 ## 服务间通信
-- 同步调用：通过函数调用引用其他 service（注入或模块导入）
-- 禁止循环依赖：A service 不得引用 B service，同时 B service 也引用 A service
-- 跨 domain 数据聚合在接口层完成，不在业务层互相调用
+- 单向调用：A service 可以引用 B service（通过模块导入），但不允许反向引用
+- 禁止循环依赖：A 引用 B 且 B 同时引用 A
+- 跨 domain 的数据聚合优先在接口层完成，避免 service 之间深度耦合
 
 ## 禁止
-- 在 service 中直接操作数据库连接对象
-- 在 service 中引入 HTTP 框架代码（Hono、Express 等）
-- 一个 domain 包含多个 service 文件（拆分为多个 domain）
-- service 函数超过 50 行（拆分为子函数）
-- 缺少 schema.ts 的 domain（所有 create/update 入口必须有 Zod 校验）
+- 一个 domain 包含多个 service 文件（应拆分为多个 domain）
+- 缺少 `{name}.schema.ts` 的 domain（校验在接口层执行，但 schema 定义归属 domain）

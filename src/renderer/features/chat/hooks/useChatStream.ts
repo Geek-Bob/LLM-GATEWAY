@@ -24,7 +24,7 @@
  * - DOMException AbortError 在 catch 中被静默忽略，不触发错误状态
  */
 import { useState, useRef, useCallback } from 'react'
-import { apiFetch, getApiKey, ApiError } from '@/shared/lib/api-client'
+import { apiFetch, getApiKey, ApiError } from '@/lib/api-client'
 
 export interface StreamMessage {
   id: string
