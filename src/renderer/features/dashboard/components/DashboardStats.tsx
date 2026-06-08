@@ -24,13 +24,13 @@ export function DashboardStatsGrid({ stats, activeProviders, totalProviders }: D
   const cards = [
     {
       title: '近 7 日请求',
-      value: stats?.total_requests ?? 0,
+      value: stats?.totalRequests ?? 0,
       icon: <BarChart3 className="w-5 h-5" />,
     },
     {
       title: 'Token 消耗',
       value: stats
-        ? (stats.total_tokens_in + stats.total_tokens_out).toLocaleString()
+        ? (stats.totalTokensIn + stats.totalTokensOut).toLocaleString()
         : '0',
       icon: <Coins className="w-5 h-5" />,
     },
@@ -41,7 +41,7 @@ export function DashboardStatsGrid({ stats, activeProviders, totalProviders }: D
     },
     {
       title: '平均延迟',
-      value: stats ? `${Math.round(stats.avg_duration_ms)}ms` : '0ms',
+      value: stats ? `${Math.round(stats.avgDurationMs)}ms` : '0ms',
       icon: <Zap className="w-5 h-5" />,
     },
   ]

@@ -78,11 +78,11 @@ export interface LogEntry {
 }
 
 export interface DashboardStats {
-  total_requests: number
-  total_tokens_in: number
-  total_tokens_out: number
-  avg_duration_ms: number
-  total_errors: number
+  totalRequests: number
+  totalTokensIn: number
+  totalTokensOut: number
+  avgDurationMs: number
+  totalErrors: number
 }
 
 export interface ElectronAPI {

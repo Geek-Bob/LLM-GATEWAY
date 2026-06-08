@@ -213,7 +213,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
 
     const logBase = {
       apiKeyId: c.var.apiKey.id, providerId: route.provider.id,
-      model, apiFormat, statusCode: response.status,
+      model: proxyBody.model, apiFormat, statusCode: response.status,
       durationMs: Date.now() - startTime
     }
     return { response, logBase }

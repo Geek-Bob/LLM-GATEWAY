@@ -41,11 +41,11 @@ export interface LogEntry {
 
 /** 仪表盘概览统计数据 */
 export interface DashboardStats {
-  total_requests: number
-  total_tokens_in: number
-  total_tokens_out: number
-  avg_duration_ms: number
-  total_errors: number
+  totalRequests: number
+  totalTokensIn: number
+  totalTokensOut: number
+  avgDurationMs: number
+  totalErrors: number
 }
 
 /** 本地对话记录（包含关联的供应商、模型和 API Key） */
