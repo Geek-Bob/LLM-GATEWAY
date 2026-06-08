@@ -28,7 +28,7 @@ export function DashboardStatsGrid({ stats, activeProviders, totalProviders }: D
       icon: <BarChart3 className="w-5 h-5" />,
     },
     {
-      title: 'Token 消耗',
+      title: '近 7 日 Token 消耗',
       value: stats
         ? (stats.totalTokensIn + stats.totalTokensOut).toLocaleString()
         : '0',
@@ -40,7 +40,7 @@ export function DashboardStatsGrid({ stats, activeProviders, totalProviders }: D
       icon: <Building2 className="w-5 h-5" />,
     },
     {
-      title: '平均延迟',
+      title: '近 7 日平均延迟',
       value: stats ? `${Math.round(stats.avgDurationMs)}ms` : '0ms',
       icon: <Zap className="w-5 h-5" />,
     },
