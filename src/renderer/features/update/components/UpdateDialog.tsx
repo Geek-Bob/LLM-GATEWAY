@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Download } from 'lucide-react'
-import { Markdown } from '@/components/ui/markdown'
+import { Markdown } from '@/components/shared/markdown'
 
 interface UpdateDialogProps {
   open: boolean

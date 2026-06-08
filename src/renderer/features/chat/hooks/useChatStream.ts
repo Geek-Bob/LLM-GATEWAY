@@ -25,6 +25,7 @@
  */
 import { useState, useRef, useCallback } from 'react'
 import { apiFetch, getApiKey, ApiError } from '@/lib/api-client'
+import { parseSSELine, extractOpenAIDelta } from '../../../../shared/sse-utils'
 
 export interface StreamMessage {
   id: string
@@ -139,52 +140,34 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
         buffer = lines.pop() || ''
 
         for (const line of lines) {
-          const trimmed = line.trim()
-          if (!trimmed) continue
+          const parsed = parseSSELine(line)
+          if (!parsed?.data) continue
 
-          // --- OpenAI SSE 解析 ---
-          // 格式: data: {"choices":[{"delta":{"content":"Hello"},"finish_reason":null}]}
-          // 格式: data: [DONE]
-          // 兼容 "data: " 和 "data:"（无空格）两种格式
-          if (!trimmed.startsWith('data:')) continue
-
-          const jsonStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed.slice(5)
-          if (jsonStr === '[DONE]') {
+          if (parsed.data === '[DONE]') {
             const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
             messageRef.current = doneMsg
             onUpdate(doneMsg)
             return
           }
 
-          let parsed: any
-          try { parsed = JSON.parse(jsonStr) } catch { continue }
-
-          const delta = parsed.choices?.[0]?.delta
+          const delta = extractOpenAIDelta(parsed.data)
           if (!delta) continue
 
           if (delta.content) {
             contentAcc += delta.content
           }
-          if (delta.reasoning_content) {
-            thinkingAcc += delta.reasoning_content
+          if (delta.reasoningContent) {
+            thinkingAcc += delta.reasoningContent
           }
 
           const updatedMsg: StreamMessage = {
             ...messageRef.current!,
             content: contentAcc,
             thinking: thinkingAcc,
-            isThinking: !!delta.reasoning_content,
+            isThinking: !!delta.reasoningContent,
           }
           messageRef.current = updatedMsg
           onUpdate(updatedMsg)
-
-          // finish_reason 出现表示这是最后一个有意义 chunk
-          if (parsed.choices?.[0]?.finish_reason) {
-            const doneMsg = buildDoneMessage(contentAcc, thinkingAcc)
-            messageRef.current = doneMsg
-            onUpdate(doneMsg)
-            return
-          }
         }
       }
 

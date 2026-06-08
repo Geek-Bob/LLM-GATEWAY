@@ -36,7 +36,7 @@ import type {
  * @param db - Database 实例
  * @returns ModelsService 对象
  */
-export function createModelsService(_db: Database) {
+export function createModelsService(db: Database) {
   return {
     /**
      * 获取所有活跃 provider 的模型列表
@@ -46,7 +46,7 @@ export function createModelsService(_db: Database) {
      * 此函数从 proxy/router.ts 的 getAvailableModels() 迁移而来。
      */
     getAllModels: (): ModelInfo[] => {
-      const providers = listActiveProviders()
+      const providers = listActiveProviders(db)
 
       const result: ModelInfo[] = []
       for (const provider of providers) {
@@ -70,7 +70,7 @@ export function createModelsService(_db: Database) {
      * 未找到映射时返回 null（调用方应使用原始模型名）。
      */
     findModelMapping: (sourceModel: string): ModelMapping | null => {
-      const row = findActiveModelMapping(sourceModel)
+      const row = findActiveModelMapping(db, sourceModel)
       if (!row) return null
       return modelMappingRowToEntity(row)
     },
@@ -81,7 +81,7 @@ export function createModelsService(_db: Database) {
      * 供 IPC handler 的 list 接口使用，返回完整映射列表。
      */
     listModelMappings: (): ModelMapping[] => {
-      return listModelMappingsFromDb().map(modelMappingRowToEntity)
+      return listModelMappingsFromDb(db).map(modelMappingRowToEntity)
     },
 
     /**
@@ -92,7 +92,7 @@ export function createModelsService(_db: Database) {
      * 注意：source_model 有 UNIQUE 约束，重复插入会抛异常。
      */
     createModelMapping: (data: CreateModelMappingInput): ModelMapping => {
-      return modelMappingRowToEntity(insertModelMapping(data.sourceModel, data.targetModel))
+      return modelMappingRowToEntity(insertModelMapping(db, data.sourceModel, data.targetModel))
     },
 
     /**
@@ -105,8 +105,8 @@ export function createModelsService(_db: Database) {
       id: number,
       data: UpdateModelMappingInput
     ): ModelMapping => {
-      updateModelMappingInDb(id, data)
-      const row = getModelMapping(id)
+      updateModelMappingInDb(db, id, data)
+      const row = getModelMapping(db, id)
       if (!row) {
         throw new Error(`Failed to update model mapping: id ${id} not found`)
       }
@@ -119,7 +119,7 @@ export function createModelsService(_db: Database) {
      * 按 id 硬删除记录。如需软删除，调用方应使用 updateModelMapping 设置 is_active=0。
      */
     deleteModelMapping: (id: number): void => {
-      deleteModelMappingFromDb(id)
+      deleteModelMappingFromDb(db, id)
     },
   }
 }

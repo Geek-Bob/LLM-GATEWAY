@@ -85,22 +85,22 @@ export type Provider = ProviderEntity
 export interface ApiKeyEntity {
   id: number
   name: string
-  key_prefix: string
-  key_plaintext: string
-  is_active: number
-  rate_limit: number
-  created_at: string
+  keyPrefix: string
+  keyPlaintext: string
+  isActive: number
+  rateLimit: number
+  createdAt: string
 }
 
 /** 对话实体 */
 export interface ConversationEntity {
   id: number
   title: string
-  provider_id: number | null
+  providerId: number | null
   model: string
-  api_key_id: number | null
-  created_at: string
-  updated_at: string
+  apiKeyId: number | null
+  createdAt: string
+  updatedAt: string
 }
 
 

@@ -1,7 +1,7 @@
 # LLM Gateway 架构技术手册
 
 > 技术细节手册 — 覆盖完整目录结构、数据流、模块职责和设计约定。
-> 编写日期: 2026-05-30 | 最后更新: 2026-06-08 | Electron 42.x + TypeScript 6.0 + React 19.2
+> 编写日期: 2026-05-30 | 最后更新: 2026-06-08 (v2) | Electron 42.x + TypeScript 6.0 + React 19.2
 
 ---
 
@@ -80,6 +80,7 @@ e:\code\llm-gateway\
 │   │   │   └── logger.ts                # 统一日志接口（createLogger 工厂，console+file 双 transport）
 │   │   ├── ipc/                         # 接口层：IPC handler（按域拆分文件）
 │   │   │   ├── index.ts                 # IPC handler 注册入口（getDb + 工厂注入）
+│   │   │   ├── ipc-utils.ts             # IPC 错误处理工具（wrapIpcHandler 统一 try/catch）
 │   │   │   ├── agents.ts                # Agent IPC handler
 │   │   │   ├── apikeys.ts               # API Key IPC handler
 │   │   │   ├── conversations.ts         # 对话 IPC handler
@@ -87,9 +88,10 @@ e:\code\llm-gateway\
 │   │   │   ├── models.ts                # 模型映射 IPC handler
 │   │   │   ├── providers.ts             # 供应商 IPC handler
 │   │   │   ├── proxy.ts                 # 代理控制 IPC handler
-│   │   │   ├── stats.ts                 # 统计 IPC handler
+│   │   │   ├── stats.ts                 # 统计 IPC handler（当前空 stub）
 │   │   │   ├── system.ts                # 系统 IPC handler（window/debug）
-│   │   │   └── sse-parser.ts            # SSE 解析工具函数
+│   │   │   ├── update.ts                # 更新 IPC handler（委托 update/ipc.ts）
+│   │   │   └── sse-parser.ts            # SSE 解析工具（基于 shared/sse-utils.ts）
 │   │   ├── db/                          # 数据层（sql.js，返回 snake_case）
 │   │   │   ├── connection.ts            # 连接管理（单例模式）
 │   │   │   ├── database.ts              # sql.js 封装（Statement/Database 类）
@@ -137,7 +139,7 @@ e:\code\llm-gateway\
 │   │   │   ├── server.ts                # Hono 应用定义（路由/中间件，~120 行）
 │   │   │   ├── handler.ts               # 代理请求处理（10 个子函数，均≤50 行）
 │   │   │   ├── stream.ts                # SSE 流转换服务（7 个子函数，均≤50 行）
-│   │   │   ├── logger.ts                # 代理调试日志（tryLogEntry/logAuthFailure）
+│   │   │   ├── logger.ts                # 代理日志服务（createProxyLogService 工厂，5 个函数）
 │   │   │   ├── manager.ts               # 代理生命周期管理
 │   │   │   ├── router.ts                # 模型ID → 供应商路由解析
 │   │   │   ├── forwarder.ts             # 上游 URL/Header 构建
@@ -170,18 +172,20 @@ e:\code\llm-gateway\
 │   │   │   ├── ModelMappings.tsx        # ~52 行，组合 MappingList/MappingFormDialog
 │   │   │   ├── Agents.tsx               # ~88 行，组合 AgentList/AgentFormDialog
 │   │   │   └── Settings.tsx             # ~130 行，更新配置+版本信息
-│   │   ├── components/                  # 共享 UI 组件
+│   │   ├── components/                  # 共享组件
 │   │   │   ├── Layout.tsx               # 应用布局（侧边栏导航 + TitleBar）
 │   │   │   ├── TitleBar.tsx             # 自定义窗口标题栏
 │   │   │   ├── ErrorBoundary.tsx        # React 错误边界
-│   │   │   └── ui/                      # shadcn/ui 风格基础组件（30+ 个）
-│   │   │       ├── button.tsx, card.tsx, dialog.tsx, input.tsx, select.tsx, ...
+│   │   │   ├── ui/                      # 纯 UI 原子组件（shadcn/ui，21 个）
+│   │   │   │   ├── button.tsx, card.tsx, dialog.tsx, input.tsx, select.tsx, ...
+│   │   │   │   ├── pagination.tsx       # 分页组件
+│   │   │   │   └── ...                  # badge/checkbox/dropdown/label/popover/progress/scroll-area/separator/skeleton/sonner/switch/table/textarea/tooltip
+│   │   │   └── shared/                  # 通用业务组件（含业务语义，9 个）
 │   │   │       ├── action-buttons.tsx   # 通用操作按钮组（编辑/删除）
 │   │   │       ├── form-dialog.tsx      # 通用表单对话框布局
 │   │   │       ├── page-header.tsx      # 页面标题组件
 │   │   │       ├── empty-state.tsx      # 空状态占位
 │   │   │       ├── status-badge.tsx     # 状态标签（活跃/已停用）
-│   │   │       ├── pagination.tsx       # 分页组件
 │   │   │       ├── table-skeleton.tsx   # 表格骨架屏
 │   │   │       ├── code-editor.tsx      # Monaco 代码编辑器
 │   │   │       ├── markdown.tsx         # Markdown 渲染（Shiki 高亮 + Mermaid）
@@ -190,7 +194,9 @@ e:\code\llm-gateway\
 │   │   │   ├── chat/
 │   │   │   │   ├── components/
 │   │   │   │   │   ├── ChatMessage.tsx    # 聊天气泡组件
-│   │   │   │   │   ├── ChatInputArea.tsx  # 聊天输入框
+│   │   │   │   │   ├── ChatInput.tsx      # 聊天输入子组件
+│   │   │   │   │   ├── ChatInputArea.tsx  # 聊天输入框（组合 ChatInput）
+│   │   │   │   │   ├── ChatToolbar.tsx    # 聊天工具栏
 │   │   │   │   │   ├── MessageList.tsx    # 消息列表
 │   │   │   │   │   └── ConversationSidebar.tsx # 会话历史侧边栏
 │   │   │   │   └── hooks/
@@ -220,6 +226,7 @@ e:\code\llm-gateway\
 │   │   │   │       ├── StatsSummaryTable.tsx # 统计汇总表
 │   │   │   │       ├── TimeTrendAccordion.tsx # 趋势图折叠面板
 │   │   │   │       ├── StatsCard.tsx      # 统计卡片
+│   │   │   │       ├── StatsCharts.tsx    # 统计图表（Recharts）
 │   │   │   │       └── StatusBar.tsx      # 代理状态指示
 │   │   │   └── update/
 │   │   │       └── components/
@@ -249,8 +256,9 @@ e:\code\llm-gateway\
 │   │   │       ├── modelMappings.ts     # 模型映射 queries
 │   │   │       └── agents.ts            # Agent queries
 │   │
-│   └── shared/                          # 主/渲染进程共享类型
-│       └── types.ts                     # 核心实体定义（Provider/Agent/ModelMapping/...）
+│   └── shared/                          # 主/渲染进程共享层
+│       ├── types.ts                     # 核心实体定义（Provider/Agent/ModelMapping/...，全部 camelCase）
+│       └── sse-utils.ts                 # SSE 解析工具（parseSSELine/extractOpenAIDelta/extractAnthropicDelta）
 │
 ├── scripts/
 │   ├── migrate-db.mjs                   # 数据库 schema 迁移
@@ -271,7 +279,7 @@ e:\code\llm-gateway\
 │   │   └── 38-animation.md              # 动效规范
 │   └── backend/                         # 后端规则（8 个）
 │       ├── 30-layered-architecture.md   # 分层与依赖
-│       ├── 31-domain-modeling.md        # 领域建模（模式 A/B 说明）
+│       ├── 31-domain-modeling.md        # 领域建模（模式 B 完全注入）
 │       ├── 32-interface-contracts.md    # 接口契约
 │       ├── 33-data-access.md            # 数据访问
 │       ├── 34-error-handling.md         # 错误处理
@@ -454,36 +462,39 @@ closeDatabase()    → 保存 + 关闭
 | `agents` | id | AI Agent 配置（name UNIQUE、config_path、config_format） |
 | `agent_configs` | id | Agent 配置版本（agent_id FK CASCADE、is_current 标记、UNIQUE(agent_id, name)） |
 
+**数据层注入约定**：所有 `db/*.ts` 函数统一接受 `db: Database` 作为第一个参数，禁止内部调用 `getDb()`。
+
 **model-mappings.ts** — 模型映射 CRUD：
-- `findModelMapping(sourceModel)` → 按 source_model 精确匹配活跃映射
-- `listModelMappings() / createModelMapping(input) / updateModelMapping(id, data) / deleteModelMapping(id)`
+- `findModelMapping(db, sourceModel)` → 按 source_model 精确匹配活跃映射
+- `listModelMappings(db) / createModelMapping(db, ...) / updateModelMapping(db, id, data) / deleteModelMapping(db, id)`
 - **数据层返回 `ModelMappingRow`（snake_case）**
 
 **providers.ts** — 供应商 CRUD 函数：
-- `createProvider(input)` → 插入新供应商，返回 ID
-- `getProvider(id) / getProviderByName(name)` → 按 ID 或名称查询，返回 `ProviderRow`（snake_case）
-- `listProviders() / listActiveProviders()` → 全量/仅活跃
-- `updateProvider(id, updates)` → 动态列映射更新（camelCase → snake_case）
-- `deleteProvider(id)` → 按 ID 删除
+- `createProvider(db, input)` → 插入新供应商，返回 ID
+- `getProvider(db, id) / getProviderByName(db, name)` → 按 ID 或名称查询，返回 `ProviderRow`（snake_case）
+- `listProviders(db) / listActiveProviders(db)` → 全量/仅活跃
+- `updateProvider(db, id, updates)` → 动态列映射更新（camelCase → snake_case）
+- `deleteProvider(db, id)` → 按 ID 删除
+- `listProviderNames(db)` → 仅返回 id+name（关联查询用）
 - 使用 `JSON.stringify` 存储 models 数组
 - **数据层返回 snake_case**（`ProviderRow`），camelCase 映射由 service 层完成
 
 **api-keys.ts** — API Key 管理函数（148 行）：
 - `generateApiKey()` → 生成 `sk-` 前缀 + 36 字节 base64url 随机字符串
 - `hashKey()` → SHA256 哈希
-- `createApiKey(name, rateLimit)` → 插入新 key，返回明文 + 公钥信息
-- `verifyApiKey(plaintextKey)` → 验证 key 有效性（哈希匹配 + is_active）
-- `listApiKeys()` → 列出所有 key（含明文）
-- `deleteApiKey(id)` → 按 ID 删除
+- `createApiKey(db, name, rateLimit)` → 插入新 key，返回明文 + 公钥信息
+- `verifyApiKey(db, plaintextKey)` → 验证 key 有效性（哈希匹配 + is_active）
+- `listApiKeys(db)` → 列出所有 key（含明文）
+- `deleteApiKey(db, id)` → 按 ID 删除
 
 **conversations.ts** — 对话/消息 CRUD 函数（160 行）：
-- `listConversations()` → 按 updated_at 降序
-- `createConversation(title, model, providerId, apiKeyId)` → 插入新对话
-- `updateConversation(id, data)` → 动态字段更新
-- `getConversation(id)` → 查询单条
-- `deleteConversation(id)` → 按 ID 删除（CASCADE 删除关联消息）
-- `listMessages(conversationId)` → 查询对话下所有消息
-- `addMessage(conversationId, role, content, thinking)` → 添加消息 + 更新对话时间
+- `listConversations(db)` → 按 updated_at 降序
+- `createConversation(db, title, model, providerId, apiKeyId)` → 插入新对话
+- `updateConversation(db, id, data)` → 动态字段更新
+- `getConversation(db, id)` → 查询单条
+- `deleteConversation(db, id)` → 按 ID 删除（CASCADE 删除关联消息）
+- `listMessages(db, conversationId)` → 查询对话下所有消息
+- `addMessage(db, conversationId, role, content, thinking)` → 添加消息 + 更新对话时间
 
 **agents.ts** — Agent CRUD（Repository 模式）：
 - `createAgentRepository(db)` → 返回 Repository 实例
@@ -509,8 +520,8 @@ closeDatabase()    → 保存 + 关闭
 
 **logs-stats.ts** — 日志统计：
 - `getLogStats(db, opts)` → 从 SQLite `request_stats` 表聚合（24h/7d/30d）
-- `getDetailedStats(range)` → 按供应商/模型分组统计
-- `updateRequestStats(entry)` / `updateProviderStats(entry)` → 写入统计汇总
+- `getDetailedStats(db, range)` → 按供应商/模型分组统计
+- `updateRequestStats(db, entry)` / `updateProviderStats(db, entry)` → 写入统计汇总
 
 ---
 
@@ -556,9 +567,13 @@ closeDatabase()    → 保存 + 关闭
 - `enqueueResults(results, controller)` — 入队转换结果
 - `convertSSEStream(stream, context)` — 主转换函数（编排器）
 
-**logger.ts** — 代理调试日志：
-- `tryLogEntry(entry)` — 尽力写入日志（容错，失败仅 debug 记录）
-- `logAuthFailure(request, token)` — 记录认证失败
+**logger.ts** — 代理日志服务（289 行，工厂注入模式）：
+- `createProxyLogService(deps)` — 工厂函数，注入 `createLogEntry`/`updateRequestStats`/`updateProviderStats`
+- `tryLogEntry(entry)` — 尽力写入日志（NDJSON + SQLite 统计，容错失败仅 debug 记录）
+- `logAuthFailure(request, error)` — 认证失败专用日志（无 apiKeyId 上下文）
+- `extractAndLogSSE(stream, logBase, apiFormat)` — 从 SSE 流提取 token 用量并写入日志
+- `extractUsageFromSSE(text, apiFormat)` — 从 SSE 事件文本解析 token 用量（OpenAI/Anthropic 双格式）
+- `extractContentFromSSE(text, apiFormat)` — 从 SSE 事件提取完整响应内容（调试模式）
 
 **router.ts** — 模型路由解析：
 - 模型 ID 格式：`{provider-name}/{model-id}`（例如 `openai/gpt-4`）
@@ -600,7 +615,7 @@ Domain 模式：每个业务域一个目录，包含 `*.types.ts`、`*.service.t
 设计原则：
 - **service 是业务逻辑层** — 封装数据转换（snake_case → camelCase）和聚合，不操作 Request/Response
 - **每个 domain 只有一个 service** + types + schema 三件套
-- **service 通过工厂函数创建** `createXxxService(_db: Database)`，内部委托给 `db/*.ts` 数据层函数（模式 A）
+- **service 通过工厂函数创建** `createXxxService(db: Database)`，将注入的 db 传递给 `db/*.ts` 数据层函数
 - **schema 在 IPC 入口验证输入** — Zod `.parse()` 拦截非法数据，保护 service 层
 - **数据层返回 snake_case**（`ProviderRow`、`AgentRow` 等），service 层做 camelCase 映射
 
@@ -662,11 +677,14 @@ Domain 模式：每个业务域一个目录，包含 `*.types.ts`、`*.service.t
 | `agent:listConfigs/getConfig/createConfig/updateConfig/deleteConfig/switchConfig` | `agentService.*` | `agents.ts` |
 | `update:check/download/install/skipVersion/getConfig/setConfig/getCurrentVersion` | `update/manager.ts` | `update/ipc.ts` |
 
-**sse-parser.ts** — SSE 解析工具（129 行）：
-- `parseSSELine()` 解析单行 SSE 文本
-- `tryExtractText()` 从 Anthropic SSE 对象提取 text/thinking
-- `extractFromAnthropicSSE()` / `extractFromOpenaiSSE()` 解析 JSON 行
-- `parseAnthropicSSE()` / `parseOpenaiSSE()` 解析完整 SSE 文本
+**sse-parser.ts** — SSE 解析工具（82 行，基于 `shared/sse-utils.ts`）：
+- `parseSSELine()` — 从 `shared/sse-utils.ts` 导入，解析单行 SSE 文本
+- `tryExtractText(obj)` — 从 Anthropic SSE 对象提取 text/thinking
+- `extractFromAnthropicSSE(jsonStr)` / `extractFromOpenaiSSE(jsonStr)` — 解析 JSON 行
+- `parseAnthropicSSE(sseText)` / `parseOpenaiSSE(sseText)` — 解析完整 SSE 文本
+
+**ipc-utils.ts** — IPC handler 错误处理工具（42 行）：
+- `wrapIpcHandler(handler, channel)` — 统一 try/catch 包装，ZodError → `Invalid input: ...`，其他 Error → 日志 + `{ error }` 返回
 
 ---
 
@@ -729,13 +747,13 @@ electronAPI = {
 
 | Feature | 组件 | 说明 |
 |---------|------|------|
-| `chat/` | ChatMessage, ChatInputArea, MessageList, ConversationSidebar | 聊天核心组件 |
+| `chat/` | ChatMessage, ChatInput, ChatInputArea, ChatToolbar, MessageList, ConversationSidebar | 聊天核心组件 |
 | `chat/hooks/` | useChatStream, useChatPage, useConversationManager | SSE 流 + 页面状态 + 会话管理 |
 | `agent/` | AgentList, AgentFormDialog | Agent CRUD 列表+表单 |
 | `apikey/` | ApiKeyList, ApiKeyFormDialog | API Key CRUD 列表+表单 |
 | `provider/` | ProviderList, ProviderFormDialog | 供应商 CRUD 列表+表单 |
 | `model-mapping/` | MappingList, MappingFormDialog | 模型映射 CRUD 列表+表单 |
-| `dashboard/` | DashboardStats, ProxyControlCard, StatsSummaryTable, TimeTrendAccordion, StatsCard, StatusBar | 仪表盘统计 |
+| `dashboard/` | DashboardStats, ProxyControlCard, StatsSummaryTable, TimeTrendAccordion, StatsCard, StatsCharts, StatusBar | 仪表盘统计 |
 | `update/` | UpdateDialog, UpdateButton, DownloadProgress | 自动更新 UI |
 
 **全局 Hooks（`hooks/` 目录）：**
@@ -827,18 +845,24 @@ electronAPI = {
 ```
 {name}.types.ts    — 类型定义（输入/输出 DTO，camelCase）
 {name}.schema.ts   — Zod 输入校验（create/update handler 入口使用）
-{name}.service.ts  — 业务逻辑工厂函数 create{Name}Service(_db)
-                   └─ 内部委托给 db/*.ts 数据层函数（模式 A）
+{name}.service.ts  — 业务逻辑工厂函数 create{Name}Service(db)
+                   └─ 注入 db: Database，传递给 db/*.ts 数据层函数（模式 B）
                    └─ service 层做 snake_case → camelCase 映射
                    └─ 方法: list / getById / create / update / remove
 ```
 
-### 6.2 IPC 分层
+### 6.2 IPC 分层与错误处理
 
 ```
 Renderer.library function → preload bridge → ipcMain.handle callback
-  ↑ 类型安全                    ↑ window.electronAPI    ↑ 调用 service 层
+  ↑ 类型安全                    ↑ window.electronAPI    ↑ wrapIpcHandler 统一 try/catch
+                                                        ↑ 调用 service 层
 ```
+
+**IPC 错误处理**：所有 handler 通过 `wrapIpcHandler(handler, channel)` 包装：
+- ZodError → `{ error: 'Invalid input: field: message' }`
+- 其他 Error → 记录日志 + `{ error: '...' }`
+- 渲染进程通过 `getErrorMessage(e)` 统一提取错误消息
 
 ### 6.3 TanStack Query 约定
 
@@ -870,9 +894,10 @@ Renderer.library function → preload bridge → ipcMain.handle callback
 renderer/lib/              → 可以导入 shared/（类型导入）
 renderer/features/*        → 只能导本目录内容，不能跨 feature
 renderer/components/ui/    → 禁止导入 features/、pages/、lib/queries/
+renderer/components/shared/→ 禁止导入 features/、pages/、lib/queries/
 ```
 
-**注**：`ipc/index.ts` 导入 `getDb()` 和 handler 导入 `type Database` 是当前模式 A 下工厂注入的必要路径，属于规则例外（详见 `30-layered-architecture.md`）。
+**注**：`ipc/index.ts` 通过 `getDb()` 获取 Database 实例注入到各 domain handler，是依赖注入链的顶层入口（详见 `30-layered-architecture.md`）。
 
 ---
 

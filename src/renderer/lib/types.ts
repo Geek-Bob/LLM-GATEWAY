@@ -52,21 +52,21 @@ export interface DashboardStats {
 export interface Conversation {
   id: number
   title: string
-  provider_id: number | null
+  providerId: number | null
   model: string
-  api_key_id: number | null
-  created_at: string
-  updated_at: string
+  apiKeyId: number | null
+  createdAt: string
+  updatedAt: string
 }
 
 /** 单条对话消息（包括用户消息和 AI 回复，thinking 字段记录扩展思维过程） */
 interface ConversationMessage {
   id: number
-  conversation_id: number
+  conversationId: number
   role: 'user' | 'assistant'
   content: string
   thinking: string
-  created_at: string
+  createdAt: string
 }
 
 /** 代理服务器运行状态 */

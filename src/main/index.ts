@@ -209,16 +209,17 @@ async function startServer(): Promise<void> {
 
   // Start unified server (proxy + admin API on single port)
   // 组装代理服务依赖并注入，保持 proxy/ 模块不直接依赖 db/ 层
-  const modelsService = createModelsService(getDb())
+  const db = getDb()
+  const modelsService = createModelsService(db)
   initProxyServices({
-    verifyApiKey,
+    verifyApiKey: (plaintextKey) => verifyApiKey(db, plaintextKey),
     createLogEntry,
-    updateRequestStats,
-    updateProviderStats,
+    updateRequestStats: (entry) => updateRequestStats(db, entry),
+    updateProviderStats: (entry) => updateProviderStats(db, entry),
     modelsService,
     getDebugMode,
     lookupProvider: (name) => {
-      const row = getProviderByName(name)
+      const row = getProviderByName(db, name)
       if (!row) return undefined
       return providerRowToProvider(row)
     },

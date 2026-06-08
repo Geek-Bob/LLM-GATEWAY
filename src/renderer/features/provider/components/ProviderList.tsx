@@ -14,7 +14,7 @@ import { rowFadeIn } from '@/lib/animations'
 import { Pencil, Trash2 } from 'lucide-react'
 import type { Provider } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Table,

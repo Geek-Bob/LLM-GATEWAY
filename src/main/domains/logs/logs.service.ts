@@ -8,6 +8,7 @@
 
 import type { Database } from '../../db/database'
 import { queryLogs, getLogStats, getDetailedStats } from '../../db/logs'
+import { listProviderNames } from '../../db/providers'
 import type {
   LogQuery,
   LogQueryResponse,
@@ -43,17 +44,15 @@ export function createLogsService(db: Database) {
      * 将 db/logs 返回的平铺行数据重组为嵌套结构，便于前端渲染 Dashboard 图表
      */
     detailedStats: async (range: '24h' | '30d'): Promise<DetailedStatsProvider[]> => {
-      const rows = getDetailedStats(range) as {
+      const rows = getDetailedStats(db, range) as {
         provider_id: number; model: string;
         total_requests: number; total_tokens_in: number;
         total_tokens_out: number; total_errors: number;
         period: number | string
       }[]
 
-      // 通过注入的 db 查询供应商名称，避免依赖 db/providers 模块
-      const providers = db
-        .prepare('SELECT id, name FROM providers')
-        .all() as { id: number; name: string }[]
+      // 通过数据层函数查询供应商名称
+      const providers = listProviderNames(db)
 
       // 第一层：按 provider_id 分组
       const providerMap = new Map<number, {

@@ -16,7 +16,7 @@ import type { ApiKey } from '@/lib/types'
 import { formatDate } from '@/lib/utils'
 import { useClipboard } from '@/hooks/useClipboard'
 import { Button } from '@/components/ui/button'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { StatusBadge } from '@/components/shared/status-badge'
 import {
   Popover,
   PopoverTrigger,
@@ -70,7 +70,7 @@ export function ApiKeyList({ keys, onDelete }: ApiKeyListProps) {
               <TableCell>
                 <div className="flex items-center gap-2">
                   <span className="font-mono text-sm text-muted-foreground">
-                    {key.key_prefix}...
+                    {key.keyPrefix}...
                   </span>
                   <Popover
                     open={revealedKeyId === key.id}
@@ -98,13 +98,13 @@ export function ApiKeyList({ keys, onDelete }: ApiKeyListProps) {
                     <PopoverContent align="start" className="w-80">
                       <div className="flex items-start gap-2">
                         <code className="text-xs font-mono break-all select-all text-primary flex-1 leading-relaxed">
-                          {key.key_plaintext}
+                          {key.keyPlaintext}
                         </code>
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7 shrink-0 text-muted-foreground"
-                          onClick={() => copy(key.key_plaintext)}
+                          onClick={() => copy(key.keyPlaintext)}
                         >
                           {copied ? (
                             <Check className="h-4 w-4 text-green-500" />
@@ -118,13 +118,13 @@ export function ApiKeyList({ keys, onDelete }: ApiKeyListProps) {
                 </div>
               </TableCell>
               <TableCell className="text-muted-foreground">
-                {formatRateLimit(key.rate_limit)}
+                {formatRateLimit(key.rateLimit)}
               </TableCell>
               <TableCell>
-                <StatusBadge isActive={key.is_active === 1} />
+                <StatusBadge isActive={key.isActive === 1} />
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">
-                {formatDate(key.created_at)}
+                {formatDate(key.createdAt)}
               </TableCell>
               <TableCell className="text-right">
                 <Button

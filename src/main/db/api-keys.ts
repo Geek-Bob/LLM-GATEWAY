@@ -13,7 +13,7 @@
  */
 
 import crypto from 'crypto'
-import { getDb } from './connection'
+import type { Database } from './database'
 
 /** API Key 随机部分的字节数，base64url 编码后产生 48 字符 */
 const KEY_RANDOM_BYTES = 36
@@ -62,8 +62,7 @@ function hashKey(plaintextKey: string): string {
  * - plaintextKey：完整的明文密钥（仅此一次，后续不再提供）
  * - key：除 key_hash 和 key 之外的数据库行信息
  */
-export function createApiKey(name: string, rateLimit: number = DEFAULT_RATE_LIMIT): ApiKeyResult {
-  const db = getDb()
+export function createApiKey(db: Database, name: string, rateLimit: number = DEFAULT_RATE_LIMIT): ApiKeyResult {
   const { plaintextKey, keyPrefix, keyHash } = generateApiKey()
 
   const stmt = db.prepare(`
@@ -94,8 +93,7 @@ export function createApiKey(name: string, rateLimit: number = DEFAULT_RATE_LIMI
  * 用于代理转发时需要将 Gateway API Key 替换为上游供应商密钥的场景。
  * 此函数仅在主进程内部调用，不暴露给渲染进程。
  */
-export function getApiKeyPlaintext(id: number): string | null {
-  const db = getDb()
+export function getApiKeyPlaintext(db: Database, id: number): string | null {
   const row = db.prepare(
     'SELECT key FROM api_keys WHERE id = ?'
   ).get(id) as { key: string } | undefined
@@ -109,8 +107,7 @@ export function getApiKeyPlaintext(id: number): string | null {
  * 返回结果不包含 key_hash 和完整 key 字段，防止哈希泄露。
  * 返回 null 表示密钥不存在或已停用。
  */
-export function verifyApiKey(plaintextKey: string): Omit<ApiKeyRow, 'key_hash'> | null {
-  const db = getDb()
+export function verifyApiKey(db: Database, plaintextKey: string): Omit<ApiKeyRow, 'key_hash'> | null {
   const keyHash = hashKey(plaintextKey)
   const row = db.prepare(
     'SELECT id, name, key_prefix, is_active, rate_limit, created_at FROM api_keys WHERE key_hash = ? AND is_active = 1'
@@ -123,8 +120,7 @@ export function verifyApiKey(plaintextKey: string): Omit<ApiKeyRow, 'key_hash'> 
  * 注意：虽然数据库存了明文 key，但此处将其作为 key_plaintext 返回，
  * 用于渲染进程管理界面展示（本地桌面应用，无网络泄露风险）。
  */
-export function listApiKeys(): (Omit<ApiKeyRow, 'key_hash' | 'key'> & { key_plaintext: string })[] {
-  const db = getDb()
+export function listApiKeys(db: Database): (Omit<ApiKeyRow, 'key_hash' | 'key'> & { key_plaintext: string })[] {
   const rows = db.prepare(
     'SELECT id, name, key_prefix, key, is_active, rate_limit, created_at FROM api_keys ORDER BY created_at DESC'
   ).all() as unknown as ApiKeyRow[]
@@ -137,9 +133,9 @@ export function listApiKeys(): (Omit<ApiKeyRow, 'key_hash' | 'key'> & { key_plai
 
 /** 按 ID 查询单个密钥的基本信息（不含敏感字段）。 */
 export function getApiKeyById(
+  db: Database,
   id: number
 ): Omit<ApiKeyRow, 'key_hash' | 'key'> | undefined {
-  const db = getDb()
   return db
     .prepare(
       'SELECT id, name, key_prefix, is_active, rate_limit, created_at FROM api_keys WHERE id = ?'
@@ -148,7 +144,6 @@ export function getApiKeyById(
 }
 
 /** 按 ID 删除密钥。不可恢复，调用方应确认后再执行。 */
-export function deleteApiKey(id: number): void {
-  const db = getDb()
+export function deleteApiKey(db: Database, id: number): void {
   db.prepare('DELETE FROM api_keys WHERE id = ?').run(id)
 }

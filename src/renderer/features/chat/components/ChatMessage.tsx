@@ -17,7 +17,7 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronDown, Copy, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
-import { Markdown } from '@/components/ui/markdown'
+import { Markdown } from '@/components/shared/markdown'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Button } from '@/components/ui/button'
 

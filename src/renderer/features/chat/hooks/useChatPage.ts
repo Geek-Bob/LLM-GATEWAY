@@ -60,7 +60,7 @@ export function useChatPage() {
   const selectedProvider = providers.find((p) => p.id === selectedProviderId)
   const availableModels = selectedProvider?.models ?? []
   const providerOptions = providers.filter((p) => p.isActive === 1)
-  const keyOptions = activeApiKeys.filter((k) => k.is_active === 1)
+  const keyOptions = activeApiKeys.filter((k) => k.isActive === 1)
 
   // ─── 滚动 ───
   const scrollToBottom = () => {
@@ -71,7 +71,7 @@ export function useChatPage() {
   // ─── API Key 管理 ───
   const ensureApiKey = useCallback(() => {
     const match = activeApiKeys.find((k) => k.id === selectedApiKeyId)
-    if (match?.key_plaintext) setApiKey(match.key_plaintext)
+    if (match?.keyPlaintext) setApiKey(match.keyPlaintext)
   }, [activeApiKeys, selectedApiKeyId])
 
   // ─── SSE 流回调 (convIdRef 避免闭包陷阱) ───

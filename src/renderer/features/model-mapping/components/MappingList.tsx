@@ -13,7 +13,7 @@ import { motion } from 'framer-motion'
 import { rowFadeIn } from '@/lib/animations'
 import { Pencil, Trash2 } from 'lucide-react'
 import type { ModelMapping } from '../../../../shared/types'
-import { StatusBadge } from '@/components/ui/status-badge'
+import { StatusBadge } from '@/components/shared/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Table,

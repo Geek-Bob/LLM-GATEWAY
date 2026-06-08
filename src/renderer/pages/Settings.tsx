@@ -17,9 +17,9 @@ import { useUpdateConfig, useUpdateConfigMutation, useCurrentVersion } from '@/l
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { TableSkeleton } from '@/components/ui/table-skeleton'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
 import { UpdateButton } from '@/features/update/components/UpdateButton'
-import { PageHeader } from '@/components/ui/page-header'
+import { PageHeader } from '@/components/shared/page-header'
 import { pageVariants, childVariants } from '@/lib/animations'
 
 /** 应用设置页面，管理自动更新配置和应用信息。 @returns 设置页面 JSX。 */

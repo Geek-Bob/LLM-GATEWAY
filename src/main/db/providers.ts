@@ -11,7 +11,7 @@
  * - is_active = 1 表示激活，代理路由只会选中活跃供应商
  */
 
-import { getDb } from './connection'
+import type { Database } from './database'
 
 export interface ProviderInput {
   name: string
@@ -61,8 +61,7 @@ const columnMap: Record<string, string> = {
 }
 
 /** 创建供应商记录，models 数组序列化为 JSON 存入数据库，返回自增主键 ID。 */
-export function createProvider(input: ProviderInput): number {
-  const db = getDb()
+export function createProvider(db: Database, input: ProviderInput): number {
   const stmt = db.prepare(`
     INSERT INTO providers (name, provider_type, base_url, api_key, models)
     VALUES (@name, @providerType, @baseUrl, @apiKey, @models)
@@ -78,24 +77,21 @@ export function createProvider(input: ProviderInput): number {
 }
 
 /** 按主键查询单个供应商，找不到时返回 undefined 而非抛异常。 */
-export function getProvider(id: number): ProviderRow | undefined {
-  const db = getDb()
+export function getProvider(db: Database, id: number): ProviderRow | undefined {
   return db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as
     | ProviderRow
     | undefined
 }
 
 /** 按 name 精确匹配查询供应商（代理路由通过此函数解析模型 ID 中的前缀）。 */
-export function getProviderByName(name: string): ProviderRow | undefined {
-  const db = getDb()
+export function getProviderByName(db: Database, name: string): ProviderRow | undefined {
   return db.prepare('SELECT * FROM providers WHERE name = ?').get(name) as
     | ProviderRow
     | undefined
 }
 
 /** 列出所有供应商，按创建时间降序排列（新创建的排前面）。 */
-export function listProviders(): ProviderRow[] {
-  const db = getDb()
+export function listProviders(db: Database): ProviderRow[] {
   return db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as ProviderRow[]
 }
 
@@ -103,8 +99,7 @@ export function listProviders(): ProviderRow[] {
  * 仅列出活跃供应商（is_active = 1）。
  * 代理路由 resolveProvider() 依赖此函数，不活跃的供应商不会被选中做请求转发。
  */
-export function listActiveProviders(): ProviderRow[] {
-  const db = getDb()
+export function listActiveProviders(db: Database): ProviderRow[] {
   return db
     .prepare('SELECT * FROM providers WHERE is_active = 1 ORDER BY created_at DESC')
     .all() as ProviderRow[]
@@ -117,9 +112,7 @@ export function listActiveProviders(): ProviderRow[] {
  * - 使用 columnMap 字段白名单，避免传入意外字段
  * - 每次更新自动刷新 updated_at 时间戳
  */
-export function updateProvider(id: number, updates: ProviderUpdate): void {
-  const db = getDb()
-
+export function updateProvider(db: Database, id: number, updates: ProviderUpdate): void {
   const setClauses: string[] = []
   const params: Record<string, unknown> = { id }
 
@@ -144,7 +137,11 @@ export function updateProvider(id: number, updates: ProviderUpdate): void {
 }
 
 /** 按主键删除供应商。注意：相关联的会话记录不会级联删除，调用方需自行处理。 */
-export function deleteProvider(id: number): void {
-  const db = getDb()
+export function deleteProvider(db: Database, id: number): void {
   db.prepare('DELETE FROM providers WHERE id = ?').run(id)
+}
+
+/** 列出所有供应商的 id 和 name，用于关联查询（如日志统计中显示供应商名称）。 */
+export function listProviderNames(db: Database): { id: number; name: string }[] {
+  return db.prepare('SELECT id, name FROM providers').all() as { id: number; name: string }[]
 }

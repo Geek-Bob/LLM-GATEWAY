@@ -6,7 +6,7 @@
  * 供 proxy 请求转换时调用。
  */
 
-import { getDb } from './connection'
+import type { Database } from './database'
 
 export interface ModelMappingRow {
   id: number
@@ -22,8 +22,7 @@ export interface ModelMappingRow {
  * @param sourceModel - 源模型名称
  * @returns 匹配的活跃映射，未找到时返回 undefined
  */
-export function findActiveModelMapping(sourceModel: string): ModelMappingRow | undefined {
-  const db = getDb()
+export function findActiveModelMapping(db: Database, sourceModel: string): ModelMappingRow | undefined {
   return db
     .prepare('SELECT * FROM model_mappings WHERE source_model = ? AND is_active = 1')
     .get([sourceModel]) as ModelMappingRow | undefined
@@ -34,8 +33,7 @@ export function findActiveModelMapping(sourceModel: string): ModelMappingRow | u
  *
  * @returns 映射列表
  */
-export function listModelMappings(): ModelMappingRow[] {
-  const db = getDb()
+export function listModelMappings(db: Database): ModelMappingRow[] {
   return db
     .prepare('SELECT * FROM model_mappings ORDER BY id DESC')
     .all() as ModelMappingRow[]
@@ -48,8 +46,7 @@ export function listModelMappings(): ModelMappingRow[] {
  * @param targetModel - 目标模型名称
  * @returns 新创建的映射对象（含自增 id）
  */
-export function insertModelMapping(sourceModel: string, targetModel: string): ModelMappingRow {
-  const db = getDb()
+export function insertModelMapping(db: Database, sourceModel: string, targetModel: string): ModelMappingRow {
   const result = db
     .prepare('INSERT INTO model_mappings (source_model, target_model) VALUES (?, ?)')
     .run([sourceModel, targetModel])
@@ -66,10 +63,10 @@ export function insertModelMapping(sourceModel: string, targetModel: string): Mo
  * @param updates - 待更新字段（仅传入的字段会被更新）
  */
 export function updateModelMapping(
+  db: Database,
   id: number,
   updates: { sourceModel?: string; targetModel?: string }
 ): void {
-  const db = getDb()
   const setClauses: string[] = []
   const values: unknown[] = []
 
@@ -94,8 +91,7 @@ export function updateModelMapping(
  * @param id - 映射 id
  * @returns 映射对象，未找到时返回 undefined
  */
-export function getModelMapping(id: number): ModelMappingRow | undefined {
-  const db = getDb()
+export function getModelMapping(db: Database, id: number): ModelMappingRow | undefined {
   return db
     .prepare('SELECT * FROM model_mappings WHERE id = ?')
     .get([id]) as ModelMappingRow | undefined
@@ -106,7 +102,6 @@ export function getModelMapping(id: number): ModelMappingRow | undefined {
  *
  * @param id - 映射 id
  */
-export function deleteModelMapping(id: number): void {
-  const db = getDb()
+export function deleteModelMapping(db: Database, id: number): void {
   db.prepare('DELETE FROM model_mappings WHERE id = ?').run([id])
 }

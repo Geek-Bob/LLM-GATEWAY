@@ -8,9 +8,9 @@ import { useModelMappings, useModels, useDeleteModelMapping } from '@/lib/querie
 import type { ModelMapping } from '../../shared/types'
 import { useDeleteWithToast } from '@/hooks/useDeleteWithToast'
 import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/ui/empty-state'
-import { PageHeader } from '@/components/ui/page-header'
-import { TableSkeleton } from '@/components/ui/table-skeleton'
+import { EmptyState } from '@/components/shared/empty-state'
+import { PageHeader } from '@/components/shared/page-header'
+import { TableSkeleton } from '@/components/shared/table-skeleton'
 import { MappingList } from '@/features/model-mapping/components/MappingList'
 import { MappingFormDialog, type MappingForm } from '@/features/model-mapping/components/MappingFormDialog'
 

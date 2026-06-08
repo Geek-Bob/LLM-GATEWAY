@@ -2,22 +2,22 @@
 export interface ConversationResponse {
   id: number
   title: string
-  provider_id: number | null
+  providerId: number | null
   model: string
-  api_key_id: number | null
-  created_at: string
-  updated_at: string
+  apiKeyId: number | null
+  createdAt: string
+  updatedAt: string
 }
 
 /** 单条消息的对外响应结构，对应 messages 表 */
 export interface MessageResponse {
   id: number
-  conversation_id: number
+  conversationId: number
   role: 'user' | 'assistant'
   content: string
   /** AI 的思考过程（思维链），仅 assistant 消息有值 */
   thinking: string
-  created_at: string
+  createdAt: string
 }
 
 /** 创建新会话所需的参数 */

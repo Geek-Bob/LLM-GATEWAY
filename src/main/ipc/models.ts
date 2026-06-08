@@ -6,6 +6,7 @@ import { ipcMain } from 'electron'
 import type { Database } from '../db/database'
 import { createModelsService } from '../domains/models/models.service'
 import { createModelMappingSchema, updateModelMappingSchema } from '../domains/models/models.schema'
+import { wrapIpcHandler } from './ipc-utils'
 
 /**
  * 注册模型映射相关的 IPC handler
@@ -14,25 +15,25 @@ import { createModelMappingSchema, updateModelMappingSchema } from '../domains/m
 export function registerModelHandlers(db: Database): void {
   const modelsService = createModelsService(db)
 
-  ipcMain.handle('models:list', async () => modelsService.getAllModels())
+  ipcMain.handle('models:list', wrapIpcHandler(async () => modelsService.getAllModels(), 'models:list'))
 
-  ipcMain.handle('models:mapping:find', async (_event, sourceModel: string) =>
+  ipcMain.handle('models:mapping:find', wrapIpcHandler(async (_event, sourceModel: string) =>
     modelsService.findModelMapping(sourceModel)
-  )
+  , 'models:mapping:find'))
 
-  ipcMain.handle('models:mapping:list', async () => modelsService.listModelMappings())
+  ipcMain.handle('models:mapping:list', wrapIpcHandler(async () => modelsService.listModelMappings(), 'models:mapping:list'))
 
-  ipcMain.handle('models:mapping:create', async (_event, data: unknown) => {
+  ipcMain.handle('models:mapping:create', wrapIpcHandler(async (_event, data: unknown) => {
     const input = createModelMappingSchema.parse(data)
     return modelsService.createModelMapping(input)
-  })
+  }, 'models:mapping:create'))
 
-  ipcMain.handle('models:mapping:update', async (_event, { id, updates }: { id: number; updates: Record<string, unknown> }) => {
+  ipcMain.handle('models:mapping:update', wrapIpcHandler(async (_event, { id, updates }: { id: number; updates: Record<string, unknown> }) => {
     const input = updateModelMappingSchema.parse(updates)
     return modelsService.updateModelMapping(id, input)
-  })
+  }, 'models:mapping:update'))
 
-  ipcMain.handle('models:mapping:delete', async (_event, id: number) =>
+  ipcMain.handle('models:mapping:delete', wrapIpcHandler(async (_event, id: number) =>
     modelsService.deleteModelMapping(id)
-  )
+  , 'models:mapping:delete'))
 }

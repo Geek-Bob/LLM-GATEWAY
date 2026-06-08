@@ -54,10 +54,33 @@ throw new Error(`Agent ${id} not found`)    // 格式不符
 ```
 
 ## IPC 错误映射
-- IPC handler 捕获错误后，将错误信息序列化为可读字符串返回给渲染进程
-- 业务错误返回用户可见消息
-- 系统错误返回通用提示，详细信息记录到日志
+- IPC handler **必须**用 try/catch 包裹整个函数体，禁止依赖 Electron 自动序列化异常
+- 捕获后将错误映射为统一格式返回给渲染进程，禁止 throw 到 Electron 层
+- 业务错误返回用户可见消息，系统错误返回通用提示 + 日志记录
 - 返回格式见 32-interface-contracts.md 输出契约（`{ error: string, code?: string }`）
+
+```typescript
+// ✅ 正确：IPC handler 统一 try/catch
+ipcMain.handle('providers:create', async (_event, data: CreateProviderInput) => {
+  try {
+    const parsed = createProviderSchema.parse(data)
+    return await providerService.create(parsed)
+  } catch (e) {
+    if (e instanceof ZodError) {
+      const issues = e.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
+      return { error: `Invalid input: ${issues}` }
+    }
+    logger.error('Failed to create provider', { error: (e as Error).message })
+    return { error: `Failed to create provider: internal error` }
+  }
+})
+
+// ❌ 错误：无 try/catch，依赖 Electron 自动序列化
+ipcMain.handle('providers:create', async (_event, data) => {
+  const parsed = createProviderSchema.parse(data)  // ZodError 直接抛到 Electron
+  return await providerService.create(parsed)       // 业务错误直接抛到 Electron
+})
+```
 
 ## 代理错误映射
 - 上游返回的 HTTP 错误透传给客户端

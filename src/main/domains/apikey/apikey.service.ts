@@ -13,37 +13,30 @@ import {
   getApiKeyById,
   createApiKey,
   deleteApiKey,
+  type ApiKeyRow,
 } from '../../db/api-keys'
 
 /**
  * 创建 API Key 业务服务
- * @param _db - 数据库实例（当前由 db/api-keys.ts 内部管理连接，预留未来注入）
+ * @param db - 注入的数据库实例
  */
-export function createApiKeyService(_db: Database) {
+export function createApiKeyService(db: Database) {
   return {
     /** 获取所有 API Key 列表，按创建时间降序 */
     list: async (): Promise<ApiKeyResponse[]> => {
-      const rows = listApiKeys()
-      return rows.map((row) => ({
-        id: row.id,
-        name: row.name,
-        key_prefix: row.key_prefix,
-        key_plaintext: row.key_plaintext,
-        is_active: row.is_active,
-        rate_limit: row.rate_limit,
-        created_at: row.created_at,
-      }))
+      const rows = listApiKeys(db)
+      return rows.map(apiKeyRowToResponse)
     },
 
     /** 根据 ID 获取单个 API Key（不含敏感字段） */
     getById: async (id: number) => {
-      return getApiKeyById(id)
+      return getApiKeyById(db, id)
     },
 
     /** 创建新 API Key，rateLimit 默认为 60 次/分钟 */
     create: async (input: CreateApiKeyInput) => {
       const rateLimit = input.rateLimit ?? 60
-      const result = createApiKey(input.name, rateLimit)
+      const result = createApiKey(db, input.name, rateLimit)
       return {
         plaintextKey: result.plaintextKey,
         key: result.key,
@@ -52,8 +45,21 @@ export function createApiKeyService(_db: Database) {
 
     /** 根据 ID 删除 API Key */
     remove: async (id: number): Promise<void> => {
-      deleteApiKey(id)
+      deleteApiKey(db, id)
     }
+  }
+}
+
+/** 将数据库层 snake_case ApiKeyRow 转换为 camelCase ApiKeyResponse */
+function apiKeyRowToResponse(row: Omit<ApiKeyRow, 'key_hash' | 'key'> & { key_plaintext: string }): ApiKeyResponse {
+  return {
+    id: row.id,
+    name: row.name,
+    keyPrefix: row.key_prefix,
+    keyPlaintext: row.key_plaintext,
+    isActive: row.is_active,
+    rateLimit: row.rate_limit,
+    createdAt: row.created_at,
   }
 }
 

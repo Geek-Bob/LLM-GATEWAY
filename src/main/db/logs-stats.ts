@@ -6,10 +6,11 @@
  * 避免每次查询时全量扫描 NDJSON 文件。
  */
 
-import { getDb } from './connection'
+import type { Database } from './database'
 
 /** 写入全局请求统计（按日期+小时聚合，含错误计数）。 */
 export function updateRequestStats(
+  db: Database,
   entry: {
     tokensIn?: number
     tokensOut?: number
@@ -17,7 +18,6 @@ export function updateRequestStats(
     statusCode?: number
   }
 ): void {
-  const db = getDb()
   const now = new Date()
   const dateStr = now.toISOString().slice(0, 10)
   const hour = now.getHours()
@@ -48,7 +48,7 @@ export function updateRequestStats(
 }
 
 /** 写入按供应商+模型维度的统计。若缺少 providerId 则跳过（如匿名请求）。 */
-export function updateProviderStats(entry: {
+export function updateProviderStats(db: Database, entry: {
   providerId?: number
   model: string
   tokensIn?: number
@@ -56,7 +56,6 @@ export function updateProviderStats(entry: {
   durationMs?: number
   statusCode?: number
 }): void {
-  const db = getDb()
   if (entry.providerId === undefined) return // 没有供应商上下文时跳过
   const now = new Date()
   const dateStr = now.toISOString().slice(0, 10)
@@ -89,7 +88,7 @@ export function updateProviderStats(entry: {
 
 /** 获取指定时间范围的全局统计汇总，含平均延迟计算。range 支持 24h / 7d / 30d，默认 7d。 */
 export function getLogStats(
-  db: { prepare: (sql: string) => { get: () => Record<string, unknown> | undefined } },
+  db: Database,
   opts: { range: string }
 ): Record<string, unknown> {
   let dateCondition: string
@@ -131,8 +130,7 @@ export function getLogStats(
  * - range='30d'：按天分组，返回过去 30 天每天的数据
  * 返回值中的 period 字段根据 range 不同对应 stat_hour 或 stat_date。
  */
-export function getDetailedStats(range: '24h' | '30d'): Record<string, unknown>[] {
-  const db = getDb()
+export function getDetailedStats(db: Database, range: '24h' | '30d'): Record<string, unknown>[] {
   let dateCondition: string
   let groupBy: string
 

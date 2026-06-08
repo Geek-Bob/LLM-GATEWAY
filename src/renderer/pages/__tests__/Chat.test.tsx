@@ -31,8 +31,8 @@ const mockProvider: Provider = {
 }
 
 const mockApiKey: ApiKey = {
-  id: 1, name: 'My Key', key_prefix: 'sk-abc', key_plaintext: 'sk-abc-def',
-  is_active: 1, rate_limit: 60, created_at: '2026-01-01T00:00:00.000Z',
+  id: 1, name: 'My Key', keyPrefix: 'sk-abc', keyPlaintext: 'sk-abc-def',
+  isActive: 1, rateLimit: 60, createdAt: '2026-01-01T00:00:00.000Z',
 }
 
 const _providerList = vi.fn()

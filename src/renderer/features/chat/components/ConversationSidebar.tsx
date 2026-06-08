@@ -19,7 +19,7 @@ import { Plus, PanelLeftClose, PanelLeft, Trash2 } from 'lucide-react'
 import type { Conversation } from '@/lib/types'
 import { formatRelativeDate } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
-import { EmptyState } from '@/components/ui/empty-state'
+import { EmptyState } from '@/components/shared/empty-state'
 
 interface ConversationSidebarProps {
   conversations: Conversation[]
@@ -134,7 +134,7 @@ export function ConversationSidebar({
                     {conv.model}
                   </span>
                   <span className="text-[10px] shrink-0 text-muted-foreground/70">
-                    {formatRelativeDate(conv.updated_at)}
+                    {formatRelativeDate(conv.updatedAt)}
                   </span>
                 </div>
               </motion.div>

@@ -55,9 +55,9 @@ export function useConversationManager({ activeConversationId, setActiveConversa
 
     return {
       messages,
-      providerId: conv?.provider_id ?? null,
+      providerId: conv?.providerId ?? null,
       model: conv?.model ?? null,
-      apiKeyId: conv?.api_key_id ?? null,
+      apiKeyId: conv?.apiKeyId ?? null,
     }
   }
 
@@ -104,9 +104,9 @@ export function useConversationManager({ activeConversationId, setActiveConversa
       const existing = await api.conversations.get(convId)
       if (existing) {
         const needsUpdate =
-          existing.provider_id !== providerId ||
+          existing.providerId !== providerId ||
           existing.model !== model ||
-          existing.api_key_id !== apiKeyId
+          existing.apiKeyId !== apiKeyId
         if (needsUpdate) {
           await api.conversations.update(convId, { model, providerId, apiKeyId })
         }
