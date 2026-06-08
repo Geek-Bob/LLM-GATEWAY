@@ -97,6 +97,7 @@ e:\code\llm-gateway\
 │   │   │   ├── providers.ts             # Provider CRUD（返回 ProviderRow snake_case）
 │   │   │   ├── api-keys.ts              # API Key CRUD + 生成/校验
 │   │   │   ├── conversations.ts         # 对话/消息 CRUD
+│   │   │   ├── logs.ts                  # NDJSON 日志 barrel re-export（24 行）
 │   │   │   ├── model-mappings.ts        # 模型映射 CRUD（返回 ModelMappingRow snake_case）
 │   │   │   ├── logs-reader.ts           # NDJSON 日志读取（queryLogs/readTailLines）
 │   │   │   ├── logs-writer.ts           # NDJSON 日志写入（createLogEntry/轮转/元数据）
@@ -160,15 +161,15 @@ e:\code\llm-gateway\
 │   ├── renderer/                        # React 渲染进程
 │   │   ├── main.tsx                     # 入口：QueryClientProvider 初始化
 │   │   ├── App.tsx                      # 根组件：路由 + 更新事件监听
-│   │   ├── pages/                       # 页面组件（薄层组合，路由级代码分割）
-│   │   │   ├── Dashboard.tsx
-│   │   │   ├── Providers.tsx
-│   │   │   ├── ApiKeys.tsx
-│   │   │   ├── Logs.tsx
-│   │   │   ├── Chat.tsx
-│   │   │   ├── ModelMappings.tsx
-│   │   │   ├── Agents.tsx
-│   │   │   └── Settings.tsx
+│   │   ├── pages/                       # 页面组件（薄层组合，仅路由+页面级状态，行数均≤130）
+│   │   │   ├── Dashboard.tsx            # ~74 行，组合 DashboardStats/ProxyControlCard/StatsSummaryTable
+│   │   │   ├── Providers.tsx            # ~51 行，组合 ProviderList/ProviderFormDialog
+│   │   │   ├── ApiKeys.tsx              # ~68 行，组合 ApiKeyList/ApiKeyFormDialog
+│   │   │   ├── Logs.tsx                 # ~319 行，日志查询+分页+详情面板
+│   │   │   ├── Chat.tsx                 # ~89 行，组合 ChatInputArea/MessageList/ConversationSidebar
+│   │   │   ├── ModelMappings.tsx        # ~52 行，组合 MappingList/MappingFormDialog
+│   │   │   ├── Agents.tsx               # ~88 行，组合 AgentList/AgentFormDialog
+│   │   │   └── Settings.tsx             # ~130 行，更新配置+版本信息
 │   │   ├── components/                  # 共享 UI 组件
 │   │   │   ├── Layout.tsx               # 应用布局（侧边栏导航 + TitleBar）
 │   │   │   ├── TitleBar.tsx             # 自定义窗口标题栏
@@ -681,10 +682,14 @@ electronAPI = {
   apiKeys.list/create/delete(),
   logs.list/stats/statsDetailed(),
   conversations.list/create/update/delete/getById/listMessages/createMessage(),
-  proxy.get/start/stop/restart/updatePort/update(),
+  proxy.get()          → { port, running, url, debugMode }
+  proxy.start/restart   → boolean
+  proxy.stop/updatePort/update → { success: true }
   window.minimize/maximize/close(),
-  update.check/download/install/skipVersion/getConfig/setConfig/
-         getCurrentVersion/
+  update.check          → UpdateCheckResult
+  update.download       → void
+  update.install/skipVersion/setConfig → { success: true }
+  update.getConfig/setConfig/getCurrentVersion/
          onAvailable/onProgress/onDownloaded/onError(),
   models.list(),
   models.mapping.find/list/create/update/delete(),
