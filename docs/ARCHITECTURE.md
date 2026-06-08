@@ -1,7 +1,7 @@
 # LLM Gateway 架构技术手册
 
 > 技术细节手册 — 覆盖完整目录结构、数据流、模块职责和设计约定。
-> 编写日期: 2026-05-30 | 最后更新: 2026-06-08 (v2) | Electron 42.x + TypeScript 6.0 + React 19.2
+> 编写日期: 2026-05-30 | 最后更新: 2026-06-08 (v3) | Electron 42.x + TypeScript 6.0 + React 19.2
 
 ---
 
@@ -135,8 +135,8 @@ e:\code\llm-gateway\
 │   │   │       ├── stats.schema.ts      # 统计 Zod 校验
 │   │   │       └── stats.service.ts     # 统计业务逻辑
 │   │   ├── proxy/                       # 接口层：HTTP 代理（Hono 服务器）
-│   │   │   ├── server.ts                # Hono 应用定义（路由/中间件，~120 行）
-│   │   │   ├── handler.ts               # 代理请求处理（10 个子函数，均≤50 行）
+│   │   │   ├── server.ts                # Hono 应用定义（路由/中间件，~170 行）
+│   │   │   ├── handler.ts               # 代理请求处理（8 个子函数 + 编排器 + 错误处理器）
 │   │   │   ├── stream.ts                # SSE 流转换服务（7 个子函数，均≤50 行）
 │   │   │   ├── logger.ts                # 代理日志服务（createProxyLogService 工厂，5 个函数）
 │   │   │   ├── manager.ts               # 代理生命周期管理
@@ -490,12 +490,13 @@ closeDatabase()    → 保存 + 关闭
 
 **agents.ts** — Agent Repository：
 - `createAgentRepository(db)` → 返回 Repository 实例
-- `list() / findById(id) / findByName(name) / create(input) / update(id, data) / remove(id)`
+- `list() / getById(id) / getByName(name) / create(input) / update(id, data) / remove(id)`
 
-**agent-configs.ts** — Agent 配置版本 CRUD（221 行）：
+**agent-configs.ts** — Agent 配置版本 Repository（182 行）：
 - `createAgentConfigRepository(db)` → 返回 Repository 实例
-- `create(input) / getById(id) / listByAgent(agentId) / getCurrent(agentId) / update(id, data) / remove(id) / switchCurrent(agentId, configId)`
-- `switchCurrent` 事务内先清除旧 is_current，再设置新 is_current
+- `create(input) / getById(id) / listByAgent(agentId) / getCurrent(agentId) / updateContent(id, content) / setCurrent(agentId, configId) / clearCurrent(agentId) / remove(id)`
+- `setCurrent` 事务内先清除旧 is_current，再设置新 is_current
+- `clearCurrent` 批量清除指定 agent 的所有 current 标记
 
 **logs-writer.ts** — NDJSON 日志写入：
 - **分片策略：** 每个 NDJSON 文件最多 500 行，最多保留 20 个文件（10000 条上限）
@@ -539,27 +540,29 @@ closeDatabase()    → 保存 + 关闭
 - 路由注册 + 中间件链（CORS/Auth/RateLimit）
 - 委托给 `handler.ts` 处理代理请求
 
-**handler.ts** — 代理请求处理（拆分为 10 个子函数，均≤50 行）：
+**handler.ts** — 代理请求处理（8 个子函数 + 编排器 + 错误处理器，均≤50 行）：
 - `extractClientHeaders(headers)` — 提取并脱敏客户端请求头（authorization + x-api-key）
+- `convertIfNeeded(body, route)` — 请求体协议格式转换
 - `resolveRoute(modelId, apiKey)` — 模型映射 + 供应商匹配 + 协议转换
 - `buildUpstreamHeaders(route, clientHeaders)` — 构建上游请求头
 - `buildAndFetchUpstream(route, body, headers)` — 构建 URL + fetch 上游
-- `convertIfNeeded(body, route)` — 请求体协议格式转换
+- `handleErrorResponse(response, route, debugInfo)` — 上游错误响应处理
 - `handleStreamResponse(response, route, debugInfo)` — 流式 SSE 响应处理
 - `handleNonStreamResponse(response, route, debugInfo)` — 非流式 JSON 响应处理
-- `handleErrorResponse(response, route, debugInfo)` — 上游错误响应处理
 - `handleProxyRequest(request)` — 编排器：解析 → 路由 → fetch → 分发
 - `handleProxyError(err)` — 异常处理
 
-**stream.ts** — SSE 流转换服务（拆分为 7 个子函数，均≤50 行）：
+**stream.ts** — SSE 流转换服务（createStreamService 工厂，8 个子函数，均≤50 行）：
+- `sanitizeResponseHeaders(headers)` — 独立导出，脱敏响应头
 - `encodeSSEEvent(event)` — 编码单个 SSE 事件
 - `processSSEDataLine(line, state)` — 处理 `data:` 行
 - `processSSELine(line, state)` — 处理单行（event/data/空行）
 - `flushBuffer(buffer, controller)` — 刷新缓冲区
 - `enqueueResults(results, controller)` — 入队转换结果
+- `logConversionError(err, streamDone, ctx)` — 记录转换错误
 - `convertSSEStream(stream, context)` — 主转换函数（编排器）
 
-**logger.ts** — 代理日志服务（289 行，工厂注入模式）：
+**logger.ts** — 代理日志服务（294 行，工厂注入模式）：
 - `createProxyLogService(deps)` — 工厂函数，注入 `createLogEntry`/`updateRequestStats`/`updateProviderStats`
 - `tryLogEntry(entry)` — 尽力写入日志（NDJSON + SQLite 统计，容错失败仅 debug 记录）
 - `logAuthFailure(request, error)` — 认证失败专用日志（无 apiKeyId 上下文）
@@ -588,10 +591,10 @@ closeDatabase()    → 保存 + 关闭
   - `openAISSEToAnthropic()`：按事件类型分发（含 reasoning/tool_calls/finish_reason 处理）
 - `index.ts` — barrel export，保持向前兼容
 
-**rate-limiter.ts** — 滑动窗口限流器（63 行）：
-- 内存 Map 存储每个 key 的时间戳数组
-- `check(key, limit)` → 清理过期戳 → 比较上限 → 返回 { allowed, remaining, resetAt }
-- 超限时自动调度删除 key 的清理
+**rate-limiter.ts** — 滑动窗口限流器（78 行）：
+- `class RateLimiter`，内部 `windows: Map<string, number[]>` 存储每个 key 的时间戳数组
+- `check(key, limit)` → 清理过期戳 → 比较上限 → 返回 { isAllowed, remaining, resetAt }
+- 超限时通过 setTimeout 延迟清理 key
 
 **middleware.ts** — 简单的 auth 提取（20 行）：
 - `authMiddleware(authHeader)` → 从 Bearer token 提取纯 token 字符串
@@ -618,12 +621,12 @@ Domain 模式：每个业务域一个目录，包含 `*.types.ts`、`*.service.t
 - `listModelMappings/createModelMapping/updateModelMapping/deleteModelMapping` — model_mappings 表 CRUD
 
 **agent domain：**
-- `agent.service.ts`（222 行）— Agent + 配置版本管理
+- `agent.service.ts`（262 行）— Agent + 配置版本管理
   - `list / getById / create / update / remove` — Agent CRUD
   - `listConfigs / getConfig / createConfig / updateConfig / deleteConfig / switchConfig` — 配置版本管理
   - 内部依赖：`db/agents.ts`（Agent Repository）+ `db/agent-configs.ts`（Config Repository）
-- `agent.schema.ts`（43 行）— 6 个 Zod schema：`createAgentSchema`、`updateAgentSchema`、`createAgentConfigSchema`、`updateAgentConfigSchema`、`switchConfigSchema`、`configFormatSchema`
-- `agent.types.ts`（21 行）— 从 `shared/types.ts` re-export 所有 Agent 相关类型
+- `agent.schema.ts`（42 行）— 6 个 Zod schema：`createAgentSchema`、`updateAgentSchema`、`createAgentConfigSchema`、`updateAgentConfigSchema`、`switchConfigSchema`、`configFormatSchema`
+- `agent.types.ts`（21 行）— 从 `shared/types.ts` re-export Agent 相关类型 + 向后兼容别名（AgentResponse/AgentConfigResponse）
 
 **provider domain：**
 - `provider.service.ts` 委托给 `db/providers.ts` 数据层函数，service 层做 snake_case → camelCase 映射
@@ -656,7 +659,7 @@ Domain 模式：每个业务域一个目录，包含 `*.types.ts`、`*.service.t
 
 | 通道 | 委托到 | handler 文件 |
 |------|--------|-------------|
-| `provider:list/getById/create/update/delete` | `providerService.*` | `providers.ts` |
+| `provider:list/create/update/delete` | `providerService.*` | `providers.ts` |
 | `apikey:list/create/delete` | `apiKeyService.*` | `apikeys.ts` |
 | `logs:list/stats/statsDetailed` | `logsService.*` / `statsService.*` | `logs.ts` |
 | `window:minimize/maximize/close` | BrowserWindow 操作 | `system.ts` |
@@ -669,13 +672,13 @@ Domain 模式：每个业务域一个目录，包含 `*.types.ts`、`*.service.t
 | `agent:listConfigs/getConfig/createConfig/updateConfig/deleteConfig/switchConfig` | `agentService.*` | `agents.ts` |
 | `update:check/download/install/skipVersion/getConfig/setConfig/getCurrentVersion` | `update/manager.ts` | `update/ipc.ts` |
 
-**sse-parser.ts** — SSE 解析工具（82 行，基于 `shared/sse-utils.ts`）：
+**sse-parser.ts** — SSE 解析工具（81 行，基于 `shared/sse-utils.ts`）：
 - `parseSSELine()` — 从 `shared/sse-utils.ts` 导入，解析单行 SSE 文本
 - `tryExtractText(obj)` — 从 Anthropic SSE 对象提取 text/thinking
 - `extractFromAnthropicSSE(jsonStr)` / `extractFromOpenaiSSE(jsonStr)` — 解析 JSON 行
 - `parseAnthropicSSE(sseText)` / `parseOpenaiSSE(sseText)` — 解析完整 SSE 文本
 
-**ipc-utils.ts** — IPC handler 错误处理工具（42 行）：
+**ipc-utils.ts** — IPC handler 错误处理工具（41 行）：
 - `wrapIpcHandler(handler, channel)` — 统一 try/catch 包装，ZodError → `Invalid input: ...`，其他 Error → 日志 + `{ error }` 返回
 
 ---
@@ -840,7 +843,7 @@ electronAPI = {
 {name}.service.ts  — 业务逻辑工厂函数 create{Name}Service(db)
                    └─ 内部创建 createXxxRepository(db) 访问数据层
                    └─ service 层做 snake_case → camelCase 映射
-                   └─ 方法: list / getById / create / update / remove
+                   └─ 基准方法: list / getById / create / update / remove（各 domain 按需扩展）
 ```
 
 ### 6.2 IPC 分层与错误处理
