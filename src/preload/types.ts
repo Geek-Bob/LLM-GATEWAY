@@ -140,6 +140,7 @@ export interface ElectronAPI {
     createConfig: (data: CreateAgentConfigInput) => Promise<AgentConfigResponse>
     updateConfig: (id: number, data: UpdateAgentConfigInput) => Promise<AgentConfigResponse>
     deleteConfig: (id: number) => Promise<void>
+    readConfigFile: (agentId: number) => Promise<string>
     switchConfig: (data: SwitchConfigInput) => Promise<void>
   }
 }

@@ -15,6 +15,7 @@ import {
   useCreateAgentConfig,
   useUpdateAgentConfig,
   useCreateAgent,
+  useReadConfigFile,
 } from '@/lib/queries/agents'
 import type { AgentConfigEntity } from '@/lib/types'
 import { getErrorMessage } from '@/lib/utils'
@@ -81,13 +82,29 @@ export function AgentFormDialog({
     configFormat: 'json' as 'json' | 'toml' | 'env',
   })
 
-  /** 打开添加配置对话框时重置表单 */
+  /** 当前展开的 Agent 信息 */
+  const currentAgent = agents.find(a => a.id === expandedAgent) ?? null
+
+  /** 根据 Agent 配置格式推断编辑器语言 */
+  const editorLanguage = currentAgent?.configFormat === 'toml'
+    ? 'toml'
+    : currentAgent?.configFormat === 'env'
+      ? 'plaintext'
+      : 'json'
+
+  /** 读取 Agent 配置文件内容（仅在添加配置对话框打开时请求） */
+  const { data: configFileContent, isLoading: isLoadingFile } = useReadConfigFile(
+    isAddDialogVisible ? expandedAgent : null
+  )
+
+  /** 打开添加配置对话框时，用配置文件内容预填充编辑器 */
   useEffect(() => {
     if (isAddDialogVisible) {
       setNewConfigName('')
-      setNewConfigContent('{\n  \n}')
+      // 使用配置文件内容预填充，文件不存在则使用默认空 JSON
+      setNewConfigContent(configFileContent || '{\n  \n}')
     }
-  }, [isAddDialogVisible])
+  }, [isAddDialogVisible, configFileContent])
 
   /** 编辑配置变更时同步内容到编辑器 */
   useEffect(() => {
@@ -170,11 +187,14 @@ export function AgentFormDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label>配置内容</Label>
+              <Label>
+                配置内容
+                {isLoadingFile && <span className="text-muted-foreground ml-2 text-xs">正在读取配置文件...</span>}
+              </Label>
               <CodeEditor
                 value={newConfigContent}
                 onChange={setNewConfigContent}
-                language="json"
+                language={editorLanguage}
                 height="400px"
               />
             </div>
@@ -203,7 +223,7 @@ export function AgentFormDialog({
             <CodeEditor
               value={editContent}
               onChange={setEditContent}
-              language="json"
+              language={editorLanguage}
               height="500px"
             />
           </div>

@@ -162,6 +162,32 @@ export function createAgentService(db: Database) {
     },
 
     /**
+     * 读取 Agent 配置文件内容
+     *
+     * 读取 Agent config_path 指向的文件内容，用于新建配置时预填充编辑器。
+     * 文件不存在时返回空字符串（不报错，因为配置文件可能尚未创建）。
+     *
+     * @param agentId - Agent ID
+     * @returns 文件内容字符串，文件不存在时返回空字符串
+     * @throws 如果 Agent 不存在则抛出错误
+     */
+    async readConfigFile(agentId: number): Promise<string> {
+      const agent = await agentRepo.getById(agentId)
+      if (!agent) throw new Error(`Failed to read config file: agent ${agentId} not found`)
+
+      const configPath = expandHomePath(agent.config_path)
+      try {
+        return await fs.readFile(configPath, 'utf-8')
+      } catch (error) {
+        // 文件不存在是正常情况（用户可能尚未创建配置文件）
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          return ''
+        }
+        throw new Error(`Failed to read config file: ${configPath}`, { cause: error })
+      }
+    },
+
+    /**
      * 切换配置（原子写入到 Agent 路径）
      *
      * 流程：

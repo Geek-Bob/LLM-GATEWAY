@@ -72,6 +72,17 @@ export function useDeleteAgent() {
   })
 }
 
+// ====== Agent Config File ======
+
+/** 读取 Agent 配置文件内容（用于新建配置时预填充编辑器） */
+export function useReadConfigFile(agentId: number | null) {
+  return useQuery<string>({
+    queryKey: ['agents', 'readConfigFile', agentId],
+    queryFn: () => api.agents.readConfigFile(agentId!),
+    enabled: agentId !== null,
+  })
+}
+
 // ====== Agent Config CRUD ======
 
 /** 查询指定 Agent 的配置列表（agentId 为 null 时跳过查询） */

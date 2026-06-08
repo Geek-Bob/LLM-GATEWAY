@@ -172,6 +172,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     createConfig: (data: unknown) => ipcRenderer.invoke('agent:createConfig', data),
     updateConfig: (id: number, data: unknown) => ipcRenderer.invoke('agent:updateConfig', id, data),
     deleteConfig: (id: number) => ipcRenderer.invoke('agent:deleteConfig', id),
+    readConfigFile: (agentId: number) => ipcRenderer.invoke('agent:readConfigFile', agentId),
     switchConfig: (data: unknown) => ipcRenderer.invoke('agent:switchConfig', data),
   },
 })

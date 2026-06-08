@@ -65,6 +65,10 @@ export function registerAgentHandlers(db: Database): void {
     return agentService.deleteConfig(id)
   }, 'agent:deleteConfig'))
 
+  ipcMain.handle('agent:readConfigFile', wrapIpcHandler(async (_event, agentId: number) => {
+    return agentService.readConfigFile(agentId)
+  }, 'agent:readConfigFile'))
+
   ipcMain.handle('agent:switchConfig', wrapIpcHandler(async (_event, data: unknown) => {
     const input = switchConfigSchema.parse(data)
     return agentService.switchConfig(input)
