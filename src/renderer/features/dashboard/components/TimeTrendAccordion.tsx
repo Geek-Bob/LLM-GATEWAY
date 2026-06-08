@@ -44,7 +44,7 @@ export function TimeTrendAccordion({ dailyStats, hourlyStats, isLoading }: TimeT
 
   return (
     <>
-      <h2 className="text-base font-semibold mb-4 text-foreground">时间趋势</h2>
+      <h2 className="text-base font-semibold mb-4 text-foreground">近 30 日时间趋势</h2>
       <div className="space-y-2">
         {dailyStats.map((group) => (
           <Card key={group.providerId} className="border-border/50 overflow-hidden">

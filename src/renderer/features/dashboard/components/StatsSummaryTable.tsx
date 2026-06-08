@@ -30,7 +30,7 @@ export function StatsSummaryTable({ dailyStats, isLoading }: StatsSummaryTablePr
   return (
     <>
       <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-base font-semibold text-foreground">调用统计</h2>
+        <h2 className="text-base font-semibold text-foreground">近 30 日调用统计</h2>
       </div>
       <Card className="border-border/50 overflow-hidden">
         <Table>
