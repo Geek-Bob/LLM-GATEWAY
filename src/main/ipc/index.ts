@@ -14,7 +14,6 @@ import { registerProviderHandlers } from './providers'
 import { registerApiKeyHandlers } from './apikeys'
 import { registerConversationHandlers } from './conversations'
 import { registerLogHandlers } from './logs'
-import { registerStatsHandlers } from './stats'
 import { registerProxyHandlers } from './proxy'
 import { registerModelHandlers } from './models'
 import { registerAgentHandlers } from './agents'
@@ -33,7 +32,6 @@ export function setupIpcHandlers(updateManager: UpdateManager): void {
   registerApiKeyHandlers(db)
   registerConversationHandlers(db)
   registerLogHandlers(db)
-  registerStatsHandlers(db)
   registerProxyHandlers()
   registerModelHandlers(db)
   registerAgentHandlers(db)

@@ -88,7 +88,6 @@ e:\code\llm-gateway\
 │   │   │   ├── models.ts                # 模型映射 IPC handler
 │   │   │   ├── providers.ts             # 供应商 IPC handler
 │   │   │   ├── proxy.ts                 # 代理控制 IPC handler
-│   │   │   ├── stats.ts                 # 统计 IPC handler（当前空 stub）
 │   │   │   ├── system.ts                # 系统 IPC handler（window/debug）
 │   │   │   ├── update.ts                # 更新 IPC handler（委托 update/ipc.ts）
 │   │   │   └── sse-parser.ts            # SSE 解析工具（基于 shared/sse-utils.ts）
@@ -463,6 +462,11 @@ closeDatabase()    → 保存 + 关闭
 | `agent_configs` | id | Agent 配置版本（agent_id FK CASCADE、is_current 标记、UNIQUE(agent_id, name)） |
 
 **数据层注入约定**：所有 `db/*.ts` 函数统一接受 `db: Database` 作为第一个参数，禁止内部调用 `getDb()`。
+
+**风格选择**：
+- **裸函数**（providers/api-keys/conversations/model-mappings/logs-*）：简单 CRUD 实体，每个函数独立接受 `db` 参数
+- **Repository 工厂**（agents/agent-configs）：聚合根有多个关联表 + 事务操作（如 `switchCurrent` 需要先清除再设置），用对象封装更内聚
+- 判断标准：单表 CRUD → 裸函数；多表关联/事务 → Repository
 
 **model-mappings.ts** — 模型映射 CRUD：
 - `findModelMapping(db, sourceModel)` → 按 source_model 精确匹配活跃映射
