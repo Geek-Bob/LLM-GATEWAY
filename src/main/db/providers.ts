@@ -1,7 +1,7 @@
 /**
- * LLM 供应商数据访问层
+ * Provider 数据访问层（Repository 模式）
  *
- * 本模块封装对 `providers` 表的所有 CRUD 操作。
+ * 封装对 `providers` 表的所有 CRUD 操作。
  * Provider 记录的是上游 LLM 服务（如 Anthropic、OpenAI）的连接信息，
  * 包括 API 地址、密钥以及该供应商支持的白名单模型列表。
  *
@@ -60,88 +60,82 @@ const columnMap: Record<string, string> = {
   updatedAt: 'updated_at'
 }
 
-/** 创建供应商记录，models 数组序列化为 JSON 存入数据库，返回自增主键 ID。 */
-export function createProvider(db: Database, input: ProviderInput): number {
-  const stmt = db.prepare(`
-    INSERT INTO providers (name, provider_type, base_url, api_key, models)
-    VALUES (@name, @providerType, @baseUrl, @apiKey, @models)
-  `)
-  const result = stmt.run({
-    name: input.name,
-    providerType: input.providerType,
-    baseUrl: input.baseUrl,
-    apiKey: input.apiKey,
-    models: JSON.stringify(input.models)
-  })
-  return Number(result.lastInsertRowid)
-}
-
-/** 按主键查询单个供应商，找不到时返回 undefined 而非抛异常。 */
-export function getProvider(db: Database, id: number): ProviderRow | undefined {
-  return db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as
-    | ProviderRow
-    | undefined
-}
-
-/** 按 name 精确匹配查询供应商（代理路由通过此函数解析模型 ID 中的前缀）。 */
-export function getProviderByName(db: Database, name: string): ProviderRow | undefined {
-  return db.prepare('SELECT * FROM providers WHERE name = ?').get(name) as
-    | ProviderRow
-    | undefined
-}
-
-/** 列出所有供应商，按创建时间降序排列（新创建的排前面）。 */
-export function listProviders(db: Database): ProviderRow[] {
-  return db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as ProviderRow[]
-}
-
 /**
- * 仅列出活跃供应商（is_active = 1）。
- * 代理路由 resolveProvider() 依赖此函数，不活跃的供应商不会被选中做请求转发。
+ * 创建 Provider Repository 实例
+ *
+ * @param db - Database 实例
+ * @returns Provider Repository 对象
  */
-export function listActiveProviders(db: Database): ProviderRow[] {
-  return db
-    .prepare('SELECT * FROM providers WHERE is_active = 1 ORDER BY created_at DESC')
-    .all() as ProviderRow[]
-}
+export function createProviderRepository(db: Database) {
+  return {
+    /** 列出所有供应商，按创建时间降序排列 */
+    async list(): Promise<ProviderRow[]> {
+      return db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as ProviderRow[]
+    },
 
-/**
- * 部分更新供应商字段。关键设计点：
- * - 仅遍历提供的更新字段，不存在的字段不会影响数据库
- * - models 数组在此序列化为 JSON 字符串
- * - 使用 columnMap 字段白名单，避免传入意外字段
- * - 每次更新自动刷新 updated_at 时间戳
- */
-export function updateProvider(db: Database, id: number, updates: ProviderUpdate): void {
-  const setClauses: string[] = []
-  const params: Record<string, unknown> = { id }
+    /** 按主键查询单个供应商 */
+    async findById(id: number): Promise<ProviderRow | null> {
+      const row = db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as ProviderRow | undefined
+      return row ?? null
+    },
 
-  for (const [key, value] of Object.entries(updates)) {
-    const column = columnMap[key]
-    if (!column) continue
+    /** 按 name 精确匹配查询供应商（代理路由通过此方法解析模型 ID 中的前缀） */
+    async findByName(name: string): Promise<ProviderRow | null> {
+      const row = db.prepare('SELECT * FROM providers WHERE name = ?').get(name) as ProviderRow | undefined
+      return row ?? null
+    },
 
-    if (key === 'models') {
-      params[column] = JSON.stringify(value)
-    } else {
-      params[column] = value
-    }
-    setClauses.push(`${column} = @${column}`)
+    /** 仅列出活跃供应商（is_active = 1） */
+    async listActive(): Promise<ProviderRow[]> {
+      return db
+        .prepare('SELECT * FROM providers WHERE is_active = 1 ORDER BY created_at DESC')
+        .all() as ProviderRow[]
+    },
+
+    /** 列出所有供应商的 id 和 name，用于关联查询（如日志统计中显示供应商名称） */
+    async listNames(): Promise<{ id: number; name: string }[]> {
+      return db.prepare('SELECT id, name FROM providers').all() as { id: number; name: string }[]
+    },
+
+    /** 创建供应商记录，models 数组序列化为 JSON 存入数据库 */
+    async create(input: ProviderInput): Promise<ProviderRow> {
+      const result = db.prepare(`
+        INSERT INTO providers (name, provider_type, base_url, api_key, models)
+        VALUES (@name, @providerType, @baseUrl, @apiKey, @models)
+      `).run({
+        name: input.name,
+        providerType: input.providerType,
+        baseUrl: input.baseUrl,
+        apiKey: input.apiKey,
+        models: JSON.stringify(input.models)
+      })
+      const created = await this.findById(result.lastInsertRowid)
+      if (!created) throw new Error('Failed to create provider: record not found after insert')
+      return created
+    },
+
+    /** 部分更新供应商字段 */
+    async update(id: number, updates: ProviderUpdate): Promise<void> {
+      const setClauses: string[] = []
+      const params: Record<string, unknown> = { id }
+
+      for (const [key, value] of Object.entries(updates)) {
+        const column = columnMap[key]
+        if (!column) continue
+        params[column] = key === 'models' ? JSON.stringify(value) : value
+        setClauses.push(`${column} = @${column}`)
+      }
+
+      if (setClauses.length === 0) return
+      setClauses.push("updated_at = datetime('now')")
+      db.prepare(`UPDATE providers SET ${setClauses.join(', ')} WHERE id = @id`).run(params)
+    },
+
+    /** 按主键删除供应商 */
+    async remove(id: number): Promise<void> {
+      db.prepare('DELETE FROM providers WHERE id = ?').run(id)
+    },
   }
-
-  if (setClauses.length === 0) return
-
-  // 每次更新自动刷新 updated_at 时间戳
-  setClauses.push("updated_at = datetime('now')")
-
-  db.prepare(`UPDATE providers SET ${setClauses.join(', ')} WHERE id = @id`).run(params)
 }
 
-/** 按主键删除供应商。注意：相关联的会话记录不会级联删除，调用方需自行处理。 */
-export function deleteProvider(db: Database, id: number): void {
-  db.prepare('DELETE FROM providers WHERE id = ?').run(id)
-}
-
-/** 列出所有供应商的 id 和 name，用于关联查询（如日志统计中显示供应商名称）。 */
-export function listProviderNames(db: Database): { id: number; name: string }[] {
-  return db.prepare('SELECT id, name FROM providers').all() as { id: number; name: string }[]
-}
+export type ProviderRepository = ReturnType<typeof createProviderRepository>

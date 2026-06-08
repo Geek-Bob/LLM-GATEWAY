@@ -10,9 +10,10 @@ import path from 'path'
 import { createLogger } from './core/logger'
 import { initDatabase, closeDatabase, getDb } from './db/connection'
 import { createTables } from './db/schema'
-import { initLogsDir, createLogEntry, updateRequestStats, updateProviderStats } from './db/logs'
-import { verifyApiKey } from './db/api-keys'
-import { getProviderByName, type ProviderRow } from './db/providers'
+import { initLogsDir, createLogEntry } from './db/logs'
+import { createApiKeyRepository } from './db/api-keys'
+import { createProviderRepository, type ProviderRow } from './db/providers'
+import { createLogStatsRepository } from './db/logs-stats'
 import type { Provider } from './shared/types'
 import { createModelsService } from './domains/models/models.service'
 import { getDebugMode } from './proxy/manager'
@@ -210,16 +211,19 @@ async function startServer(): Promise<void> {
   // Start unified server (proxy + admin API on single port)
   // 组装代理服务依赖并注入，保持 proxy/ 模块不直接依赖 db/ 层
   const db = getDb()
+  const providerRepo = createProviderRepository(db)
+  const apiKeyRepo = createApiKeyRepository(db)
+  const statsRepo = createLogStatsRepository(db)
   const modelsService = createModelsService(db)
   initProxyServices({
-    verifyApiKey: (plaintextKey) => verifyApiKey(db, plaintextKey),
+    verifyApiKey: async (plaintextKey) => apiKeyRepo.verify(plaintextKey),
     createLogEntry,
-    updateRequestStats: (entry) => updateRequestStats(db, entry),
-    updateProviderStats: (entry) => updateProviderStats(db, entry),
+    updateRequestStats: (entry) => statsRepo.updateRequestStats(entry),
+    updateProviderStats: (entry) => statsRepo.updateProviderStats(entry),
     modelsService,
     getDebugMode,
-    lookupProvider: (name) => {
-      const row = getProviderByName(db, name)
+    lookupProvider: async (name) => {
+      const row = await providerRepo.findByName(name)
       if (!row) return undefined
       return providerRowToProvider(row)
     },

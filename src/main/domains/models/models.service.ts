@@ -1,8 +1,8 @@
 /**
  * 模型映射业务逻辑
  *
- * 遵循 Domain Pattern 模式 A（工厂注入 service）。
- * 通过 createModelsService(db) 注入 Database 实例，与 provider/conversation 等 domain 统一。
+ * 通过 createModelsService(db) 注入 Database 实例，
+ * 内部创建 ProviderRepository 和 ModelMappingRepository 访问数据层。
  *
  * 主要职责：
  * - getAllModels(): 聚合所有活跃 provider 的模型列表，供 /v1/models 端点和配置 UI 使用
@@ -11,16 +11,8 @@
  */
 
 import type { Database } from '../../db/database'
-import { listActiveProviders } from '../../db/providers'
-import {
-  findActiveModelMapping,
-  listModelMappings as listModelMappingsFromDb,
-  insertModelMapping,
-  updateModelMapping as updateModelMappingInDb,
-  getModelMapping,
-  deleteModelMapping as deleteModelMappingFromDb,
-  type ModelMappingRow,
-} from '../../db/model-mappings'
+import { createProviderRepository } from '../../db/providers'
+import { createModelMappingRepository, type ModelMappingRow } from '../../db/model-mappings'
 import type {
   ModelMapping,
   CreateModelMappingInput,
@@ -31,22 +23,22 @@ import type {
 /**
  * 创建模型映射 service 实例
  *
- * 采用依赖注入模式，接收 Database 实例，与 provider/conversation/agent 等 domain 统一。
- *
  * @param db - Database 实例
  * @returns ModelsService 对象
  */
 export function createModelsService(db: Database) {
+  const providerRepo = createProviderRepository(db)
+  const mappingRepo = createModelMappingRepository(db)
+
   return {
     /**
      * 获取所有活跃 provider 的模型列表
      *
      * 遍历所有 is_active=1 的 provider，将其 models JSON 数组展开为 ModelInfo 列表。
      * 每个 ModelInfo 的 id 格式为 "{providerName}/{modelName}"。
-     * 此函数从 proxy/router.ts 的 getAvailableModels() 迁移而来。
      */
-    getAllModels: (): ModelInfo[] => {
-      const providers = listActiveProviders(db)
+    getAllModels: async (): Promise<ModelInfo[]> => {
+      const providers = await providerRepo.listActive()
 
       const result: ModelInfo[] = []
       for (const provider of providers) {
@@ -66,67 +58,41 @@ export function createModelsService(db: Database) {
      * 查找活跃的模型映射
      *
      * 按 sourceModel 精确匹配，仅返回 is_active=1 的记录。
-     * 供 proxy 请求转换时调用，将客户端请求的 source_model 替换为 target_model。
      * 未找到映射时返回 null（调用方应使用原始模型名）。
      */
-    findModelMapping: (sourceModel: string): ModelMapping | null => {
-      const row = findActiveModelMapping(db, sourceModel)
-      if (!row) return null
+    findModelMapping: async (sourceModel: string): Promise<ModelMapping | null> => {
+      const row = await mappingRepo.findActive(sourceModel)
+      return row ? modelMappingRowToEntity(row) : null
+    },
+
+    /** 查询所有映射（按 id 降序，最新在前） */
+    listModelMappings: async (): Promise<ModelMapping[]> => {
+      const rows = await mappingRepo.list()
+      return rows.map(modelMappingRowToEntity)
+    },
+
+    /** 创建映射 */
+    createModelMapping: async (data: CreateModelMappingInput): Promise<ModelMapping> => {
+      const created = await mappingRepo.create(data.sourceModel, data.targetModel)
+      return modelMappingRowToEntity(created)
+    },
+
+    /** 更新映射 */
+    updateModelMapping: async (id: number, data: UpdateModelMappingInput): Promise<ModelMapping> => {
+      await mappingRepo.update(id, data)
+      const row = await mappingRepo.findById(id)
+      if (!row) throw new Error(`Failed to update model mapping: id ${id} not found`)
       return modelMappingRowToEntity(row)
     },
 
-    /**
-     * 查询所有映射（按 id 降序，最新在前）
-     *
-     * 供 IPC handler 的 list 接口使用，返回完整映射列表。
-     */
-    listModelMappings: (): ModelMapping[] => {
-      return listModelMappingsFromDb(db).map(modelMappingRowToEntity)
-    },
-
-    /**
-     * 创建映射
-     *
-     * 插入新记录，is_active 默认为 1，created_at 由数据库自动生成。
-     * 返回完整的映射对象（含自增 id）。
-     * 注意：source_model 有 UNIQUE 约束，重复插入会抛异常。
-     */
-    createModelMapping: (data: CreateModelMappingInput): ModelMapping => {
-      return modelMappingRowToEntity(insertModelMapping(db, data.sourceModel, data.targetModel))
-    },
-
-    /**
-     * 更新映射
-     *
-     * 仅更新传入的字段，未传入的字段保持不变。
-     * 返回更新后的完整映射对象。
-     */
-    updateModelMapping: (
-      id: number,
-      data: UpdateModelMappingInput
-    ): ModelMapping => {
-      updateModelMappingInDb(db, id, data)
-      const row = getModelMapping(db, id)
-      if (!row) {
-        throw new Error(`Failed to update model mapping: id ${id} not found`)
-      }
-      return modelMappingRowToEntity(row)
-    },
-
-    /**
-     * 删除映射
-     *
-     * 按 id 硬删除记录。如需软删除，调用方应使用 updateModelMapping 设置 is_active=0。
-     */
-    deleteModelMapping: (id: number): void => {
-      deleteModelMappingFromDb(db, id)
+    /** 删除映射 */
+    deleteModelMapping: async (id: number): Promise<void> => {
+      await mappingRepo.remove(id)
     },
   }
 }
 
-/**
- * 将数据库层 snake_case ModelMappingRow 转换为 camelCase ModelMapping。
- */
+/** 将数据库层 snake_case ModelMappingRow 转换为 camelCase ModelMapping */
 function modelMappingRowToEntity(row: ModelMappingRow): ModelMapping {
   return {
     id: row.id,
@@ -137,5 +103,4 @@ function modelMappingRowToEntity(row: ModelMappingRow): ModelMapping {
   }
 }
 
-/** ModelsService 类型别名，供 IPC handler 和 proxy 层使用 */
 export type ModelsService = ReturnType<typeof createModelsService>

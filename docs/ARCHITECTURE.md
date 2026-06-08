@@ -91,7 +91,7 @@ e:\code\llm-gateway\
 │   │   │   ├── system.ts                # 系统 IPC handler（window/debug）
 │   │   │   ├── update.ts                # 更新 IPC handler（委托 update/ipc.ts）
 │   │   │   └── sse-parser.ts            # SSE 解析工具（基于 shared/sse-utils.ts）
-│   │   ├── db/                          # 数据层（sql.js，返回 snake_case）
+│   │   ├── db/                          # 数据层（sql.js，Repository 模式，返回 snake_case）
 │   │   │   ├── connection.ts            # 连接管理（单例模式）
 │   │   │   ├── database.ts              # sql.js 封装（Statement/Database 类）
 │   │   │   ├── schema.ts                # 建表 DDL（9 张表）
@@ -102,7 +102,7 @@ e:\code\llm-gateway\
 │   │   │   ├── model-mappings.ts        # 模型映射 CRUD（返回 ModelMappingRow snake_case）
 │   │   │   ├── logs-reader.ts           # NDJSON 日志读取（queryLogs/readTailLines）
 │   │   │   ├── logs-writer.ts           # NDJSON 日志写入（createLogEntry/轮转/元数据）
-│   │   │   ├── logs-stats.ts            # 日志统计（getLogStats/getDetailedStats）
+│   │   │   ├── logs-stats.ts            # 日志统计 Repository（createLogStatsRepository）
 │   │   │   ├── agents.ts               # Agent CRUD（返回 AgentRow snake_case）
 │   │   │   └── agent-configs.ts         # Agent 配置版本 CRUD
 │   │   ├── domains/                     # 业务层（domain 模式，service 做 snake_case→camelCase）
@@ -461,49 +461,36 @@ closeDatabase()    → 保存 + 关闭
 | `agents` | id | AI Agent 配置（name UNIQUE、config_path、config_format） |
 | `agent_configs` | id | Agent 配置版本（agent_id FK CASCADE、is_current 标记、UNIQUE(agent_id, name)） |
 
-**数据层注入约定**：所有 `db/*.ts` 函数统一接受 `db: Database` 作为第一个参数，禁止内部调用 `getDb()`。
+**数据层注入约定**：所有 SQLite 数据访问统一采用 Repository 工厂模式 `createXxxRepository(db: Database)`，返回方法对象，禁止内部调用 `getDb()`。
 
-**风格选择**：
-- **裸函数**（providers/api-keys/conversations/model-mappings/logs-*）：简单 CRUD 实体，每个函数独立接受 `db` 参数
-- **Repository 工厂**（agents/agent-configs）：聚合根有多个关联表 + 事务操作（如 `switchCurrent` 需要先清除再设置），用对象封装更内聚
-- 判断标准：单表 CRUD → 裸函数；多表关联/事务 → Repository
+**Repository 模式**：
+- 工厂函数接收 `db: Database`，返回包含领域语义方法的纯对象
+- 类型导出：`export type XxxRepository = ReturnType<typeof createXxxRepository>`
+- NDJSON 文件操作（logs-reader/logs-writer）不适用 Repository 模式，保持裸函数
 
-**model-mappings.ts** — 模型映射 CRUD：
-- `findModelMapping(db, sourceModel)` → 按 source_model 精确匹配活跃映射
-- `listModelMappings(db) / createModelMapping(db, ...) / updateModelMapping(db, id, data) / deleteModelMapping(db, id)`
-- **数据层返回 `ModelMappingRow`（snake_case）**
+**model-mappings.ts** — 模型映射 Repository：
+- `createModelMappingRepository(db)` → 返回 Repository 实例
+- `list() / findById(id) / findActive(sourceModel) / create(sourceModel, targetModel) / update(id, data) / remove(id)`
 
-**providers.ts** — 供应商 CRUD 函数：
-- `createProvider(db, input)` → 插入新供应商，返回 ID
-- `getProvider(db, id) / getProviderByName(db, name)` → 按 ID 或名称查询，返回 `ProviderRow`（snake_case）
-- `listProviders(db) / listActiveProviders(db)` → 全量/仅活跃
-- `updateProvider(db, id, updates)` → 动态列映射更新（camelCase → snake_case）
-- `deleteProvider(db, id)` → 按 ID 删除
-- `listProviderNames(db)` → 仅返回 id+name（关联查询用）
+**providers.ts** — 供应商 Repository：
+- `createProviderRepository(db)` → 返回 Repository 实例
+- `list() / findById(id) / findByName(name) / listActive() / listNames() / create(input) / update(id, updates) / remove(id)`
 - 使用 `JSON.stringify` 存储 models 数组
-- **数据层返回 snake_case**（`ProviderRow`），camelCase 映射由 service 层完成
+- **返回 `ProviderRow`（snake_case）**，camelCase 映射由 service 层完成
 
-**api-keys.ts** — API Key 管理函数（148 行）：
-- `generateApiKey()` → 生成 `sk-` 前缀 + 36 字节 base64url 随机字符串
-- `hashKey()` → SHA256 哈希
-- `createApiKey(db, name, rateLimit)` → 插入新 key，返回明文 + 公钥信息
-- `verifyApiKey(db, plaintextKey)` → 验证 key 有效性（哈希匹配 + is_active）
-- `listApiKeys(db)` → 列出所有 key（含明文）
-- `deleteApiKey(db, id)` → 按 ID 删除
+**api-keys.ts** — API Key Repository：
+- `createApiKeyRepository(db)` → 返回 Repository 实例
+- `list() / findById(id) / create(name, rateLimit) / findPlaintextById(id) / verify(plaintextKey) / remove(id)`
+- 内部 `generateApiKey()` 生成 `sk-` 前缀 + 36 字节 base64url 随机字符串
 
-**conversations.ts** — 对话/消息 CRUD 函数（160 行）：
-- `listConversations(db)` → 按 updated_at 降序
-- `createConversation(db, title, model, providerId, apiKeyId)` → 插入新对话
-- `updateConversation(db, id, data)` → 动态字段更新
-- `getConversation(db, id)` → 查询单条
-- `deleteConversation(db, id)` → 按 ID 删除（CASCADE 删除关联消息）
-- `listMessages(db, conversationId)` → 查询对话下所有消息
-- `addMessage(db, conversationId, role, content, thinking)` → 添加消息 + 更新对话时间
+**conversations.ts** — 对话/消息 Repository：
+- `createConversationRepository(db)` → 返回 Repository 实例
+- `list() / findById(id) / create(title, model, providerId, apiKeyId) / update(id, data) / remove(id)`
+- `listMessages(conversationId) / addMessage(conversationId, role, content, thinking)`
 
-**agents.ts** — Agent CRUD（Repository 模式）：
+**agents.ts** — Agent Repository：
 - `createAgentRepository(db)` → 返回 Repository 实例
-- `create(input) / getById(id) / getByName(name) / list() / update(id, data) / remove(id)`
-- **数据层返回 `AgentRow`（snake_case）**，camelCase 映射由 service 层完成
+- `list() / findById(id) / findByName(name) / create(input) / update(id, data) / remove(id)`
 
 **agent-configs.ts** — Agent 配置版本 CRUD（221 行）：
 - `createAgentConfigRepository(db)` → 返回 Repository 实例
@@ -522,10 +509,11 @@ closeDatabase()    → 保存 + 关闭
 - `normalizeEntry()` 处理新旧字段名兼容
 - 文件描述符操作均在 `finally` 块中调用 `fs.closeSync(fd)` 防止泄漏
 
-**logs-stats.ts** — 日志统计：
-- `getLogStats(db, opts)` → 从 SQLite `request_stats` 表聚合（24h/7d/30d）
-- `getDetailedStats(db, range)` → 按供应商/模型分组统计
-- `updateRequestStats(db, entry)` / `updateProviderStats(db, entry)` → 写入统计汇总
+**logs-stats.ts** — 日志统计 Repository：
+- `createLogStatsRepository(db)` → 返回 Repository 实例
+- `getStats(range)` → 从 SQLite `request_stats` 表聚合（24h/7d/30d）
+- `getDetailedStats(range)` → 按供应商/模型分组统计
+- `updateRequestStats(entry)` / `updateProviderStats(entry)` → 写入统计汇总
 
 ---
 
@@ -850,7 +838,7 @@ electronAPI = {
 {name}.types.ts    — 类型定义（输入/输出 DTO，camelCase）
 {name}.schema.ts   — Zod 输入校验（create/update handler 入口使用）
 {name}.service.ts  — 业务逻辑工厂函数 create{Name}Service(db)
-                   └─ 注入 db: Database，传递给 db/*.ts 数据层函数（模式 B）
+                   └─ 内部创建 createXxxRepository(db) 访问数据层
                    └─ service 层做 snake_case → camelCase 映射
                    └─ 方法: list / getById / create / update / remove
 ```

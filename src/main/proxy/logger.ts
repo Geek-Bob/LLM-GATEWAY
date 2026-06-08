@@ -65,8 +65,8 @@ export interface ProxyLogService {
  */
 export function createProxyLogService(deps: {
   createLogEntry: (entry: LogEntryProps) => void
-  updateRequestStats: (entry: { tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => void
-  updateProviderStats: (entry: { providerId?: number; model: string; tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => void
+  updateRequestStats: (entry: { tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => Promise<void>
+  updateProviderStats: (entry: { providerId?: number; model: string; tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => Promise<void>
 }): ProxyLogService {
   /**
    * 写入请求日志（三步原子操作）
@@ -80,8 +80,13 @@ export function createProxyLogService(deps: {
   function tryLogEntry(entry: LogEntryProps): void {
     try {
       deps.createLogEntry(entry)
-      deps.updateRequestStats(entry)
-      deps.updateProviderStats(entry)
+      // fire-and-forget：统计更新是异步的，不影响主流程
+      deps.updateRequestStats(entry).catch((err) =>
+        logger.debug('updateRequestStats failed (non-fatal)', { error: err instanceof Error ? err.message : String(err) })
+      )
+      deps.updateProviderStats(entry).catch((err) =>
+        logger.debug('updateProviderStats failed (non-fatal)', { error: err instanceof Error ? err.message : String(err) })
+      )
     } catch (err) {
       logger.debug('tryLogEntry failed (non-fatal)', { error: err instanceof Error ? err.message : String(err) })
     }

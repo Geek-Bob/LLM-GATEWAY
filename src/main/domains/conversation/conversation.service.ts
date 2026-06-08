@@ -3,54 +3,41 @@ import type {
   ConversationResponse, MessageResponse,
   CreateConversationInput, UpdateConversationInput, AddMessageInput
 } from './conversation.types'
-import {
-  listConversations, getConversation, createConversation as dbCreateConversation,
-  updateConversation as dbUpdateConversation, deleteConversation,
-  listMessages, addMessage as dbAddMessage,
-  type ConversationRow, type MessageRow,
-} from '../../db/conversations'
+import { createConversationRepository, type ConversationRow, type MessageRow } from '../../db/conversations'
 
 /**
  * 创建会话业务服务
  * 管理会话（conversations）及其消息（messages）的 CRUD 操作
- * 一个会话包含多条消息，按创建时间正序排列
- *
- * 所有数据操作委托给 db/conversations.ts，本层仅负责：
- * - 输入格式转换（camelCase -> snake_case）
- * - 返回类型映射
  */
 export function createConversationService(db: Database) {
+  const repo = createConversationRepository(db)
+
   return {
-    /** 获取所有会话，按更新时间降序排列（最近使用的排前面） */
+    /** 获取所有会话，按更新时间降序排列 */
     list: async (): Promise<ConversationResponse[]> => {
-      return listConversations(db).map(conversationRowToResponse)
+      const rows = await repo.list()
+      return rows.map(conversationRowToResponse)
     },
 
     /** 根据 ID 获取单个会话 */
     getById: async (id: number): Promise<ConversationResponse | undefined> => {
-      const row = getConversation(db, id)
+      const row = await repo.findById(id)
       return row ? conversationRowToResponse(row) : undefined
     },
 
-    /** 创建新会话，若未指定 providerId/apiKeyId 则存为 null */
+    /** 创建新会话 */
     create: async (input: CreateConversationInput): Promise<ConversationResponse> => {
-      const id = dbCreateConversation(
-        db,
+      const created = await repo.create(
         input.title,
         input.model,
         input.providerId ?? null,
         input.apiKeyId ?? null
       )
-      const row = getConversation(db, id)
-      if (!row) {
-        throw new Error(`Failed to create conversation: record ${id} not found after insert`)
-      }
-      return conversationRowToResponse(row)
+      return conversationRowToResponse(created)
     },
 
-    /** 更新会话信息，将 camelCase 输入转换为 snake_case 后委托数据层 */
+    /** 更新会话信息 */
     update: async (id: number, input: UpdateConversationInput): Promise<void> => {
-      // camelCase 输入 -> snake_case 数据库列
       const data: {
         title?: string
         provider_id?: number | null
@@ -62,23 +49,23 @@ export function createConversationService(db: Database) {
       if (input.providerId !== undefined) data.provider_id = input.providerId
       if (input.apiKeyId !== undefined) data.api_key_id = input.apiKeyId
 
-      dbUpdateConversation(db, id, data)
+      await repo.update(id, data)
     },
 
     /** 根据 ID 删除会话 */
     remove: async (id: number): Promise<void> => {
-      deleteConversation(db, id)
+      await repo.remove(id)
     },
 
-    /** 获取指定会话的全部消息，按创建时间正序排列 */
+    /** 获取指定会话的全部消息 */
     messages: async (conversationId: number): Promise<MessageResponse[]> => {
-      return listMessages(db, conversationId).map(messageRowToResponse)
+      const rows = await repo.listMessages(conversationId)
+      return rows.map(messageRowToResponse)
     },
 
-    /** 向指定会话添加一条消息，同时更新会话的 updated_at */
+    /** 向指定会话添加一条消息 */
     addMessage: async (input: AddMessageInput): Promise<number> => {
-      return dbAddMessage(
-        db,
+      return repo.addMessage(
         input.conversationId,
         input.role,
         input.content,

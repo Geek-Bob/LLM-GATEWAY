@@ -51,6 +51,7 @@ Windows / macOS / Linux 桌面
 - 新功能 SDD（spec）→ TDD（Red → Green → Refactor），无例外
 - 技术架构变更后必须更新 `docs/ARCHITECTURE.md`：目录结构、数据流、模块职责描述与实际代码保持一致
 - 业务 CRUD 全部走 IPC（preload → ipcMain.handle）：providers / logs / stats / conversations / apiKeys
+- 核心原则：先统一约定(.claude/rules)、再优化结构(src)、最后微调细节。
 
 ## Build & Test
 - `npm run dev` — electron-vite dev | `npm run build` — 全量构建

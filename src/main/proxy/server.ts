@@ -42,22 +42,22 @@ const logger = createLogger('proxy:server')
  */
 export interface ProxyServices {
   /** API Key 验证（来自 db/api-keys） */
-  verifyApiKey: (plaintextKey: string) => { id: number; name: string; rate_limit: number } | null
+  verifyApiKey: (plaintextKey: string) => Promise<{ id: number; name: string; rate_limit: number } | null>
   /** 写入 NDJSON 日志（来自 db/logs） */
   createLogEntry: (entry: LogEntryProps) => void
   /** 更新全局请求统计（来自 db/logs） */
-  updateRequestStats: (entry: { tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => void
+  updateRequestStats: (entry: { tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => Promise<void>
   /** 更新供应商请求统计（来自 db/logs） */
-  updateProviderStats: (entry: { providerId?: number; model: string; tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => void
+  updateProviderStats: (entry: { providerId?: number; model: string; tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => Promise<void>
   /** 模型映射服务（来自 domains/models） */
   modelsService: {
-    getAllModels: () => Array<{ id: string; provider: string }>
-    findModelMapping: (sourceModel: string) => { targetModel: string } | null | undefined
+    getAllModels: () => Promise<Array<{ id: string; provider: string }>>
+    findModelMapping: (sourceModel: string) => Promise<{ targetModel: string } | null | undefined>
   }
   /** 获取 debug 模式状态 */
   getDebugMode: () => boolean
   /** 按名称查找供应商（注入给 router 使用） */
-  lookupProvider: (name: string) => Provider | undefined
+  lookupProvider: (name: string) => Promise<Provider | undefined>
 }
 
 /**

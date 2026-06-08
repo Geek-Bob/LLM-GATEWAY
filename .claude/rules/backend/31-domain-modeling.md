@@ -22,20 +22,31 @@ description: 领域建模与服务结构（工厂注入模式），始终加载
 - 工厂函数返回纯对象，方法通过闭包访问注入的 `db`
 - 类型导出：`export type XxxService = ReturnType<typeof createXxxService>`
 
-### 数据层注入
-`db/*.ts` 函数统一接受 `db: Database` 作为第一个参数，service 将注入的 `db` 透传：
+### 数据层注入（Repository 模式）
+`db/*.ts` 统一采用 Repository 工厂模式，service 通过注入的 `db` 创建 Repository：
 ```typescript
 // db/providers.ts
-export function listProviders(db: Database) {
-  return db.prepare('SELECT * FROM providers').all()
+export function createProviderRepository(db: Database) {
+  return {
+    async list(): Promise<ProviderRow[]> {
+      return db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as ProviderRow[]
+    },
+    async findById(id: number): Promise<ProviderRow | null> {
+      const row = db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as ProviderRow | undefined
+      return row ?? null
+    },
+    // ...
+  }
 }
+export type ProviderRepository = ReturnType<typeof createProviderRepository>
 
 // domains/provider/provider.service.ts
-import { listProviders } from '../../db/providers'
+import { createProviderRepository } from '../../db/providers'
 export function createProviderService(db: Database) {
+  const repo = createProviderRepository(db)
   return {
-    list: async () => listProviders(db),
-    create: async (input) => createProvider(db, input),
+    list: async () => repo.list(),
+    getById: async (id) => repo.findById(id),
   }
 }
 ```
@@ -50,14 +61,14 @@ export function createApiKeyService(db: Database) {
 }
 
 // ❌ 错误 2：db 函数内部调用 getDb()（破坏注入契约）
-export function listProviders() {
+export function createProviderRepository() {
   const db = getDb()  // 禁止！应通过参数接收
-  return db.prepare('SELECT * FROM providers').all()
+  return { list: () => db.prepare('SELECT * FROM providers').all() }
 }
 
 // ❌ 错误 3：service 参数使用 _db 占位符但不使用（已废弃的模式 A 残留）
 export function createProviderService(_db: Database) {
-  return { list: async () => listProviders() }  // _db 未传递给 db 函数
+  return { list: async () => listProviders() }  // _db 未传递给 Repository
 }
 ```
 
