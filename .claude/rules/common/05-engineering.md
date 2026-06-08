@@ -20,6 +20,14 @@ description: 工程原则与编码规范（前后端共用），始终加载
 ## 防御性编程
 - 边界条件：所有外部输入必须校验（Zod schema、类型守卫）
 - 空值处理：nullable 字段必须有明确的处理策略（`?.` 或 `??` 或显式检查）
+
+```typescript
+// ❌ 错误：无空值处理
+const name = user.profile.name  // profile 可能为 null
+
+// ✅ 正确：使用 ?? 提供默认值
+const name = user.profile?.name ?? 'unknown'
+```
 - 错误边界：异步操作必须有明确的错误处理策略（try-catch / .catch() / 错误边界）
   - 底层操作用 try-catch 捕获后重新抛出带上下文的错误（格式见 `backend/34-error-handling.md` 错误上下文）
   - 顶层 handler 捕获后映射为用户可见消息
@@ -30,15 +38,14 @@ description: 工程原则与编码规范（前后端共用），始终加载
 
 ## 可读性
 - 命名即文档：变量/函数名必须自解释，禁止缩写（除非是领域共识缩写如 API、URL）
-- 函数长度：单函数不超过 50 行，超过则拆分
-  - 计算范围：函数体内实际代码行数（不含空行和纯注释行，含 JSDoc）
-  - 范围从函数签名 `{` 到闭合 `}` 之间的所有行
+- 函数长度：单函数不超过 50 行（计算范围从函数签名 `{` 到闭合 `}`，不含空行和纯注释行，含 JSDoc），超过则拆分
 - 嵌套深度：不超过 3 层，超过则用 early return 或提取子函数
   - 每个控制流块（`if`/`for`/`while`/`switch`/`try-catch`）算一层
   - 函数调用的回调不算额外层（回调重置计数）
   - ✅ `if { for { if {} } }` 为 3 层（达到上限）
   - ✅ `arr.map(x => { if {} })` 中 `if` 为第 1 层（回调重置计数）
 - 注释意图：注释解释"为什么"，而非"做什么"（代码本身说明做什么）
+- 日志输出规范见 `backend/36-observability.md`
 
 ## 全局观
 - 修改前先理解：修改函数签名前，必须用 LSP 查找所有引用（Find All References），确认影响范围并在 PR 描述中列出受影响文件。修改 `shared/types.ts` 前必须运行 `npx tsc --noEmit` 确认无编译错误

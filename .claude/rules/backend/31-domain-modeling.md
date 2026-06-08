@@ -67,8 +67,9 @@ export function createProviderRepository() {
 }
 
 // ❌ 错误 3：service 参数使用 _db 占位符但不使用（已废弃的模式 A 残留）
+// 说明：listProviders() 内部调用 getDb()，破坏了依赖注入链
 export function createProviderService(_db: Database) {
-  return { list: async () => listProviders() }  // _db 未传递给 Repository
+  return { list: async () => listProviders() }  // _db 未传递给 Repository，listProviders 绕过注入
 }
 ```
 

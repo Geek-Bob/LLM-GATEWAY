@@ -1,9 +1,5 @@
 ---
-description: 前端测试约定（仅 renderer），按需加载
-paths:
-  - "src/renderer/**/*.test.*"
-  - "src/renderer/**/*.spec.*"
-  - "src/renderer/**/__tests__/**"
+description: 前端测试约定（仅 renderer），始终加载（TDD 铁律要求编写任何代码时都知道测试约定）
 ---
 
 # 测试原则
@@ -34,4 +30,4 @@ test('点击按钮后显示确认信息', async () => {
 # 禁止
 - 测试文件导入未测试的 feature 模块内部实现
 - 测试组件内部状态（只测试渲染结果和用户交互）
-- 使用 `getByTestId` 优先于语义查询（findByRole/findByText）
+- 禁止使用 `getByTestId`，优先使用语义查询（findByRole/findByText）

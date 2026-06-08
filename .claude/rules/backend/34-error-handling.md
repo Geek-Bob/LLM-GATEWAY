@@ -10,7 +10,7 @@ description: 错误处理规范（分类、传播、映射），始终加载
 
 | 类别 | 消息格式 | 触发层 |
 |------|---------|--------|
-| 验证错误 | `Invalid input: {path}: {message}` | 接口层（Zod `.parse()` 后映射） |
+| 验证错误 | `Invalid input: {field}: {message}` | 接口层（Zod `.parse()` 后映射） |
 | 业务错误 | `Failed to {action} {entity}: {reason}` | 业务层（service 抛出） |
 | 系统错误 | `Database not initialized` 等基础设施消息 | 数据层 / 基础设施层 |
 
@@ -57,7 +57,7 @@ throw new Error(`Agent ${id} not found`)    // 格式不符
 - IPC handler **必须**用 try/catch 包裹整个函数体，禁止依赖 Electron 自动序列化异常
 - 捕获后将错误映射为统一格式返回给渲染进程，禁止 throw 到 Electron 层
 - 业务错误返回用户可见消息，系统错误返回通用提示 + 日志记录
-- 返回格式见 32-interface-contracts.md 输出契约（`{ error: string, code?: string }`）
+- 返回格式见 `backend/32-interface-contracts.md` 输出契约（`{ error: string, code?: string }`）
 
 ```typescript
 // ✅ 正确：IPC handler 统一 try/catch
@@ -87,12 +87,20 @@ ipcMain.handle('providers:create', async (_event, data) => {
 - 网络连接失败返回 502，附带错误描述
 - 超时返回 504，附带超时时长
 
+```typescript
+// 网络连接失败
+return c.json({ error: { type: 'upstream_error', message: `Failed to connect: ${providerName} unreachable` } }, 502)
+
+// 超时
+return c.json({ error: { type: 'timeout', message: `Request timeout after ${timeoutMs}ms` } }, 504)
+```
+
 ## 禁止
 - 空 catch 块（`catch {}`）
 - 只打印不处理（`catch(e) { console.log(e) }`）
 - 吞没错误（`.catch(() => null)`）
 - 将系统错误的详细堆栈暴露给用户
-- 批量操作必须有原子性保证（事务或全部回滚，详见 33-data-access.md 事务边界）
+- 批量操作必须有原子性保证（事务或全部回滚，详见 `backend/33-data-access.md` 事务边界）
 
 ```typescript
 // ❌ 错误

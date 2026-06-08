@@ -1,5 +1,7 @@
 ---
-description: 动效规范（入场/退出/过渡动画），始终加载
+description: 动效规范（入场/退出/过渡动画），仅编辑前端组件代码时加载
+paths:
+  - "src/renderer/**/*.tsx"
 ---
 
 # 动画系统分工

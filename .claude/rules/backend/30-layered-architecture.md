@@ -26,7 +26,7 @@ src/main/
 ├── db/                       # 数据层：数据库操作
 │   ├── connection.ts             # 连接管理
 │   ├── schema.ts                 # 建表
-│   └── {entity}.ts               # 各实体 CRUD
+│   └── {entity}.ts               # 各实体 CRUD（如 providers.ts、api-keys.ts）
 ├── proxy/                    # 接口层：代理路由（仅 Chat）
 │   ├── server.ts                 # Hono 应用
 │   ├── manager.ts                # 生命周期
@@ -61,7 +61,7 @@ src/main/
   ├── 可导入：core/
 业务层：domains/
   ├── 禁止导入：proxy/
-  ├── 数据层访问模式见 31-domain-modeling.md（当前模式 A：直接导入 db/*.ts 函数；目标模式 B：通过注入 db 参数）
+  ├── 数据层访问模式见 `backend/31-domain-modeling.md`
   ├── 可导入：db/（通过数据层函数）、core/, 其他 domains/ 的 service
 数据层：db/
   ├── 禁止导入：domains/, proxy/, ipc/

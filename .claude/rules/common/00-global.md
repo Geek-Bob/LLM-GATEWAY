@@ -34,4 +34,8 @@ description: 命名约定与注释要求（前后端共用），始终加载
   - 魔法数字：代码中出现的、含义不明显的数字字面量
   - ❌ `for (let i = 0; i < 3; i++)` → ✅ `const MAX_RETRIES = 3; for (let i = 0; i < MAX_RETRIES; i++)`
   - 不算魔法数字：端口号（`8080`）、数组索引（`0`）、常量定义（`const PORT = 8080`）
-- 复杂业务规则必须注释说明"为什么"
+- 涉及条件分支超过 2 层、或需要跨模块理解的业务规则必须注释说明"为什么"
+
+## 错误消息格式
+- 后端错误消息遵循 `Failed to {action} {entity}: {reason}` 格式（详见 backend/34-error-handling.md）
+- 前端错误消息通过 `getErrorMessage(e)` 统一提取

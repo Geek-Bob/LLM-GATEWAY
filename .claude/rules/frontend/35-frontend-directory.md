@@ -60,12 +60,12 @@ import { useProviders } from '../queries/providers'
 ## 禁止的导入方向
 - `components/ui/` 和 `components/shared/` 不得导入 `features/`、`pages/`、`lib/queries/`
 - `features/` 之间不得交叉导入组件或 hooks（当两个 feature 需要共享逻辑时，将共享部分提升到 `hooks/` 或 `components/shared/`）
-- 组件内禁止直接数据访问（数据操作规则见 31-renderer.md 禁止项）
+- 组件内禁止直接数据访问（数据操作规则见 `frontend/31-renderer.md` 禁止项）
 
 # 文件放置规则
-- `components/ui/`：纯 UI 原子组件，复用规则见 32-component-reuse.md
+- `components/ui/`：纯 UI 原子组件，复用规则见 `frontend/32-component-reuse.md`
 - `components/shared/`：通用业务组件（含中文文案、业务状态判断、或组合 2+ 原子组件）
 - 功能域组件放在 `features/{name}/components/`
-- 全局通用 hooks 放在 `hooks/`
+- 全局通用 hooks 放在 `hooks/`（被 2 个及以上 feature 使用的逻辑，或非 UI 相关的通用工具 hook）
 - `lib/queries/` 按域分文件
 - 新增页面时同步创建对应的 `features/{name}/` 目录

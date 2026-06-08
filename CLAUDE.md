@@ -5,8 +5,7 @@
 ## 项目概述
 - 多 LLM 供应商统一代理 + 聊天 + 仪表盘的 Electron 42 桌面客户端
 - 面向需要在多个 LLM 供应商之间切换的开发者和团队
-- 每个 AI Agent 都想用全世界的模型，但每个模型都在说不同的语言。我们是 AI 世界的万能翻译官——让 Claude Code 用 GPT 的脑子、让 Cursor 跑开源的引擎，协议零损耗、能力零衰减。当 Agent 成为下一个操作系统，我们就是那个不可或缺的 TCP/IP 层。
-- 此项目价值： 是 AI Agent 时代的协议棱镜->一次接入，折射到 OpenAI、Anthropic、开源模型的全世界，协议零损耗、能力零衰减。
+- 技术定位：AI Agent 时代的协议棱镜，一次接入 OpenAI / Anthropic / 开源模型，协议零损耗
 
 ## 技术栈
 
@@ -126,12 +125,10 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 - 日志迁移：`node scripts/migrate-logs.mjs`（行数/文件变更时重新分片）
 - 调试日志自动截断：proxy 调试日志（`llm-gateway-proxy-debug.log` 等）每次启动时自动清空
 - 数据库迁移：`node scripts/migrate-db.mjs`（旧 schema 列名映射，如 `api_key_encrypted` → `api_key`）
-- **SSE 解析兼容性**：上游 Provider 可能返回非标准 SSE 格式（`data:json` 无空格），所有 SSE 解析点必须兼容 `data: ` 和 `data:` 两种格式。涉及文件：`server.ts`（extractContentFromSSE、extractUsageFromSSE、convertSSEStream）、`useChatStream.ts`
-- **Anthropic 认证**：Anthropic API 使用 `x-api-key` 头，OpenAI 使用 `Authorization: Bearer`，`forwarder.ts` 中按 providerType 分别处理
-- 禁止任何 `window.focus()` / `document.activeElement.blur()` 等手动焦点操控 workaround
-- 禁止`confirm()` / `alert()` / `window.confirm()` / `window.alert()`，用 Radix AlertDialog 组件
+- SSE 兼容性、Anthropic 认证、焦点操控等编码规范详见对应 rules/ 文件
 
 ## 规则模块
+> 加载方式由各文件 frontmatter 中的 `paths` 字段决定，此处仅为索引参考。
 
 ### 通用规则（`common/` 目录，所有语言/场景适用）
 | 文件 | 加载方式 | 职责 |
@@ -145,18 +142,19 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 | `frontend/31-renderer.md` | 始终加载 | Feature 模式 + 数据流（TanStack Query、错误处理） |
 | `frontend/32-component-reuse.md` | 始终加载 | 组件复用规则 |
 | `frontend/35-frontend-directory.md` | 始终加载 | 目录结构 + 模块边界（导入方向、编译隔离） |
-| `frontend/36-frontend-testing.md` | 按需加载 | 组件测试约定 |
-| `frontend/37-visual-style.md` | 始终加载 | 视觉风格 + 样式系统（颜色、圆角、阴影、字体） |
-| `frontend/38-animation.md` | 始终加载 | 动效规范（入场/退出/过渡动画） |
+| `frontend/36-frontend-testing.md` | 始终加载 | 组件测试约定（TDD 铁律） |
+| `frontend/37-visual-style.md` | 按需加载 | 视觉风格 + 样式系统（颜色、圆角、阴影、字体） |
+| `frontend/38-animation.md` | 按需加载 | 动效规范（入场/退出/过渡动画） |
 
 ### 后端规则（`backend/` 目录，仅 main 进程代码适用）
 | 文件 | 加载方式 | 职责 |
 |------|---------|------|
 | `backend/30-layered-architecture.md` | 始终加载 | 分层与依赖：层级划分、依赖方向、职责边界 |
 | `backend/31-domain-modeling.md` | 始终加载 | 领域建模：服务边界、内部结构、服务间通信 |
-| `backend/32-interface-contracts.md` | 始终加载 | 接口契约：输入校验、输出契约、IPC/代理规范 |
+| `backend/32-interface-contracts.md` | 始终加载 | 接口契约：输入校验、输出契约、IPC 规范 |
 | `backend/33-data-access.md` | 始终加载 | 数据访问：查询抽象、连接管理、Schema、事务 |
 | `backend/34-error-handling.md` | 始终加载 | 错误处理：错误类型、传播规则、跨边界映射 |
 | `backend/35-security.md` | 始终加载 | 安全：信任边界、输入校验、API Key 保护 |
 | `backend/36-observability.md` | 始终加载 | 可观测性：日志分层、格式、链路追踪、轮转 |
-| `backend/37-testing.md` | 按需加载 | 测试策略：金字塔、Mock 边界、测试数据管理 |
+| `backend/37-testing.md` | 始终加载 | 测试策略：金字塔、Mock 边界、测试数据管理（TDD 铁律） |
+| `backend/38-proxy.md` | 始终加载 | 代理层：路由、SSE 兼容性、认证头差异 |

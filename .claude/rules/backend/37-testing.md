@@ -1,8 +1,5 @@
 ---
-description: 后端测试策略（vitest + node 环境），按需加载
-paths:
-  - "src/main/**/*.test.*"
-  - "src/main/**/__tests__/**"
+description: 后端测试策略（vitest + node 环境），始终加载（TDD 铁律要求编写任何代码时都知道测试约定）
 ---
 
 # 测试策略
