@@ -34,11 +34,11 @@ const name = user.profile?.name ?? 'unknown'
   - 禁止空 catch 和只打印不处理（详见 `backend/34-error-handling.md` 禁止项）
 - 资源清理：数据库连接、文件句柄、事件监听器必须有清理逻辑
   - 前端：`useEffect` 返回 cleanup 函数、`AbortController` 取消请求
-  - 后端：`process.on('beforeExit')` 关闭数据库、服务 `stop()` 方法释放端口（连接管理见 `backend/33-data-access.md`）
+  - 后端（Electron 主进程）：`app.on('before-quit', ...)` 关闭数据库；服务 `stop()` 方法释放端口；纯 Node 脚本可用 `process.on('beforeExit', ...)`（连接管理见 `backend/33-data-access.md`）
 
 ## 可读性
 - 命名即文档：变量/函数名必须自解释，禁止缩写（除非是领域共识缩写如 API、URL）
-- 函数长度：单函数不超过 50 行（计算范围从函数签名 `{` 到闭合 `}`，不含空行和纯注释行，含 JSDoc），超过则拆分
+- 函数长度：单函数不超过 50 行（计算范围从 JSDoc 起始 `/**` 到函数闭合 `}`，如无 JSDoc 则从函数签名行起；不含空行和单独占行的纯注释行；JSDoc 长说明本身也是函数复杂度信号），超过则拆分
 - 嵌套深度：不超过 3 层，超过则用 early return 或提取子函数
   - 每个控制流块（`if`/`for`/`while`/`switch`/`try-catch`）算一层
   - 函数调用的回调不算额外层（回调重置计数）

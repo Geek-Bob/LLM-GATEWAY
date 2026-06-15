@@ -17,7 +17,9 @@ description: 前端测试约定（仅 renderer），始终加载（TDD 铁律要
 
 ```tsx
 // 完整的组件测试示例
-import { render, screen, userEvent } from '@/test-utils'
+// 项目当前直接使用 @testing-library/react；如需 QueryClient 包装可后续抽取到 src/renderer/test-utils.tsx
+import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MyComponent } from './MyComponent'
 
 test('点击按钮后显示确认信息', async () => {

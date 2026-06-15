@@ -6,8 +6,8 @@ paths:
 
 # 动画系统分工
 - **framer-motion**：页面入场、列表交错、布局动画（`pages/`、`features/` 组件）
-- **tailwindcss-animate**：Radix 原语的显隐动画（Dialog、Select、Popover、AlertDialog）
-- 禁止混用两套动画系统
+- **Tailwind v4 内置动画**：Radix 原语的显隐动画使用 v4 的 data-state 选择器 + animate-in/animate-out fade-in-0 zoom-in-95 slide-in-from-* utility（无需 tailwindcss-animate 插件）
+- Radix 原语用 Tailwind data-state utility，页面/列表用 framer-motion，禁止用 framer-motion 包装 Radix 内部 Trigger/Content
 
 # 时长标准
 - 页面入场：0.3s，easing `[0.16, 1, 0.3, 1]`（ease-out-expo）

@@ -51,12 +51,16 @@ for (const item of items) {
 }
 
 // ✅ 正确：批量插入（事务内）
-db.transaction(() => {
+// 项目使用 sql.js/WASM，无 db.transaction() 声明性 API；事务用 BEGIN/COMMIT/ROLLBACK 显式控制
+db.exec('BEGIN')
+try {
   const stmt = db.prepare('INSERT INTO messages (content) VALUES (?)')
-  for (const item of items) {
-    stmt.run(item.content)
-  }
-})()
+  for (const item of items) stmt.run(item.content)
+  db.exec('COMMIT')
+} catch (e) {
+  db.exec('ROLLBACK')
+  throw e
+}
 
 // ❌ 错误：Repository 内部调用 getDb()
 export function createMessageRepository() {

@@ -12,7 +12,7 @@ description: 代理层规范（路由、SSE 兼容性、认证头差异），始
 ## SSE 解析兼容性
 - 上游 Provider 可能返回非标准 SSE 格式（`data:json` 无空格）
 - 所有 SSE 解析点必须兼容 `data: ` 和 `data:` 两种格式
-- 涉及文件：`server.ts`（extractContentFromSSE、extractUsageFromSSE、convertSSEStream）、`useChatStream.ts`
+- 涉及文件：`proxy/logger.ts`（extractContentFromSSE / extractUsageFromSSE）、`proxy/stream.ts`（convertSSEStream，由 createStreamService 创建）、`proxy/converter/sse.ts`（事件级转换）、`renderer/features/chat/hooks/useChatStream.ts`（前端流消费）
 
 ## 认证头差异
 - Anthropic API 使用 `x-api-key` 头

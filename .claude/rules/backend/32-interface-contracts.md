@@ -16,14 +16,15 @@ description: IPC 接口契约（输入校验、输出格式），始终加载
 - 禁止返回裸字符串或 undefined 作为成功响应
 
 ## IPC 通道命名
-- 格式：`{domain}:{action}`，如 `providers:list`、`agents:create`
-- 动作词：list / getById / create / update / delete
+- 格式：`{domain}:{action}` 或 `{domain}:{subResource}:{action}`；domain 统一使用单数（provider/agent/apikey/conversation），聚合域 logs/models 保留复数（已有命名）
+- 动作词：基础 CRUD 使用 list/getById/create/update/delete；扩展动作允许复合动词（如 listConfigs、switchConfig、readConfigFile）或子资源段（如 models:mapping:create）；统一 camelCase
 - 禁止使用驼峰或下划线混用
 
 ## IPC handler 规范
 - handler 参数必须有显式类型标注（禁止隐式 any）
 - handler 只做：校验输入 → 调用 service → 捕获错误并映射 → 返回结果（错误映射规则见 `backend/34-error-handling.md`）
 - handler 内禁止 catch 后返回 null 或静默吞没错误（错误映射规则见 `backend/34-error-handling.md`）
+- data 参数推荐用 `unknown` 强制走 `.parse()`；显式具名输入类型隐含"已校验"语义但 IPC 边界不可信
 
 ## 代理路由规范
 代理层路由、SSE 兼容性、认证头差异等规范见 `backend/38-proxy.md`。
@@ -37,16 +38,16 @@ description: IPC 接口契约（输入校验、输出格式），始终加载
 
 ```typescript
 // ❌ 错误：隐式 any + 缺少 Zod 校验 + handler 内写业务逻辑
-ipcMain.handle('agents:create', async (_event, data) => {  // data 隐式 any
+ipcMain.handle('agent:create', async (_event, data) => {  // data 隐式 any
   const agent = await agentService.create(data)             // 无 Zod 校验
   const config = await agentService.getConfig(agent.id)     // 业务逻辑应在 service
   if (!config) throw new Error('no config')
   return { ...agent, config }
 })
 
-// ✅ 正确：显式类型 + Zod 校验 + 委托 service
+// ✅ 正确：data: unknown + Zod 校验 + 委托 service
 const createAgentSchema = z.object({ name: z.string().min(1), providerId: z.number() })
-ipcMain.handle('agents:create', async (_event, data: CreateAgentInput) => {
+ipcMain.handle('agent:create', async (_event, data: unknown) => {
   const parsed = createAgentSchema.parse(data)  // 校验在入口
   return agentService.create(parsed)            // 透传 service 返回值
 })

@@ -53,6 +53,21 @@ throw new Error('delete failed')            // 无实体名
 throw new Error(`Agent ${id} not found`)    // 格式不符
 ```
 
+## 统一包装
+
+项目提供 src/main/ipc/ipc-utils.ts#wrapIpcHandler(handler, channel)，所有 ipcMain.handle **必须**经它包装：
+
+```typescript
+import { wrapIpcHandler } from './ipc-utils'
+
+ipcMain.handle('provider:create', wrapIpcHandler(async (_event, data: unknown) => {
+  const input = createProviderSchema.parse(data)
+  return providerService.create(input)
+}, 'provider:create'))
+```
+
+禁止在 handler 内手写 try/catch（除非需要分支化处理 ZodError 之外的特定错误，且必须有充分理由说明）。
+
 ## IPC 错误映射
 - IPC handler **必须**用 try/catch 包裹整个函数体，禁止依赖 Electron 自动序列化异常
 - 捕获后将错误映射为统一格式返回给渲染进程，禁止 throw 到 Electron 层
@@ -95,12 +110,14 @@ return c.json({ error: { type: 'upstream_error', message: `Failed to connect: ${
 return c.json({ error: { type: 'timeout', message: `Request timeout after ${timeoutMs}ms` } }, 504)
 ```
 
+## 批量操作原子性
+- 涉及多次 INSERT/UPDATE/DELETE 的批量操作必须在事务中执行，失败时全部回滚（事务边界详见 `backend/33-data-access.md`）
+
 ## 禁止
 - 空 catch 块（`catch {}`）
 - 只打印不处理（`catch(e) { console.log(e) }`）
 - 吞没错误（`.catch(() => null)`）
 - 将系统错误的详细堆栈暴露给用户
-- 批量操作必须有原子性保证（事务或全部回滚，详见 `backend/33-data-access.md` 事务边界）
 
 ```typescript
 // ❌ 错误

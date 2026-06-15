@@ -11,6 +11,7 @@ description: 领域建模与服务结构（工厂注入模式），始终加载
 ## 服务内部结构
 每个 domain 目录包含三个文件：
 - `{name}.types.ts` — 类型定义（输入、输出、实体）
+  - 跨进程使用的实体（IPC 返回值会到 renderer）必须先在 src/shared/types.ts 定义，domain types 文件只允许通过 type alias / Pick / Omit 派生；禁止 main 与 renderer 各自重复定义同名 interface（参见 CLAUDE.md '核心实体基础接口'规则）
 - `{name}.schema.ts` — Zod 校验 schema（create/update 必须）
 - `{name}.service.ts` — 业务逻辑入口
 
@@ -68,10 +69,12 @@ export function createProviderRepository() {
 
 // ❌ 错误 3：service 参数使用 _db 占位符但不使用（已废弃的模式 A 残留）
 // 说明：listProviders() 内部调用 getDb()，破坏了依赖注入链
+// 假设 db/providers.ts 还残留 export function listProviders(){ const db = getDb(); ... }
 export function createProviderService(_db: Database) {
   return { list: async () => listProviders() }  // _db 未传递给 Repository，listProviders 绕过注入
 }
 ```
+修复方式：删除残留的 listProviders free function，改为 const repo = createProviderRepository(db) 后委派 repo.list()
 
 ## 服务间通信
 - 单向调用：A service 可以引用 B service（通过模块导入），但不允许反向引用

@@ -14,6 +14,9 @@ description: 组件复用规则，始终加载
 - **`components/shared/`**：通用业务组件，包含业务语义或组合多个原子组件（action-buttons、form-dialog、page-header、empty-state、status-badge、table-skeleton 等）
 - 判断标准：如果组件包含中文文案、业务状态判断、或组合了 2+ 原子组件形成业务模板 → 放 `shared/`
 
+## 文件命名豁免
+`components/ui/` 与 `components/shared/` 内文件名沿用 shadcn/ui 约定使用 kebab-case（如 alert-dialog.tsx、code-editor.tsx），导出标识符仍为 PascalCase（如 AlertDialog、CodeEditor）；features/{name}/components/、pages/、组件根目录的 Layout/TitleBar/ErrorBoundary 仍遵循 .tsx PascalCase 规则。
+
 ## 禁止行为
 - 使用原生 HTML 元素替代 `components/ui/` 中已有的组件（如 `<input>` → Input、`<select>` → Select、`<button>` → Button、`<form>` → FormDialog）
   - '原生 HTML 元素'包括 `<button>`、`<input>`、`<select>`、`<form>`、`<textarea>` 及其 `motion.*` 包装形式（如 `<motion.button>`）
