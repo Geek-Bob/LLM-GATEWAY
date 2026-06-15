@@ -1,7 +1,22 @@
 # LLM Gateway 架构技术手册
 
 > 技术细节手册 — 覆盖完整目录结构、数据流、模块职责和设计约定。
-> 编写日期: 2026-05-30 | 最后更新: 2026-06-08 (v3) | Electron 42.x + TypeScript 6.0 + React 19.2
+> 编写日期: 2026-05-30 | 最后更新: 2026-06-15 (v4 — v1.0.4 同步) | Electron 42.x + TypeScript 6.0 + React 19.2
+
+## 零、v1.0.4 重大变更摘要
+
+> 2026-06 重构后与本节之前描述不一致处，以本节为准。
+
+| 变更 | 影响范围 | 详情 |
+|------|---------|------|
+| **Repository 工厂模式全量落地** | `db/*.ts` 全部 8 个实体 | 每个数据访问文件改为 `createXxxRepository(db: Database)` 工厂；Repository 内部禁止 `getDb()` |
+| **业务规则上移到 service 层** | `domains/*/service.ts` | not-found / 启用态校验 / 唯一性检查由 service 负责；Repository 只做纯 CRUD |
+| **JSON 配置迁移框架** | `core/config-migration.ts` | `applyMigrators<T>(raw, migrators)` 通用迁移函数；update 模块使用 `updateConfigPartialSchema` |
+| **Zod 4.x 输入校验** | 全部 `domains/*/schema.ts` + `update/update.schema.ts` | IPC 入口统一 Zod `.parse()` 校验，错误消息格式 `Invalid input: field: message` |
+| **preload 类型化** | `preload/types.ts` | contextBridge 暴露类型与 `shared/types.ts` 通过 `type alias` 派生，禁止重复定义 |
+| **Markdown XSS 防护** | `renderer/components/shared/markdown.tsx` | 引入 `rehype-sanitize`，仅作用于 AI 响应等可信内容 |
+| **生产环境 DEBUG 日志门控** | `core/logger.ts` | `NODE_ENV === 'production'` 时 debug 日志自动静音 |
+| **33 条规则修订** | `.claude/rules/`（16 文件） | 涵盖分层、领域建模、接口契约、错误处理、安全、可观测性等 |
 
 ---
 
@@ -34,8 +49,10 @@
 | react-markdown | Markdown | 10.x | GFM + 代码高亮 |
 | Mermaid | 图表渲染 | 11.x | 支持流程图/时序图 |
 | Shiki | 代码高亮 | 4.x | 仅支持 5 种语言（ts/js/python/json/bash） |
+| rehype-raw | HTML 解析 | 7.x | 配合 rehype-sanitize，仅可信内容使用 |
+| rehype-sanitize | XSS 防护 | 6.x | Markdown 渲染时剥离危险标签/属性 |
 | Radix UI | 原语组件 | — | Dialog/Select/Popover/AlertDialog 等 |
-| Zod | 输入校验 | — | IPC handler 入口 schema 验证 |
+| Zod | 输入校验 | 4.x | IPC handler 入口 schema 验证 |
 
 ### 构建工具链
 
@@ -76,12 +93,14 @@ e:\code\llm-gateway\
 ├── src/
 │   ├── main/                            # Electron 主进程
 │   │   ├── index.ts                     # 入口：窗口/Tray/启动
-│   │   ├── core/
-│   │   │   └── logger.ts                # 统一日志接口（createLogger 工厂，console+file 双 transport）
+│   │   ├── core/                         # 基础设施层：通用工具（无业务）
+│   │   │   ├── logger.ts                # 统一日志（createLogger 工厂，console+file 双 transport）
+│   │   │   ├── config-migration.ts      # JSON 配置迁移框架（applyMigrators<T> 通用迁移函数）
+│   │   │   └── __tests__/               # core 层测试（logger / config-migration）
 │   │   ├── ipc/                         # 接口层：IPC handler（按域拆分文件）
 │   │   │   ├── index.ts                 # IPC handler 注册入口（getDb + 工厂注入）
 │   │   │   ├── ipc-utils.ts             # IPC 错误处理工具（wrapIpcHandler 统一 try/catch）
-│   │   │   ├── agents.ts                # Agent IPC handler
+│   │   │   ├── agents.ts                # Agent IPC handler（12 通道）
 │   │   │   ├── apikeys.ts               # API Key IPC handler
 │   │   │   ├── conversations.ts         # 对话 IPC handler
 │   │   │   ├── logs.ts                  # 日志 IPC handler
@@ -90,74 +109,86 @@ e:\code\llm-gateway\
 │   │   │   ├── proxy.ts                 # 代理控制 IPC handler
 │   │   │   ├── system.ts                # 系统 IPC handler（window/debug）
 │   │   │   ├── update.ts                # 更新 IPC handler（委托 update/ipc.ts）
-│   │   │   └── sse-parser.ts            # SSE 解析工具（基于 shared/sse-utils.ts）
-│   │   ├── db/                          # 数据层（sql.js，Repository 模式，返回 snake_case）
-│   │   │   ├── connection.ts            # 连接管理（单例模式）
+│   │   │   ├── sse-parser.ts            # SSE 解析工具（基于 shared/sse-utils.ts）
+│   │   │   └── __tests__/               # IPC 层测试（sse-parser / ipc-utils / integration / models / conversations）
+│   │   ├── db/                          # 数据层（sql.js + Repository 工厂模式，8 个 Repository）
+│   │   │   ├── connection.ts            # 连接管理（initDatabase / getDb / closeDatabase）
 │   │   │   ├── database.ts              # sql.js 封装（Statement/Database 类）
-│   │   │   ├── schema.ts                # 建表 DDL（9 张表）
-│   │   │   ├── providers.ts             # Provider CRUD（返回 ProviderRow snake_case）
-│   │   │   ├── api-keys.ts              # API Key CRUD + 生成/校验
-│   │   │   ├── conversations.ts         # 对话/消息 CRUD
-│   │   │   ├── logs.ts                  # NDJSON 日志 barrel re-export（24 行）
-│   │   │   ├── model-mappings.ts        # 模型映射 CRUD（返回 ModelMappingRow snake_case）
-│   │   │   ├── logs-reader.ts           # NDJSON 日志读取（queryLogs/readTailLines）
-│   │   │   ├── logs-writer.ts           # NDJSON 日志写入（createLogEntry/轮转/元数据）
-│   │   │   ├── logs-stats.ts            # 日志统计 Repository（createLogStatsRepository）
-│   │   │   ├── agents.ts               # Agent CRUD（返回 AgentRow snake_case）
-│   │   │   └── agent-configs.ts         # Agent 配置版本 CRUD
-│   │   ├── domains/                     # 业务层（domain 模式，service 做 snake_case→camelCase）
+│   │   │   ├── schema.ts                # 建表 DDL（9 张表：providers / api_keys / model_mappings / request_stats / request_stats_provider / conversations / messages / agents / agent_configs）
+│   │   │   ├── providers.ts             # createProviderRepository(db) — Provider CRUD（返回 ProviderRow snake_case）
+│   │   │   ├── api-keys.ts              # createApiKeyRepository(db) — API Key CRUD + 生成/校验
+│   │   │   ├── conversations.ts         # createConversationRepository(db) — 对话/消息 CRUD
+│   │   │   ├── logs.ts                  # NDJSON 日志 barrel re-export
+│   │   │   ├── model-mappings.ts        # createModelMappingRepository(db) — 模型映射 CRUD
+│   │   │   ├── logs-reader.ts           # NDJSON 日志读取（queryLogs/readTailLines，裸函数）
+│   │   │   ├── logs-writer.ts           # NDJSON 日志写入（createLogEntry/轮转/元数据，裸函数）
+│   │   │   ├── logs-stats.ts            # createLogStatsRepository(db) — 日志统计 Repository
+│   │   │   ├── agents.ts                # createAgentRepository(db) — Agent CRUD
+│   │   │   ├── agent-configs.ts         # createAgentConfigRepository(db) — Agent 配置版本 CRUD
+│   │   │   └── __tests__/               # db 层测试（11 个：connection/schema/providers/api-keys/conversations/logs/agents/agent-configs/logs-writer-error-serialize/repository-pattern-smoke）
+│   │   ├── domains/                     # 业务层（domain 模式，service 做业务规则 + snake_case→camelCase）
 │   │   │   ├── provider/
 │   │   │   │   ├── provider.types.ts    # Provider 类型定义（camelCase）
 │   │   │   │   ├── provider.schema.ts   # Provider Zod 校验
-│   │   │   │   └── provider.service.ts  # Provider 业务逻辑（含 row 映射）
+│   │   │   │   ├── provider.service.ts  # createProviderService(db) — Provider 业务逻辑
+│   │   │   │   └── __tests__/           # provider.service / provider.schema
 │   │   │   ├── apikey/
 │   │   │   │   ├── apikey.types.ts      # API Key 类型定义
 │   │   │   │   ├── apikey.schema.ts     # API Key Zod 校验
-│   │   │   │   └── apikey.service.ts    # API Key 业务逻辑（委托 db/api-keys.ts）
+│   │   │   │   ├── apikey.service.ts    # createApiKeyService(db) — API Key 业务逻辑
+│   │   │   │   └── __tests__/           # apikey.service / apikey.schema
 │   │   │   ├── conversation/
-│   │   │   │   ├── conversation.types.ts  # 对话/消息类型
-│   │   │   │   ├── conversation.schema.ts # 对话 Zod 校验
-│   │   │   │   └── conversation.service.ts # 对话业务逻辑
+│   │   │   │   ├── conversation.types.ts
+│   │   │   │   ├── conversation.schema.ts
+│   │   │   │   ├── conversation.service.ts
+│   │   │   │   └── __tests__/           # conversation.schema
 │   │   │   ├── models/
-│   │   │   │   ├── models.types.ts      # 模型映射类型
-│   │   │   │   ├── models.schema.ts     # 模型映射 Zod 校验
-│   │   │   │   └── models.service.ts    # 模型列表 + 映射 CRUD
+│   │   │   │   ├── models.types.ts
+│   │   │   │   ├── models.schema.ts
+│   │   │   │   ├── models.service.ts
+│   │   │   │   └── __tests__/           # models.service
 │   │   │   ├── agent/
-│   │   │   │   ├── agent.types.ts       # Agent 类型
-│   │   │   │   ├── agent.schema.ts      # Agent Zod 校验（6 个 schema）
-│   │   │   │   └── agent.service.ts     # Agent + 配置版本业务逻辑
+│   │   │   │   ├── agent.types.ts
+│   │   │   │   ├── agent.schema.ts      # 6 个 Zod schema
+│   │   │   │   ├── agent.service.ts     # createAgentService(db) — Agent + 配置版本业务规则（not-found / 启用态 / 切换）
+│   │   │   │   └── __tests__/           # agent.service / agent.schema / e2e
 │   │   │   ├── logs/
-│   │   │   │   ├── logs.types.ts        # 日志类型定义
-│   │   │   │   ├── logs.schema.ts       # 日志 Zod 校验
-│   │   │   │   └── logs.service.ts      # 日志业务逻辑
+│   │   │   │   ├── logs.types.ts
+│   │   │   │   ├── logs.schema.ts
+│   │   │   │   ├── logs.service.ts
+│   │   │   │   └── __tests__/           # logs.service
 │   │   │   └── stats/
-│   │   │       ├── stats.types.ts       # 统计类型定义
-│   │   │       ├── stats.schema.ts      # 统计 Zod 校验
-│   │   │       └── stats.service.ts     # 统计业务逻辑
+│   │   │       ├── stats.types.ts
+│   │   │       ├── stats.schema.ts
+│   │   │       ├── stats.service.ts
+│   │   │       └── __tests__/           # stats.schema
 │   │   ├── proxy/                       # 接口层：HTTP 代理（Hono 服务器）
-│   │   │   ├── server.ts                # Hono 应用定义（路由/中间件，~170 行）
-│   │   │   ├── handler.ts               # 代理请求处理（8 个子函数 + 编排器 + 错误处理器）
-│   │   │   ├── stream.ts                # SSE 流转换服务（7 个子函数，均≤50 行）
-│   │   │   ├── logger.ts                # 代理日志服务（createProxyLogService 工厂，5 个函数）
+│   │   │   ├── server.ts                # Hono 应用定义（路由/中间件）
+│   │   │   ├── handler.ts               # 代理请求处理（编排器 + 错误处理）
+│   │   │   ├── stream.ts                # SSE 流转换服务（createStreamService 工厂）
+│   │   │   ├── logger.ts                # 代理日志服务（createProxyLogService 工厂）
 │   │   │   ├── manager.ts               # 代理生命周期管理
 │   │   │   ├── router.ts                # 模型ID → 供应商路由解析
 │   │   │   ├── forwarder.ts             # 上游 URL/Header 构建
 │   │   │   ├── converter/               # OpenAI ↔ Anthropic 协议转换
-│   │   │   │   ├── types.ts             # StreamContext、ProtocolFormat 共享类型
-│   │   │   │   ├── request.ts           # convertRequest() 双向请求转换（20 个辅助函数，均≤50 行）
+│   │   │   │   ├── types.ts
+│   │   │   │   ├── request.ts           # convertRequest() 双向请求转换
 │   │   │   │   ├── response.ts          # convertResponse() 非流式响应转换
-│   │   │   │   ├── sse.ts               # convertSSEEvent() + SSE 状态机（12 个格式化函数）
+│   │   │   │   ├── sse.ts               # convertSSEEvent() + SSE 状态机
 │   │   │   │   └── index.ts             # barrel export
 │   │   │   ├── middleware.ts            # Auth 中间件（Bearer token 提取）
-│   │   │   └── rate-limiter.ts          # 滑动窗口限流器
+│   │   │   ├── rate-limiter.ts          # 滑动窗口限流器
+│   │   │   └── __tests__/               # proxy 层测试（7 个：server/middleware/rate-limiter/router/forwarder/model-mapping/converter）
 │   │   └── update/                      # 自动更新模块
 │   │       ├── manager.ts               # electron-updater 封装
-│   │       ├── config.ts                # 更新配置持久化
-│   │       └── ipc.ts                   # 更新相关 IPC handler
+│   │       ├── config.ts                # 更新配置持久化（JSON 迁移器在 mappers/）
+│   │       ├── ipc.ts                   # 更新相关 IPC handler
+│   │       ├── update.schema.ts         # updateConfigPartialSchema (Zod)
+│   │       └── __tests__/               # update 层测试（3 个：config/manager/ipc）
 │   │
 │   ├── preload/
 │   │   ├── index.ts                     # contextBridge 暴露 IPC 到渲染进程
-│   │   └── types.ts                     # 预加载层类型定义（ElectronAPI 接口）
+│   │   └── types.ts                     # 预加载层类型定义（ElectronAPI 接口，type alias 派生 shared/types）
 │   │
 │   ├── renderer/                        # React 渲染进程
 │   │   ├── main.tsx                     # 入口：QueryClientProvider 初始化
@@ -461,60 +492,72 @@ closeDatabase()    → 保存 + 关闭
 | `agents` | id | AI Agent 配置（name UNIQUE、config_path、config_format） |
 | `agent_configs` | id | Agent 配置版本（agent_id FK CASCADE、is_current 标记、UNIQUE(agent_id, name)） |
 
-**数据层注入约定**：所有 SQLite 数据访问统一采用 Repository 工厂模式 `createXxxRepository(db: Database)`，返回方法对象，禁止内部调用 `getDb()`。
+#### Repository 工厂模式（v1.0.4 全量落地）
 
-**Repository 模式**：
-- 工厂函数接收 `db: Database`，返回包含领域语义方法的纯对象
-- 类型导出：`export type XxxRepository = ReturnType<typeof createXxxRepository>`
-- NDJSON 文件操作（logs-reader/logs-writer）不适用 Repository 模式，保持裸函数
+**注入契约（模式 B — 完全注入）：**
+```typescript
+// 数据层 db/{entity}.ts
+export function createProviderRepository(db: Database) {
+  return {
+    list: async () => db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as ProviderRow[],
+    findById: async (id: number) => {
+      const row = db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as ProviderRow | undefined
+      return row ?? null
+    },
+    // ... 纯 CRUD，无业务规则
+  }
+}
+export type ProviderRepository = ReturnType<typeof createProviderRepository>
+```
 
-**model-mappings.ts** — 模型映射 Repository：
-- `createModelMappingRepository(db)` → 返回 Repository 实例
-- `list() / findById(id) / findActive(sourceModel) / create(sourceModel, targetModel) / update(id, data) / remove(id)`
+**调用链路（自上而下注入）：**
+```
+ipc/index.ts  → getDb() 获取 Database
+       ↓ 注入
+domain service 工厂 createXxxService(db)
+       ↓ 注入
+Repository 工厂 createXxxRepository(db)
+       ↓ 闭包访问
+SQL 操作（纯 CRUD）
+```
 
-**providers.ts** — 供应商 Repository：
-- `createProviderRepository(db)` → 返回 Repository 实例
-- `list() / findById(id) / findByName(name) / listActive() / listNames() / create(input) / update(id, updates) / remove(id)`
-- 使用 `JSON.stringify` 存储 models 数组
-- **返回 `ProviderRow`（snake_case）**，camelCase 映射由 service 层完成
+**禁止的错误模式：**
+- ❌ Repository 内部 `const db = getDb()` — 破坏注入契约
+- ❌ service 内联 SQL — 绕过 Repository，难 mock
+- ❌ `_db: Database` 参数占位符但不使用 — 模式 A 残留
 
-**api-keys.ts** — API Key Repository：
-- `createApiKeyRepository(db)` → 返回 Repository 实例
-- `list() / findById(id) / create(name, rateLimit) / findPlaintextById(id) / verify(plaintextKey) / remove(id)`
-- 内部 `generateApiKey()` 生成 `sk-` 前缀 + 36 字节 base64url 随机字符串
+**Repository 清单（7 个 + 1 NDJSON 特殊）：**
 
-**conversations.ts** — 对话/消息 Repository：
-- `createConversationRepository(db)` → 返回 Repository 实例
-- `list() / findById(id) / create(title, model, providerId, apiKeyId) / update(id, data) / remove(id)`
-- `listMessages(conversationId) / addMessage(conversationId, role, content, thinking)`
+| Repository | 文件 | 方法 | 返回 |
+|------------|------|------|------|
+| `ProviderRepository` | `db/providers.ts` | `list / findById / findByName / listActive / listNames / create / update / remove` | `ProviderRow` |
+| `ApiKeyRepository` | `db/api-keys.ts` | `list / findById / create / findPlaintextById / verify / remove` + 内部 `generateApiKey()` | `ApiKeyRow` |
+| `ConversationRepository` | `db/conversations.ts` | `list / findById / create / update / remove` + 消息方法 `listMessages / addMessage` | `ConversationRow` / `MessageRow` |
+| `ModelMappingRepository` | `db/model-mappings.ts` | `list / findById / findActive / create / update / remove` | `ModelMappingRow` |
+| `AgentRepository` | `db/agents.ts` | `list / getById / getByName / create / update / remove` | `AgentRow` |
+| `AgentConfigRepository` | `db/agent-configs.ts` | `create / getById / listByAgent / getCurrent / updateContent / setCurrent / clearCurrent / remove` | `AgentConfigRow` |
+| `LogStatsRepository` | `db/logs-stats.ts` | `getStats / getDetailedStats / updateRequestStats / updateProviderStats` | 统计 DTO |
 
-**agents.ts** — Agent Repository：
-- `createAgentRepository(db)` → 返回 Repository 实例
-- `list() / getById(id) / getByName(name) / create(input) / update(id, data) / remove(id)`
+**特殊文件（不适用 Repository 模式）：**
+- `db/logs-writer.ts` — `createLogEntry()` 是裸函数（NDJSON 写入，不在 sql.js 范围）
+- `db/logs-reader.ts` — `queryLogs / readTailLines / normalizeEntry` 是裸函数（NDJSON 读取）
+- `db/logs.ts` — barrel re-export
+- `db/schema.ts` — `createTables()` DDL
+- `db/connection.ts` — 连接管理
+- `db/database.ts` — sql.js 封装
 
-**agent-configs.ts** — Agent 配置版本 Repository（182 行）：
-- `createAgentConfigRepository(db)` → 返回 Repository 实例
-- `create(input) / getById(id) / listByAgent(agentId) / getCurrent(agentId) / updateContent(id, content) / setCurrent(agentId, configId) / clearCurrent(agentId) / remove(id)`
-- `setCurrent` 事务内先清除旧 is_current，再设置新 is_current
-- `clearCurrent` 批量清除指定 agent 的所有 current 标记
+**业务规则上移（v1.0.4 重构）：** 所有 not-found / 启用态 / 唯一性 / 业务约束检查从 Repository 上移到 service 层。Repository 只做纯 CRUD，service 层做 snake_case → camelCase 映射 + 业务规则判断 + 异常抛出。
 
-**logs-writer.ts** — NDJSON 日志写入：
-- **分片策略：** 每个 NDJSON 文件最多 500 行，最多保留 20 个文件（10000 条上限）
-- 文件命名：`logs-0001.ndjson`、`logs-0002.ndjson` ...
-- 循环覆盖：超过 20 个文件时删除最旧的
-- **元数据持久化（logs-meta.json）：** `entryCounter`、`currentFileNumber`、`currentFileLines` 三个计数器通过 `loadMeta()` / `saveMeta()` 持久化到 `logs-meta.json`
-- `createLogEntry(entry)` → 追加一行 NDJSON → 调用 `saveMeta()` 持久化计数器
+**示例（agent.service.ts）：**
+```typescript
+// Repository 只返回 null
+const config = await agentConfigRepo.getById(id)
+if (!config) {
+  throw new Error(`Failed to get agent config: not found ${id}`)
+}
+```
 
-**logs-reader.ts** — NDJSON 日志读取：
-- `queryLogs(query)` → 读取所有文件 → 过滤 → 分页
-- `normalizeEntry()` 处理新旧字段名兼容
-- 文件描述符操作均在 `finally` 块中调用 `fs.closeSync(fd)` 防止泄漏
-
-**logs-stats.ts** — 日志统计 Repository：
-- `createLogStatsRepository(db)` → 返回 Repository 实例
-- `getStats(range)` → 从 SQLite `request_stats` 表聚合（24h/7d/30d）
-- `getDetailedStats(range)` → 按供应商/模型分组统计
-- `updateRequestStats(entry)` / `updateProviderStats(entry)` → 写入统计汇总
+**事务边界：** 涉及 2+ INSERT/UPDATE/DELETE 的操作在 Repository 内部用 `BEGIN / COMMIT / ROLLBACK` 显式事务。sql.js/WASM 无 `db.transaction()` 声明式 API，必须手动控制。例：`agent-configs.ts#setCurrent()` 事务内先清旧 is_current，再设新 is_current。
 
 ---
 
@@ -605,28 +648,34 @@ closeDatabase()    → 保存 + 关闭
 
 Domain 模式：每个业务域一个目录，包含 `*.types.ts`、`*.service.ts`、`*.schema.ts`（可选，Zod 校验）。
 
-**IPC → service → db 三层已激活**：IPC handler 按域拆分文件，全部委托到 domain service，不再直调 `db/` 函数。
+**IPC → service → Repository 三层已激活**：IPC handler 按域拆分文件，全部委托到 domain service，service 内部创建 Repository 工厂，不再直调 `db/` 函数。
 
 设计原则：
-- **service 是业务逻辑层** — 封装数据转换（snake_case → camelCase）和聚合，不操作 Request/Response
+- **service 是业务逻辑层** — 封装数据转换（snake_case → camelCase）、业务规则判断、聚合，不操作 Request/Response
 - **每个 domain 只有一个 service** + types + schema 三件套
-- **service 通过工厂函数创建** `createXxxService(db: Database)`，将注入的 db 传递给 `db/*.ts` 数据层函数
+- **service 通过工厂函数创建** `createXxxService(db: Database)`，将注入的 db 传递给 `createXxxRepository(db)` 数据层
 - **schema 在 IPC 入口验证输入** — Zod `.parse()` 拦截非法数据，保护 service 层
 - **数据层返回 snake_case**（`ProviderRow`、`AgentRow` 等），service 层做 camelCase 映射
+- **业务规则上移到 service 层**（v1.0.4 重构）— not-found / 启用态 / 唯一性 / 业务约束由 service 判断，Repository 只做纯 CRUD
 
 **models domain：**
-- `models.service.ts` — 工厂注入模式 `createModelsService(db)`，与 provider/conversation/agent 统一
+- `models.service.ts` — 工厂注入模式 `createModelsService(db)`
 - `getAllModels()` — 聚合所有活跃 provider 的模型列表，从 `proxy/router.ts` 迁移而来
 - `findModelMapping(sourceModel)` — 按 sourceModel 精确匹配活跃映射，供 proxy 请求转换时调用
 - `listModelMappings/createModelMapping/updateModelMapping/deleteModelMapping` — model_mappings 表 CRUD
 
-**agent domain：**
-- `agent.service.ts`（262 行）— Agent + 配置版本管理
+**agent domain（业务规则最复杂）：**
+- `agent.service.ts`（305 行）— Agent + 配置版本管理
   - `list / getById / create / update / remove` — Agent CRUD
   - `listConfigs / getConfig / createConfig / updateConfig / deleteConfig / switchConfig` — 配置版本管理
   - 内部依赖：`db/agents.ts`（Agent Repository）+ `db/agent-configs.ts`（Config Repository）
+  - **业务规则归属**（v1.0.4 上移）：
+    - `getById/update/remove` → not-found 检查抛 `Failed to get agent: not found <id>`
+    - `createConfig/switchConfig` → Agent 必须存在，否则抛 `Failed to create config: agent not found <id>`
+    - `updateConfig/deleteConfig` → Config 必须存在
+    - `switchConfig` → 事务内清旧 is_current 后设新（Repository 实现）
 - `agent.schema.ts`（42 行）— 6 个 Zod schema：`createAgentSchema`、`updateAgentSchema`、`createAgentConfigSchema`、`updateAgentConfigSchema`、`switchConfigSchema`、`configFormatSchema`
-- `agent.types.ts`（21 行）— 从 `shared/types.ts` re-export Agent 相关类型 + 向后兼容别名（AgentResponse/AgentConfigResponse）
+- `agent.types.ts`（20 行）— 从 `shared/types.ts` re-export Agent 相关类型 + 向后兼容别名（`type AgentResponse = AgentEntity`、`type AgentConfigResponse = AgentConfigEntity`）
 
 **provider domain：**
 - `provider.service.ts` 委托给 `db/providers.ts` 数据层函数，service 层做 snake_case → camelCase 映射
@@ -655,22 +704,22 @@ Domain 模式：每个业务域一个目录，包含 `*.types.ts`、`*.service.t
 
 ### 5.4 IPC 层 (src/main/ipc/)
 
-**ipc/index.ts** — IPC handler 注册入口，按域拆分为独立文件（共 40 个 IPC 通道）：
+**ipc/index.ts** — IPC handler 注册入口，按域拆分为独立文件（共 40 个 `ipcMain.handle` + 4 个 `ipcMain.on`）：
 
 | 通道 | 委托到 | handler 文件 |
 |------|--------|-------------|
-| `provider:list/create/update/delete` | `providerService.*` | `providers.ts` |
-| `apikey:list/create/delete` | `apiKeyService.*` | `apikeys.ts` |
-| `logs:list/stats/statsDetailed` | `logsService.*` / `statsService.*` | `logs.ts` |
-| `window:minimize/maximize/close` | BrowserWindow 操作 | `system.ts` |
-| `proxy:get/start/stop/restart/updatePort/update` | `proxy/manager.ts` | `proxy.ts` |
-| `renderer:log` | `logger.debug()` | `system.ts` |
-| `conversation:list/create/update/delete/getById/listMessages/createMessage` | `conversationService.*` | `conversations.ts` |
+| `provider:list / create / update / delete` | `providerService.*` | `providers.ts` |
+| `apikey:list / create / delete` | `apiKeyService.*` | `apikeys.ts` |
+| `logs:list / stats / statsDetailed` | `logsService.*` / `statsService.*` | `logs.ts` |
+| `window:minimize / maximize / close`（`on`） | BrowserWindow 操作 | `system.ts` |
+| `proxy:get / start / stop / updatePort / update` | `proxy/manager.ts` | `proxy.ts` |
+| `renderer:log`（`on`） | `logger.debug()` | `system.ts` |
+| `conversation:list / create / update / delete / getById / listMessages / createMessage` | `conversationService.*` | `conversations.ts` |
 | `models:list` | `modelsService.getAllModels()` | `models.ts` |
-| `models:mapping:find/list/create/update/delete` | `modelsService.*` | `models.ts` |
-| `agent:list/getById/create/update/delete` | `agentService.*` | `agents.ts` |
-| `agent:listConfigs/getConfig/createConfig/updateConfig/deleteConfig/switchConfig` | `agentService.*` | `agents.ts` |
-| `update:check/download/install/skipVersion/getConfig/setConfig/getCurrentVersion` | `update/manager.ts` | `update/ipc.ts` |
+| `models:mapping:find / list / create / update / delete` | `modelsService.*` | `models.ts` |
+| `agent:list / getById / create / update / delete` | `agentService.*` | `agents.ts` |
+| `agent:listConfigs / getConfig / createConfig / updateConfig / deleteConfig / switchConfig / readConfigFile` | `agentService.*` | `agents.ts` |
+| `update:check / download / install / skipVersion / getConfig / setConfig / getCurrentVersion` | `update/manager.ts` + `updateConfigPartialSchema` | `update/ipc.ts` |
 
 **sse-parser.ts** — SSE 解析工具（81 行，基于 `shared/sse-utils.ts`）：
 - `parseSSELine()` — 从 `shared/sse-utils.ts` 导入，解析单行 SSE 文本
@@ -707,9 +756,13 @@ electronAPI = {
   models.list(),
   models.mapping.find/list/create/update/delete(),
   agents.list/getById/create/update/delete(),
-  agents.listConfigs/getConfig/createConfig/updateConfig/deleteConfig/switchConfig(),
+  agents.listConfigs/getConfig/createConfig/updateConfig/deleteConfig/switchConfig/readConfigFile(),
 }
 ```
+
+**types.ts** — 预加载层类型定义（type alias 派生）：
+- `ElectronAPI` 接口通过 `type alias` 派生 `shared/types.ts` 中的实体，禁止重复定义
+- 例：`type AgentResponse = AgentEntity`、`type AgentConfigResponse = AgentConfigEntity`（v1.0.4 修复了 renderer/lib/types.ts 重复定义）
 
 ---
 
@@ -792,19 +845,26 @@ electronAPI = {
 
 ### 5.7 更新模块 (src/main/update/)
 
-**manager.ts** — `electron-updater` 封装（179 行）：
+**manager.ts** — `electron-updater` 封装（181 行）：
 - **延迟导入：** `ensureAutoUpdater()` 首次调用时动态 `await import('electron-updater')` 加载 ~976KB 包体
 - 事件通过 `webContents.send()` 广播给所有渲染进程窗口
 - `checkForUpdates()`：检查更新 → 跳过已忽略版本 → 比较版本号
 - `downloadUpdate()` / `installUpdate()` → 委托给 autoUpdater
 
-**config.ts** — 配置持久化（88 行）：
+**config.ts** — 配置持久化（135 行）：
 - JSON 文件存储在 `userData/update-config.json`
-- 字段：isAutoCheckEnabled / checkInterval / isPrereleaseAllowed / skipVersion
+- 字段：`isAutoCheckEnabled` / `checkInterval` / `isPrereleaseAllowed` / `skipVersion`
+- 内置字段迁移器：启动时读取后用 `applyMigrators<UpdateConfig>(raw, [migrateAutoCheck, migrateAllowPrerelease])` 合并，避免字段重命名时旧值被默认配置覆盖丢失
 
-**ipc.ts** — 7 个 IPC handler（46 行）
+**ipc.ts** — 7 个 IPC handler（50 行）
 - `update:check/download/install/getCurrentVersion` — 操作
 - `update:skipVersion/getConfig/setConfig` — 配置
+- `setConfig` 入口使用 `updateConfigPartialSchema.parse(data)` 校验输入
+
+**update.schema.ts** — Zod 校验 schema（28 行，v1.0.4 新增）
+- `updateConfigPartialSchema` — `z.object({...}).strict()` 拒绝未知字段
+- 4 个 optional 字段：`isAutoCheckEnabled` / `checkInterval`（正整数） / `isPrereleaseAllowed` / `skipVersion`（nullable）
+- 类型导出：`UpdateConfigPartialInput = z.infer<typeof updateConfigPartialSchema>`
 
 ---
 
@@ -894,6 +954,40 @@ renderer/components/shared/→ 禁止导入 features/、pages/、lib/queries/
 
 **注**：`ipc/index.ts` 通过 `getDb()` 获取 Database 实例注入到各 domain handler，是依赖注入链的顶层入口（详见 `30-layered-architecture.md`）。
 
+### 6.6 JSON 配置迁移框架（v1.0.4 新增）
+
+`core/config-migration.ts` 提供与业务无关的轻量 JSON 配置迁移机制：
+
+```typescript
+// 类型定义
+export type ConfigMigrator<T> = (raw: unknown) => Partial<T>
+
+// 顺序应用迁移器，结果合并（后者覆盖前者）
+export function applyMigrators<T>(
+  raw: unknown,
+  migrators: ConfigMigrator<T>[]
+): Partial<T>
+```
+
+**设计动机：** 字段重命名时 `{...defaultConfig, ...raw}` 合并会丢旧字段（如旧 `autoCheck` → 新 `isAutoCheckEnabled`）。框架保证迁移器在合并前先跑一遍，把旧字段映射到新字段名。
+
+**业务使用（update/config.ts）：**
+```typescript
+import { applyMigrators } from '../core/config-migration'
+
+const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+const migrated = applyMigrators<UpdateConfig>(raw, [
+  migrateAutoCheck,        // 旧 autoCheck → 新 isAutoCheckEnabled
+  migrateAllowPrerelease,  // 旧 allowPrerelease → 新 isPrereleaseAllowed
+])
+const config = { ...DEFAULT_UPDATE_CONFIG, ...migrated }
+```
+
+**约定：**
+- migrator 返回值仅包含被迁移的字段，未触发迁移返回 `{}`
+- 防御性处理：非对象类型 raw 直接返回 `{}`
+- 抛异常不在框架内捕获，由调用方决定
+
 ---
 
 ## 七、关键数据格式
@@ -978,6 +1072,27 @@ interface LogDebugInfo {
 | OpenAI 标准 SSE | `data: {"choices":[{"delta":{"content":"..."}}]}\n\n` |
 | Anthropic 标准 SSE | `event: content_block_delta\ndata: {"delta":{"type":"text_delta","text":"..."}}\n\n` |
 
+### 7.7 UpdateConfig（更新配置实体）
+
+```typescript
+// shared/types.ts（camelCase）
+interface UpdateConfig {
+  isAutoCheckEnabled: boolean     // 是否启用自动检查更新
+  checkInterval: number           // 检查间隔（毫秒），正整数
+  isPrereleaseAllowed: boolean    // 是否允许预发布版本
+  skipVersion: string | null      // 用户跳过的版本号，null 表示清空
+}
+
+// 入口校验：update/update.schema.ts#updateConfigPartialSchema
+//  - 4 个字段全部 optional（partial 模式）
+//  - .strict() 拒绝未知字段，避免渲染进程透传脏数据落盘
+//  - 类型导出：UpdateConfigPartialInput = z.infer<typeof updateConfigPartialSchema>
+```
+
+**字段迁移历史（core/config-migration.ts）：**
+- `autoCheck` → `isAutoCheckEnabled`（v0.x 字段重命名）
+- `allowPrerelease` → `isPrereleaseAllowed`（v0.x 字段重命名）
+
 ---
 
 ## 八、测试
@@ -986,20 +1101,23 @@ interface LogDebugInfo {
 - **数据库测试：** 使用真实 sql.js 内存库（`:memory:`），不 mock
 - **位置：** 与源文件 co-located，`__tests__/xxx.test.ts`
 - **覆盖率：** 每个 service.ts 对应 service.test.ts
-- **测试文件：** 共 35+ 个测试文件，覆盖 db/domains/proxy/ipc/core/update/renderer 各层
-- **测试用例：** 506 个（后端 433 + 前端 73）
+- **测试文件：** 共 **45 个测试文件**（44 .test.ts(x) + 1 .test-d.ts），覆盖 db/domains/proxy/ipc/core/update/renderer 各层
+- **测试用例：** **约 615 个**（后端 534 + 前端 81，+109 用例 vs v1.0.3）
 
 **测试文件清单：**
 
 | 层级 | 测试文件 |
 |------|---------|
-| db/ | connection, providers, api-keys, conversations, logs, schema, agents, agent-configs (8) |
-| domains/ | provider.service, provider.schema, apikey.schema, conversation.schema, logs.service, models.service, agent.service, agent.schema, agent.e2e (9) |
-| proxy/ | server, middleware, rate-limiter, converter, router, model-mapping, forwarder (7) |
-| ipc/ | sse-parser, integration (2) |
-| core/ | logger (1) |
-| update/ | config, manager (2) |
-| renderer/ | markdown, mermaid, Chat, DownloadProgress, UpdateButton, UpdateDialog (6) |
+| `db/` | connection, providers, api-keys, conversations, logs, schema, agents, agent-configs, logs-writer-error-serialize, repository-pattern-smoke (10) |
+| `domains/` | provider.service, provider.schema, apikey.service, apikey.schema, conversation.schema, logs.service, models.service, agent.service, agent.schema, agent.e2e, stats.schema (11) |
+| `proxy/` | server, middleware, rate-limiter, converter, router, model-mapping, forwarder (7) |
+| `ipc/` | sse-parser, integration, ipc-utils, models.handler, conversations (5) |
+| `core/` | logger, config-migration (2) |
+| `update/` | config, manager, ipc (3) |
+| `renderer/components/shared/` | markdown, mermaid (2) |
+| `renderer/features/update/` | DownloadProgress, UpdateButton, UpdateDialog (3) |
+| `renderer/lib/` | types (1，.test-d.ts 类型断言) |
+| `renderer/pages/` | Chat (1) |
 
 ---
 
