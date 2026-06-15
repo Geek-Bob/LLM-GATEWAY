@@ -1,61 +1,10 @@
-import type { ProviderEntity, ApiKeyEntity, UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig } from '../shared/types'
-export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig }
+import type { ProviderEntity, ApiKeyEntity, AgentEntity, AgentConfigEntity, UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput } from '../shared/types'
+export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput }
 
-/** Agent 响应类型（对应 db/agents.ts 中的 Agent 接口） */
-export interface AgentResponse {
-  id: number
-  name: string
-  displayName: string
-  configPath: string
-  configFormat: 'json' | 'toml' | 'env'
-  isBuiltin: number
-  createdAt: string
-  updatedAt: string
-}
-
-/** Agent 配置响应类型（对应 db/agent-configs.ts 中的 AgentConfig 接口） */
-export interface AgentConfigResponse {
-  id: number
-  agentId: number
-  name: string
-  content: string
-  isCurrent: number
-  createdAt: string
-  updatedAt: string
-}
-
-/** 创建 Agent 输入 */
-export interface CreateAgentInput {
-  name: string
-  displayName: string
-  configPath: string
-  configFormat: 'json' | 'toml' | 'env'
-}
-
-/** 更新 Agent 输入 */
-export interface UpdateAgentInput {
-  displayName?: string
-  configPath?: string
-  configFormat?: 'json' | 'toml' | 'env'
-}
-
-/** 创建 Agent 配置输入 */
-export interface CreateAgentConfigInput {
-  agentId: number
-  name: string
-  content: string
-}
-
-/** 更新 Agent 配置输入 */
-export interface UpdateAgentConfigInput {
-  content: string
-}
-
-/** 切换配置输入 */
-export interface SwitchConfigInput {
-  agentId: number
-  configId: number
-}
+/** Agent 响应类型（与 shared/types.ts 的 AgentEntity 同义，向后兼容旧名） */
+export type AgentResponse = AgentEntity
+/** Agent 配置响应类型（与 shared/types.ts 的 AgentConfigEntity 同义，向后兼容旧名） */
+export type AgentConfigResponse = AgentConfigEntity
 
 /** Provider 对外类型（preload 层与 db 层结构一致） */
 export type Provider = ProviderEntity
@@ -106,7 +55,6 @@ export interface ElectronAPI {
     status: () => Promise<{ port: number; running: boolean; url: string | null; debugMode: boolean }>
     start: (port?: number) => Promise<boolean>
     stop: () => Promise<{ success: true }>
-    restart: (port?: number) => Promise<boolean>
     setPort: (port: number) => Promise<{ success: true }>
     getDebugMode: () => Promise<{ port: number; running: boolean; url: string | null; debugMode: boolean }>
     setDebugMode: (enabled: boolean) => Promise<{ success: true }>

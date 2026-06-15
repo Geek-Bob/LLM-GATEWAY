@@ -115,7 +115,7 @@ export function createServer(services: ProxyServices) {
       return c.json({ error: 'unauthorized' }, 401)
     }
     // 从数据库验证 API Key 有效性
-    const apiKey = services.verifyApiKey(token)
+    const apiKey = await services.verifyApiKey(token)
     if (!apiKey) {
       logger.warn('AUTH FAIL: invalid key', { tokenSuffix: '***' + token.slice(-4) })
       logService.logAuthFailure(c.req, 'invalid api key')
@@ -153,8 +153,8 @@ export function createServer(services: ProxyServices) {
   })
 
   // GET /v1/models — 列出所有已配置供应商的可用模型（委托给 modelsService）
-  app.get('/v1/models', (c) => {
-    const models = modelsService.getAllModels()
+  app.get('/v1/models', async (c) => {
+    const models = await modelsService.getAllModels()
     return c.json({
       data: models.map((m: { id: string; provider: string }) => ({
         id: m.id,

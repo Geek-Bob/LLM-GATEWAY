@@ -83,13 +83,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   /**
    * 代理服务器生命周期管理
-   * 控制 Hono HTTP 代理的启动/停止/重启，查询状态和调试模式
+   * 控制 Hono HTTP 代理的启动/停止，查询状态和调试模式
    */
   proxy: {
     status: () => ipcRenderer.invoke('proxy:get'),
     start: (port?: number) => ipcRenderer.invoke('proxy:start', port),
     stop: () => ipcRenderer.invoke('proxy:stop'),
-    restart: (port?: number) => ipcRenderer.invoke('proxy:restart', port),
     setPort: (port: number) => ipcRenderer.invoke('proxy:updatePort', port),
     getDebugMode: () => ipcRenderer.invoke('proxy:get'),
     setDebugMode: (enabled: boolean) => ipcRenderer.invoke('proxy:update', enabled)

@@ -2,16 +2,15 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import path from 'path'
 import fs from 'fs'
-import { initDatabase, closeDatabase, getDb } from '../connection'
+import { initDatabase, closeDatabase } from '../connection'
 import { createTables } from '../schema'
 import {
   initLogsDir,
   createLogEntry,
   queryLogs,
-  cleanupOldLogs,
-  updateRequestStats,
-  getLogStats
+  cleanupOldLogs
 } from '../logs'
+import { createLogStatsRepository } from '../logs-stats'
 
 function tmpLogDir(): string {
   const dir = path.join(
@@ -233,7 +232,9 @@ describe('NDJSON Log Sharding', () => {
         }
       })
       const result = queryLogs({ page: 1, limit: 10 })
-      const entry = result.logs.find((e: any) => e.debug) as any
+      const entry = result.logs.find((e: Record<string, unknown>) => e.debug) as Record<string, unknown> & {
+        debug: { client: { apiFormat: string }; route: { providerName: string }; upstream: { statusCode: number } }
+      }
       expect(entry).toBeDefined()
       expect(entry.debug.client.apiFormat).toBe('openai')
       expect(entry.debug.route.providerName).toBe('P')
@@ -403,18 +404,21 @@ describe('NDJSON Log Sharding', () => {
   })
 })
 
-describe('Pre-computed Stats', () => {
+describe('LogStats Repository (Pre-computed Stats)', () => {
+  let statsRepo: ReturnType<typeof createLogStatsRepository>
+
   beforeEach(async () => {
-    await initDatabase(':memory:')
+    const db = await initDatabase(':memory:')
     createTables()
+    statsRepo = createLogStatsRepository(db)
   })
 
   afterEach(() => {
     closeDatabase()
   })
 
-  it('should return zero stats for empty stats table', () => {
-    const stats = getLogStats(getDb(), { range: '24h' })
+  it('should return zero stats for empty stats table', async () => {
+    const stats = await statsRepo.getStats('24h')
     expect(stats.total_requests).toBe(0)
     expect(stats.total_tokens_in).toBe(0)
     expect(stats.total_tokens_out).toBe(0)
@@ -422,21 +426,21 @@ describe('Pre-computed Stats', () => {
     expect(stats.total_errors).toBe(0)
   })
 
-  it('should update and retrieve stats correctly', () => {
-    updateRequestStats({
+  it('should update and retrieve stats correctly', async () => {
+    await statsRepo.updateRequestStats({
       tokensIn: 200,
       tokensOut: 100,
       durationMs: 1000,
       statusCode: 200
     })
-    updateRequestStats({
+    await statsRepo.updateRequestStats({
       tokensIn: 400,
       tokensOut: 200,
       durationMs: 2000,
       statusCode: 500
     })
 
-    const stats = getLogStats(getDb(), { range: '24h' })
+    const stats = await statsRepo.getStats('24h')
     expect(stats.total_requests).toBe(2)
     expect(stats.total_tokens_in).toBe(600)
     expect(stats.total_tokens_out).toBe(300)
@@ -444,18 +448,18 @@ describe('Pre-computed Stats', () => {
     expect(stats.total_errors).toBe(1)
   })
 
-  it('should support 7d and 30d range options', () => {
-    updateRequestStats({
+  it('should support 7d and 30d range options', async () => {
+    await statsRepo.updateRequestStats({
       tokensIn: 100,
       tokensOut: 50,
       durationMs: 100,
       statusCode: 200
     })
 
-    const stats7d = getLogStats(getDb(), { range: '7d' })
+    const stats7d = await statsRepo.getStats('7d')
     expect(stats7d.total_requests).toBe(1)
 
-    const stats30d = getLogStats(getDb(), { range: '30d' })
+    const stats30d = await statsRepo.getStats('30d')
     expect(stats30d.total_requests).toBe(1)
   })
 })

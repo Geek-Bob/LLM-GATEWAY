@@ -7,7 +7,7 @@
  * 2. 代理将请求转发到上游 LLM 供应商
  *
  * 关键设计：
- * - 单例模式：全局只有一个 server 实例，通过 start/stop/restart 控制
+ * - 单例模式：全局只有一个 server 实例，通过 start/stop 控制
  * - 默认端口 8080，仅监听 localhost（安全要求）
  * - debugMode 控制是否记录请求/响应的详细 debug 信息
  *
@@ -116,8 +116,3 @@ export function stopProxy(): void {
   server = null
 }
 
-/** 重启代理服务器，可选指定新端口。 */
-export function restartProxy(port?: number): boolean {
-  stopProxy()
-  return startProxy(port)
-}

@@ -11,6 +11,8 @@ import type {
   ModelMapping, ModelInfo,
 } from '../../shared/types'
 
+export type { AgentEntity, AgentConfigEntity }
+
 /** 向后兼容别名 */
 export type AgentResponse = AgentEntity
 export type AgentConfigResponse = AgentConfigEntity
@@ -60,7 +62,7 @@ export interface Conversation {
 }
 
 /** 单条对话消息（包括用户消息和 AI 回复，thinking 字段记录扩展思维过程） */
-interface ConversationMessage {
+export interface ConversationMessage {
   id: number
   conversationId: number
   role: 'user' | 'assistant'
@@ -120,7 +122,6 @@ declare global {
         status: () => Promise<ProxyStatus & { debugMode: boolean }>
         start: (port?: number) => Promise<boolean>
         stop: () => Promise<{ success: true }>
-        restart: (port?: number) => Promise<boolean>
         setPort: (port: number) => Promise<{ success: true }>
         getDebugMode: () => Promise<ProxyStatus & { debugMode: boolean }>
         setDebugMode: (enabled: boolean) => Promise<{ success: true }>
@@ -166,6 +167,7 @@ declare global {
         createConfig: (data: CreateAgentConfigInput) => Promise<AgentConfigResponse>
         updateConfig: (id: number, data: UpdateAgentConfigInput) => Promise<AgentConfigResponse>
         deleteConfig: (id: number) => Promise<void>
+        readConfigFile: (agentId: number) => Promise<string>
         switchConfig: (data: SwitchConfigInput) => Promise<void>
       }
     }

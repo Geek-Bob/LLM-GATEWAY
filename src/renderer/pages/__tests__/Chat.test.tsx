@@ -23,6 +23,18 @@ vi.mock('uuid', () => ({
   }),
 }))
 
+// Mock sonner toast to assert error notifications without rendering Toaster.
+const _toastError = vi.fn()
+const _toastInfo = vi.fn()
+const _toastSuccess = vi.fn()
+vi.mock('sonner', () => ({
+  toast: {
+    error: (...args: unknown[]) => _toastError(...args),
+    info: (...args: unknown[]) => _toastInfo(...args),
+    success: (...args: unknown[]) => _toastSuccess(...args),
+  },
+}))
+
 const mockProvider: Provider = {
   id: 1, name: 'TestProvider', providerType: 'openai',
   baseUrl: 'https://api.openai.com/v1', apiKey: 'sk-provider-key',
@@ -60,10 +72,14 @@ function setupDefaultMocks() {
 // Set window.electronAPI ONCE — subsequent tests mutate the same fn refs
 window.electronAPI = {
   debug: { log: vi.fn() },
+  backend: {
+    isReady: vi.fn().mockResolvedValue(true),
+    onReady: vi.fn().mockReturnValue(() => {}),
+  },
   providers: { list: _providerList, create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   apiKeys: { list: _apiKeyList, create: vi.fn(), delete: vi.fn() },
   logs: { query: vi.fn(), stats: vi.fn(), statsDetailed: vi.fn() },
-  proxy: { status: vi.fn().mockResolvedValue({ isRunning: true, port: 8080, url: 'http://localhost:8080' }), start: vi.fn(), stop: vi.fn(), restart: vi.fn(), setPort: vi.fn(), getDebugMode: vi.fn().mockResolvedValue(false), setDebugMode: vi.fn() },
+  proxy: { status: vi.fn().mockResolvedValue({ isRunning: true, port: 8080, url: 'http://localhost:8080' }), start: vi.fn(), stop: vi.fn(), setPort: vi.fn(), getDebugMode: vi.fn().mockResolvedValue(false), setDebugMode: vi.fn() },
   conversations: {
     list: _conversationsList,
     create: _conversationsCreate,
@@ -86,6 +102,30 @@ window.electronAPI = {
     onProgress: vi.fn().mockReturnValue(() => {}),
     onDownloaded: vi.fn().mockReturnValue(() => {}),
     onError: vi.fn().mockReturnValue(() => {}),
+  },
+  models: {
+    list: vi.fn().mockResolvedValue([]),
+    mapping: {
+      find: vi.fn().mockResolvedValue(null),
+      list: vi.fn().mockResolvedValue([]),
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn().mockResolvedValue(undefined),
+    },
+  },
+  agents: {
+    list: vi.fn().mockResolvedValue([]),
+    get: vi.fn().mockResolvedValue(null),
+    create: vi.fn(),
+    update: vi.fn(),
+    delete: vi.fn().mockResolvedValue(undefined),
+    listConfigs: vi.fn().mockResolvedValue([]),
+    getConfig: vi.fn().mockResolvedValue(null),
+    createConfig: vi.fn(),
+    updateConfig: vi.fn(),
+    deleteConfig: vi.fn().mockResolvedValue(undefined),
+    readConfigFile: vi.fn().mockResolvedValue(''),
+    switchConfig: vi.fn().mockResolvedValue(undefined),
   },
 }
 
@@ -589,6 +629,73 @@ describe('ChatPage', () => {
     // 没有发送消息，不需要特殊断言
     unmount()
     // 期望不抛出错误即为通过
+  })
+
+  // ─── Error notifications (toast.error) ────────────────────────────
+
+  it('shows toast.error when user message save fails', async () => {
+    // saveUserMessage 内部走 conversations.create（首次会话），让其 reject
+    _conversationsCreate.mockRejectedValue(new Error('db write failed'))
+    await renderChat()
+    await selectAll()
+    mockOpenAISSEStream(['ok', '__DONE__'])
+    typeAndSend('Hello')
+
+    await waitFor(() => {
+      expect(_toastError).toHaveBeenCalledWith('消息保存失败，请重试')
+    })
+  })
+
+  it('shows toast.error when title update fails', async () => {
+    // 模拟：create 返回 {id:1} → addMessage 成功 → get 返回默认标题 → update reject
+    // 通过 delayed Promise 让 SSE 流在 saveUserMessage 完成后再开始，
+    // 确保 convIdRef.current 已被 setActiveConversationId(1) 同步到 ref。
+    let resolveCreate: (value: unknown) => void
+    const createPromise = new Promise((r) => { resolveCreate = r })
+    _conversationsCreate.mockReturnValue(createPromise)
+    _conversationsAddMessage.mockResolvedValue(1)
+    _conversationsGet.mockResolvedValue({
+      id: 1,
+      title: '新对话',
+      providerId: 1,
+      model: 'gpt-4',
+      apiKeyId: 1,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    _conversationsUpdate.mockRejectedValue(new Error('title update failed'))
+
+    await renderChat()
+    await selectAll()
+
+    // SSE 流通过 controlled stream，等 saveUserMessage 完成后再 enqueue
+    let streamController: ReadableStreamDefaultController<Uint8Array>
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) { streamController = controller }
+    })
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: stream,
+      headers: new Headers({ 'content-type': 'text/event-stream' }),
+    })
+
+    typeAndSend('Hi')
+
+    // 等待 conversation 已创建并 ref 同步
+    await waitFor(() => { expect(_conversationsCreate).toHaveBeenCalled() })
+    resolveCreate!({ id: 1 })
+    // 等待 setActiveConversationId(1) 触发的 effect 完成（convIdRef 同步）
+    await waitFor(() => { expect(_conversationsAddMessage).toHaveBeenCalled() })
+
+    // 现在再发送 SSE 数据并关闭流
+    const sseLines = 'data: {"choices":[{"delta":{"content":"ok"},"finish_reason":null}]}\ndata: [DONE]'
+    streamController!.enqueue(new TextEncoder().encode(sseLines))
+    streamController!.close()
+
+    await waitFor(() => {
+      expect(_toastError).toHaveBeenCalledWith('对话标题更新失败')
+    }, { timeout: 3000 })
   })
 })
 

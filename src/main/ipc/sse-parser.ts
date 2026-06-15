@@ -8,26 +8,43 @@
 import {
   parseSSELine,
   extractOpenAIDelta,
-  extractAnthropicDelta,
   type SSELine,
 } from '../../shared/sse-utils'
 
 export type { SSELine }
+export { parseSSELine }
 
 /**
  * 从一行 SSE data 的 JSON 中提取文本（Anthropic 格式）
+ *
+ * 同时支持 text_delta 与 thinking_delta，对非法 JSON 返回 ''。
  */
 export function extractFromAnthropicSSE(jsonStr: string): string {
-  const delta = extractAnthropicDelta(jsonStr)
-  return delta?.text ?? ''
+  let obj: unknown
+  try {
+    obj = JSON.parse(jsonStr)
+  } catch {
+    // 非法 JSON 在 SSE 流中可能出现（如部分代理透传的非标准 keepalive），返回空串跳过
+    return ''
+  }
+  return tryExtractText(obj)?.text ?? ''
 }
 
 /**
  * 从一行 SSE data 的 JSON 中提取文本（OpenAI 格式）
+ *
+ * 优先使用 delta.content（流式），缺失时回退到 choices[0].text（非流式）。
  */
 export function extractFromOpenaiSSE(jsonStr: string): string {
   const delta = extractOpenAIDelta(jsonStr)
-  return delta?.content ?? ''
+  if (delta?.content) return delta.content
+  // delta 不存在时回退到 choices[0].text（非流式响应或部分代理透传格式）
+  try {
+    const obj = JSON.parse(jsonStr) as { choices?: Array<{ text?: string }> }
+    return obj.choices?.[0]?.text ?? ''
+  } catch {
+    return ''
+  }
 }
 
 /**

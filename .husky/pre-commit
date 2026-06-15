@@ -1,5 +1,4 @@
 #!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
 
 # Pre-commit hook: 检测敏感信息
 # 防止 API Key、密码、Token 等敏感信息被提交
@@ -49,6 +48,11 @@ PATTERNS=(
 FOUND_SECRETS=0
 
 for FILE in $STAGED_FILES; do
+  # 跳过 hook 自身（文件本身只含正则模式定义，无真实密钥）
+  if [ "$FILE" = ".husky/pre-commit" ]; then
+    continue
+  fi
+
   # 跳过二进制文件和已删除文件
   if [ ! -f "$FILE" ] || file "$FILE" | grep -q "binary"; then
     continue

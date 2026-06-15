@@ -1,19 +1,9 @@
 import type { UpdateInfo } from 'electron-updater'
+import * as path from 'path'
 import { app, BrowserWindow } from 'electron'
 import { createLogger } from '../core/logger'
-import { type UpdateConfig, UpdateConfigManager } from './config'
-
-const logger = createLogger('update-manager')
-
-/** 更新检查结果，供渲染进程消费 */
-export interface UpdateCheckResult {
-  /** 是否有可用更新 */
-  isAvailable: boolean
-  /** 新版本号 */
-  version?: string
-  /** 检查过程中的错误信息 */
-  error?: string
-}
+import { UpdateConfigManager } from './config'
+import type { UpdateConfig, UpdateCheckResult } from '../../shared/types'
 
 /**
  * 自动更新管理器
@@ -23,9 +13,16 @@ export interface UpdateCheckResult {
 export class UpdateManager {
   private configManager: UpdateConfigManager
   private _autoUpdater: any = null          // 懒加载的 autoUpdater 实例
+  private logger: ReturnType<typeof createLogger>
 
   constructor() {
     this.configManager = new UpdateConfigManager()
+    // logger 必须在 constructor 内创建（app.getPath() 需 app ready 后才能调用）
+    // 写入文件以便 packaged 用户能查看更新日志（stdout 在 packaged 下被丢弃）
+    this.logger = createLogger('update-manager', {
+      file: path.join(app.getPath('userData'), 'logs', 'update.log'),
+      truncate: false,  // 保留历史诊断信息
+    })
     // autoUpdater 的初始化延迟到首次调用 ensureAutoUpdater() 时执行
   }
 
@@ -105,40 +102,40 @@ export class UpdateManager {
   async checkForUpdates(): Promise<UpdateCheckResult> {
     try {
       const a = await this.ensureAutoUpdater()
-      logger.info('Checking for updates', {
+      this.logger.info('Checking for updates', {
         currentVersion: this.getCurrentVersion(),
         isPackaged: app.isPackaged,
         forceDevUpdateConfig: a.forceDevUpdateConfig,
       })
 
       const result = await a.checkForUpdates()
-      logger.debug('checkForUpdates result', { result })
+      this.logger.debug('checkForUpdates result', { result })
 
       if (!result) {
-        logger.info('No result from checkForUpdates')
+        this.logger.info('No result from checkForUpdates')
         return { isAvailable: false }
       }
 
       const currentVersion = this.getCurrentVersion()
       const newVersion = result.updateInfo.version
-      logger.info('Version comparison', { currentVersion, newVersion })
+      this.logger.info('Version comparison', { currentVersion, newVersion })
 
       // 跳过用户明确忽略的版本
       if (this.configManager.shouldSkipVersion(newVersion)) {
-        logger.info('Version skipped', { version: newVersion })
+        this.logger.info('Version skipped', { version: newVersion })
         return { isAvailable: false, version: newVersion }
       }
 
       // 版本相同说明已是最新
       if (newVersion === currentVersion) {
-        logger.info('Same version, no update needed')
+        this.logger.info('Same version, no update needed')
         return { isAvailable: false, version: newVersion }
       }
 
-      logger.info('Update available', { version: newVersion })
+      this.logger.info('Update available', { version: newVersion })
       return { isAvailable: true, version: newVersion }
     } catch (error) {
-      logger.error('Error checking for updates', {
+      this.logger.error('Error checking for updates', {
         error: error instanceof Error ? error.message : 'Unknown error',
       })
       return {

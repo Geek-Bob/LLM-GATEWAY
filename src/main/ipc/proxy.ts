@@ -4,7 +4,7 @@
 
 import { z } from 'zod'
 import { ipcMain } from 'electron'
-import { getProxyConfig, startProxy, stopProxy, restartProxy, setProxyPort, getDebugMode, setDebugMode } from '../proxy/manager'
+import { getProxyConfig, startProxy, stopProxy, setProxyPort, getDebugMode, setDebugMode } from '../proxy/manager'
 import { wrapIpcHandler } from './ipc-utils'
 
 const portSchema = z.number().int().min(1).max(65535).optional()
@@ -29,11 +29,6 @@ export function registerProxyHandlers(): void {
     stopProxy()
     return { success: true }
   }, 'proxy:stop'))
-
-  ipcMain.handle('proxy:restart', wrapIpcHandler(async (_event, port?: unknown) => {
-    const validPort = portSchema.parse(port)
-    return restartProxy(validPort)
-  }, 'proxy:restart'))
 
   ipcMain.handle('proxy:updatePort', wrapIpcHandler(async (_event, port: unknown) => {
     const validPort = requiredPortSchema.parse(port)

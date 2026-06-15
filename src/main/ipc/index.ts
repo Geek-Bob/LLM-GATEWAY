@@ -8,7 +8,7 @@
  * 每个 domain handler 文件独立管理自己的 service 创建和 Zod 校验。
  */
 
-import { getDb } from '../db/connection'
+import type { Database } from '../db/database'
 import type { UpdateManager } from '../update/manager'
 import { registerProviderHandlers } from './providers'
 import { registerApiKeyHandlers } from './apikeys'
@@ -24,10 +24,9 @@ import { registerSystemHandlers } from './system'
  * 注册所有 IPC handler，连接渲染进程请求与 domain service 层
  *
  * @param updateManager - 自动更新管理器实例，用于注册更新相关 IPC handler
+ * @param db - 入口层注入的数据库实例（保持依赖注入链）
  */
-export function setupIpcHandlers(updateManager: UpdateManager): void {
-  const db = getDb()
-
+export function setupIpcHandlers(updateManager: UpdateManager, db: Database): void {
   registerProviderHandlers(db)
   registerApiKeyHandlers(db)
   registerConversationHandlers(db)

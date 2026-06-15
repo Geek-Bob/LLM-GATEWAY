@@ -101,7 +101,8 @@ export function createApiKeyRepository(db: Database) {
     /** 通过 ID 获取完整的明文密钥（代理转发用） */
     async findPlaintextById(id: number): Promise<string | null> {
       const row = db.prepare('SELECT key FROM api_keys WHERE id = ?').get(id) as { key: string } | undefined
-      return row?.key ?? null
+      // 使用 || 而非 ??：空字符串视为「无明文」（历史遗留 legacy 数据），统一返回 null
+      return row?.key || null
     },
 
     /** 验证明文密钥是否有效（哈希匹配 + is_active） */

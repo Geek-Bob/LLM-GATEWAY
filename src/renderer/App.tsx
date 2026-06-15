@@ -15,6 +15,7 @@ const ModelMappingsPage = lazy(() => import('@/pages/ModelMappings').then(m => (
 const AgentsPage = lazy(() => import('@/pages/Agents').then(m => ({ default: m.AgentsPage })))
 import { Sonner } from '@/components/ui/sonner'
 import { UpdateDialog } from '@/features/update/components/UpdateDialog'
+import { toast } from 'sonner'
 
 /** 路由切换时的轻量 fallback，避免引入额外依赖 */
 function PageLoading() {
@@ -66,7 +67,10 @@ function App() {
     // 再主动查询一次（防止事件在监听器注册前就已发出）
     api.backend.isReady().then((ready) => {
       if (ready) setBackendReady(true)
-    }).catch((e) => console.error('Backend ready check failed', e))
+    }).catch((e) => {
+      console.error('[App] Backend ready check failed', e)
+      toast.error('后端服务初始化失败，请重启应用')
+    })
     return unsubscribe
   }, [])
 

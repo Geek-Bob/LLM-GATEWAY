@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import * as path from 'path'
 
 // Mock electron-updater
 vi.mock('electron-updater', () => ({
@@ -29,7 +30,19 @@ vi.mock('electron', () => ({
 vi.mock('fs', () => ({
   existsSync: vi.fn(() => false),
   readFileSync: vi.fn(),
-  writeFileSync: vi.fn()
+  writeFileSync: vi.fn(),
+  mkdirSync: vi.fn(),
+  appendFile: vi.fn((_p: string, _data: string, cb: (err: Error | null) => void) => cb(null))
+}))
+
+// Mock logger 模块以便 spy createLogger 调用参数
+vi.mock('../../core/logger', () => ({
+  createLogger: vi.fn(() => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  }))
 }))
 
 describe('UpdateManager', () => {
@@ -43,6 +56,17 @@ describe('UpdateManager', () => {
 
   it('应该创建 UpdateManager 实例', () => {
     expect(updateManager).toBeDefined()
+  })
+
+  it('logger 创建时应使用正确的 file transport 路径', async () => {
+    const { createLogger } = await import('../../core/logger')
+    expect(createLogger).toHaveBeenCalledWith(
+      'update-manager',
+      expect.objectContaining({
+        file: path.join('/tmp/test-userData', 'logs', 'update.log'),
+        truncate: false
+      })
+    )
   })
 
   it('应该获取当前版本', () => {

@@ -53,7 +53,12 @@ describe('Agent Config Repository', () => {
       content: '{"old": true}',
     })
     const updated = await repo.updateContent(created.id, '{"new": true}')
-    expect(updated.content).toBe('{"new": true}')
+    expect(updated?.content).toBe('{"new": true}')
+  })
+
+  it('should return null when updating non-existent config', async () => {
+    const updated = await repo.updateContent(999, '{}')
+    expect(updated).toBeNull()
   })
 
   it('should delete config', async () => {
@@ -65,16 +70,6 @@ describe('Agent Config Repository', () => {
     await repo.remove(created.id)
     const found = await repo.getById(created.id)
     expect(found).toBeNull()
-  })
-
-  it('should not delete current config', async () => {
-    const created = await repo.create({
-      agentId: 1,
-      name: 'current',
-      content: '{}',
-    })
-    await repo.setCurrent(1, created.id)
-    await expect(repo.remove(created.id)).rejects.toThrow(`Failed to delete config: cannot delete current config ${created.id}`)
   })
 
   it('should switch current config', async () => {
@@ -136,21 +131,11 @@ describe('Agent Config Repository', () => {
   })
 
   it('should throw when setCurrent with non-existent config', async () => {
-    await expect(repo.setCurrent(1, 999)).rejects.toThrow('Failed to set current config: config 999 not found')
+    await expect(repo.setCurrent(1, 999)).rejects.toThrow('Failed to set current config: config 999 not found for agent 1')
   })
 
-  it('should throw when setCurrent with config from different agent', async () => {
-    const config = await repo.create({ agentId: 1, name: 'c1', content: '{}' })
-    await expect(repo.setCurrent(2, config.id)).rejects.toThrow(
-      `Failed to set current config: config ${config.id} does not belong to agent 2`
-    )
-  })
-
-  it('should throw when removing non-existent config', async () => {
-    await expect(repo.remove(999)).rejects.toThrow('Failed to delete config: config 999 not found')
-  })
-
-  it('should throw when updating non-existent config', async () => {
-    await expect(repo.updateContent(999, '{}')).rejects.toThrow('Failed to update config: config 999 not found')
+  it('should silently remove non-existent config (no throw)', async () => {
+    // db 层为纯 CRUD，删除不存在的 id 不抛错（存在性检查由 service 层负责）
+    await expect(repo.remove(999)).resolves.toBeUndefined()
   })
 })

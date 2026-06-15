@@ -12,8 +12,8 @@
 
 import type { Provider } from '../../shared/types'
 
-/** 按名称查找供应商的函数签名（由调用方注入，解耦 db 层） */
-type ProviderLookup = (name: string) => Provider | undefined
+/** 按名称查找供应商的函数签名（异步，由调用方注入，解耦 db 层） */
+type ProviderLookup = (name: string) => Promise<Provider | undefined>
 
 interface ModelRoute {
   prefix: string
@@ -47,9 +47,9 @@ export function parseModelId(modelId: string): { prefix: string; modelName: stri
  * @param modelId - 复合模型 ID（如 "anthropic/claude-sonnet-4"）
  * @param lookupProvider - 按名称查找供应商的函数（由调用方注入）
  */
-export function resolveProvider(modelId: string, lookupProvider: ProviderLookup): ModelRoute {
+export async function resolveProvider(modelId: string, lookupProvider: ProviderLookup): Promise<ModelRoute> {
   const { prefix, modelName } = parseModelId(modelId)
-  const provider = lookupProvider(prefix)
+  const provider = await lookupProvider(prefix)
 
   if (!provider) {
     throw new Error(`Failed to resolve provider: provider not found "${prefix}"`)

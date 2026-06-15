@@ -3,7 +3,7 @@
  * models.service 单元测试
  *
  * 使用内存数据库测试模型映射 CRUD 和模型列表查询。
- * 遵循 Domain Pattern 模式 A（工厂注入 service，接收 Database 实例）。
+ * 7e022a9 重构后 service 方法全部 async，所有调用必须 await。
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { initDatabase, closeDatabase, getDb } from '../../../db/connection'
@@ -30,13 +30,13 @@ describe('models.service', () => {
   })
 
   describe('getAllModels', () => {
-    it('无活跃 provider 时应返回空数组', () => {
-      const models = service.getAllModels()
+    it('无活跃 provider 时应返回空数组', async () => {
+      const models = await service.getAllModels()
       expect(Array.isArray(models)).toBe(true)
       expect(models).toHaveLength(0)
     })
 
-    it('应返回活跃 provider 的模型列表', () => {
+    it('应返回活跃 provider 的模型列表', async () => {
       // 插入一个活跃 provider，models 以 JSON 数组存储
       const db = getDb()
       db.prepare(`
@@ -44,7 +44,7 @@ describe('models.service', () => {
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(['test-provider', 'openai', 'https://api.test.com', 'sk-test', '["gpt-4","gpt-3.5-turbo"]', 1])
 
-      const models = service.getAllModels()
+      const models = await service.getAllModels()
       expect(models).toHaveLength(2)
       expect(models[0]).toEqual({
         id: 'test-provider/gpt-4',
@@ -61,14 +61,14 @@ describe('models.service', () => {
       db.exec('DELETE FROM providers')
     })
 
-    it('不活跃的 provider 应被排除', () => {
+    it('不活跃的 provider 应被排除', async () => {
       const db = getDb()
       db.prepare(`
         INSERT INTO providers (name, provider_type, base_url, api_key, models, is_active)
         VALUES (?, ?, ?, ?, ?, ?)
       `).run(['inactive-provider', 'openai', 'https://api.test.com', 'sk-test', '["gpt-4"]', 0])
 
-      const models = service.getAllModels()
+      const models = await service.getAllModels()
       expect(models).toHaveLength(0)
 
       // 清理 provider 数据
@@ -77,25 +77,25 @@ describe('models.service', () => {
   })
 
   describe('findModelMapping', () => {
-    it('未找到映射时应返回 null', () => {
-      const result = service.findModelMapping('nonexistent/model')
+    it('未找到映射时应返回 null', async () => {
+      const result = await service.findModelMapping('nonexistent/model')
       expect(result).toBeNull()
     })
 
-    it('应返回匹配的活跃映射', () => {
-      service.createModelMapping({
+    it('应返回匹配的活跃映射', async () => {
+      await service.createModelMapping({
         sourceModel: 'claude-3-opus',
         targetModel: 'claude-3-opus-20240229',
       })
 
-      const result = service.findModelMapping('claude-3-opus')
+      const result = await service.findModelMapping('claude-3-opus')
       expect(result).not.toBeNull()
       expect(result!.sourceModel).toBe('claude-3-opus')
       expect(result!.targetModel).toBe('claude-3-opus-20240229')
     })
 
-    it('非活跃映射不应被查到', () => {
-      const created = service.createModelMapping({
+    it('非活跃映射不应被查到', async () => {
+      const created = await service.createModelMapping({
         sourceModel: 'gpt-4',
         targetModel: 'gpt-4-turbo',
       })
@@ -103,15 +103,15 @@ describe('models.service', () => {
       const db = getDb()
       db.prepare('UPDATE model_mappings SET is_active = 0 WHERE id = ?').run([created.id])
 
-      const result = service.findModelMapping('gpt-4')
+      const result = await service.findModelMapping('gpt-4')
       expect(result).toBeNull()
     })
   })
 
   describe('CRUD', () => {
-    it('应能创建、查询、更新、删除映射', () => {
+    it('应能创建、查询、更新、删除映射', async () => {
       // 创建
-      const created = service.createModelMapping({
+      const created = await service.createModelMapping({
         sourceModel: 'test/source',
         targetModel: 'test/target',
       })
@@ -121,30 +121,30 @@ describe('models.service', () => {
       expect(created.isActive).toBe(1)
 
       // 列表查询
-      const mappings = service.listModelMappings()
+      const mappings = await service.listModelMappings()
       expect(mappings.length).toBeGreaterThan(0)
       expect(mappings.find(m => m.id === created.id)).toBeDefined()
 
       // 更新
-      const updated = service.updateModelMapping(created.id, {
+      const updated = await service.updateModelMapping(created.id, {
         targetModel: 'test/updated',
       })
       expect(updated.targetModel).toBe('test/updated')
       expect(updated.sourceModel).toBe('test/source') // 未更新的字段保持不变
 
       // 删除
-      service.deleteModelMapping(created.id)
-      const afterDelete = service.listModelMappings()
+      await service.deleteModelMapping(created.id)
+      const afterDelete = await service.listModelMappings()
       expect(afterDelete.find(m => m.id === created.id)).toBeUndefined()
     })
 
-    it('更新应支持修改多个字段', () => {
-      const created = service.createModelMapping({
+    it('更新应支持修改多个字段', async () => {
+      const created = await service.createModelMapping({
         sourceModel: 'old/source',
         targetModel: 'old/target',
       })
 
-      const updated = service.updateModelMapping(created.id, {
+      const updated = await service.updateModelMapping(created.id, {
         sourceModel: 'new/source',
         targetModel: 'new/target',
       })
@@ -152,17 +152,17 @@ describe('models.service', () => {
       expect(updated.targetModel).toBe('new/target')
     })
 
-    it('listModelMappings 应按 id 降序排列', () => {
-      service.createModelMapping({
+    it('listModelMappings 应按 id 降序排列', async () => {
+      await service.createModelMapping({
         sourceModel: 'model-a',
         targetModel: 'target-a',
       })
-      service.createModelMapping({
+      await service.createModelMapping({
         sourceModel: 'model-b',
         targetModel: 'target-b',
       })
 
-      const mappings = service.listModelMappings()
+      const mappings = await service.listModelMappings()
       expect(mappings.length).toBeGreaterThanOrEqual(2)
       // 最新创建的排在前面
       expect(mappings[0].id).toBeGreaterThan(mappings[1].id)

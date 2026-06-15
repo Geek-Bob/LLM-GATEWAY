@@ -79,16 +79,52 @@ describe('UpdateButton', () => {
     })
   })
 
-  it('检查失败时应该显示错误 toast', async () => {
+  it('mutateAsync reject 时显示错误 toast 含 e.message', async () => {
     const { toast } = await import('sonner')
-    mockMutateAsync.mockRejectedValue(new Error('网络错误'))
+    mockMutateAsync.mockRejectedValue(new Error('Network failure'))
 
     renderWithQuery(<UpdateButton />)
 
     fireEvent.click(screen.getByText('检查更新'))
 
     await waitFor(() => {
-      expect(toast.error).toHaveBeenCalledWith('检查更新失败，请稍后重试')
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('Network failure'),
+      )
+    })
+  })
+
+  it('result.error 存在时显示错误 toast 而非"最新版本"toast', async () => {
+    const { toast } = await import('sonner')
+    mockMutateAsync.mockResolvedValue({
+      isAvailable: false,
+      error: 'connect ETIMEDOUT 140.82.112.4:443',
+    })
+
+    renderWithQuery(<UpdateButton />)
+
+    fireEvent.click(screen.getByText('检查更新'))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('connect ETIMEDOUT 140.82.112.4:443'),
+      )
+    })
+    expect(toast.info).not.toHaveBeenCalled()
+  })
+
+  it('reject 非 Error 实例时显示通用错误信息', async () => {
+    const { toast } = await import('sonner')
+    mockMutateAsync.mockRejectedValue('字符串错误')
+
+    renderWithQuery(<UpdateButton />)
+
+    fireEvent.click(screen.getByText('检查更新'))
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        expect.stringContaining('未知错误'),
+      )
     })
   })
 })

@@ -31,9 +31,9 @@ const MAX_LOG_BODY_LENGTH = 4000
 export interface ProxyHandlerServices {
   logService: ProxyLogService
   /** 模型映射：根据 sourceModel 查找活跃映射 */
-  findModelMapping: (sourceModel: string) => { targetModel: string } | null | undefined
+  findModelMapping: (sourceModel: string) => Promise<{ targetModel: string } | null | undefined>
   /** 按名称查找供应商（注入给 router 使用） */
-  lookupProvider: (name: string) => Provider | undefined
+  lookupProvider: (name: string) => Promise<Provider | undefined>
   /** 获取 debug 模式状态 */
   getDebugMode: () => boolean
   streamService: {
@@ -124,17 +124,17 @@ export function createProxyHandler(services: ProxyHandlerServices) {
    * @param debugInfo - 调试信息对象（可选）
    * @returns 路由结果对象或错误 Response
    */
-  function resolveRoute(
+  async function resolveRoute(
     model: string, requestPath: string, apiFormat: 'anthropic' | 'openai',
     body: any, debugInfo: LogDebugInfo | null
-  ): { route: any; proxyBody: any; proxyPath: string; needsConversion: boolean } | Response {
-    const mapping = findModelMapping(model)
+  ): Promise<{ route: any; proxyBody: any; proxyPath: string; needsConversion: boolean } | Response> {
+    const mapping = await findModelMapping(model)
     const resolvedModel = mapping ? mapping.targetModel : model
     if (debugInfo && mapping) {
       logger.info('MODEL_MAPPING', { sourceModel: model, targetModel: mapping.targetModel })
     }
 
-    const route = resolveProvider(resolvedModel, lookupProvider)
+    const route = await resolveProvider(resolvedModel, lookupProvider)
     logger.info('ROUTE_RESOLVED', {
       providerName: route.provider.name, providerType: route.provider.providerType,
       providerBaseUrl: route.provider.baseUrl, modelName: route.modelName,
@@ -354,7 +354,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
       if (debugInfo) { debugInfo.client.body = JSON.stringify(body); debugInfo.client.apiFormat = apiFormat }
 
       // 路由解析（含模型映射 + 协议转换）
-      const routeResult = resolveRoute(model, requestPath, apiFormat, body, debugInfo)
+      const routeResult = await resolveRoute(model, requestPath, apiFormat, body, debugInfo)
       if (routeResult instanceof Response) return routeResult
       const { route, proxyBody, proxyPath, needsConversion } = routeResult
 
