@@ -24,8 +24,9 @@ export function createApiKeyService(db: Database) {
     },
 
     /** 根据 ID 获取单个 API Key（不含敏感字段） */
-    getById: async (id: number) => {
-      return repo.findById(id)
+    getById: async (id: number): Promise<ApiKeyResponse | undefined> => {
+      const row = await repo.findById(id)
+      return row ? apiKeyRowToResponse({ ...row, key_plaintext: '' }) : undefined
     },
 
     /** 创建新 API Key，rateLimit 默认为 60 次/分钟 */

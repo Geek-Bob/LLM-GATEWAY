@@ -12,9 +12,30 @@ import { createProviderRepository } from '../../db/providers'
 import type {
   LogQuery,
   LogQueryResponse,
+  LogResponse,
   LogStatsResponse,
   DetailedStatsProvider,
 } from './logs.types'
+
+/**
+ * 将 db 层 NDJSON 原始行（snake_case 字段）转换为对外的 LogResponse 契约。
+ * 运行时安全：queryLogs 内部已通过 normalizeEntry 归一化字段名，类型断言无运行时风险。
+ */
+function logRowToResponse(row: Record<string, unknown>): LogResponse {
+  return {
+    id: Number(row.id ?? 0),
+    apiKeyId: (row.api_key_id as number | null | undefined) ?? null,
+    providerId: (row.provider_id as number | null | undefined) ?? null,
+    model: (row.model as string | undefined) ?? '',
+    apiFormat: (row.api_format as string | undefined) ?? '',
+    statusCode: Number(row.status_code ?? 0),
+    tokensIn: Number(row.tokens_in ?? 0),
+    tokensOut: Number(row.tokens_out ?? 0),
+    durationMs: Number(row.duration_ms ?? 0),
+    error: (row.error as string | null | undefined) ?? null,
+    createdAt: (row.created_at as string | undefined) ?? '',
+  }
+}
 
 /**
  * 创建日志业务服务
@@ -27,7 +48,11 @@ export function createLogsService(db: Database) {
   return {
     /** 按条件查询原始日志记录，支持分页和过滤 */
     query: async (params: LogQuery): Promise<LogQueryResponse> => {
-      return queryLogs(params)
+      const { logs, total } = queryLogs(params)
+      return {
+        logs: logs.map(logRowToResponse),
+        total,
+      }
     },
 
     /** 获取指定时间范围的概要统计（总请求数、Token 用量等） */

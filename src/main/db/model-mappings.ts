@@ -26,12 +26,12 @@ export function createModelMappingRepository(db: Database) {
   return {
     /** 查询所有映射（按 id 降序，最新在前） */
     async list(): Promise<ModelMappingRow[]> {
-      return db.prepare('SELECT * FROM model_mappings ORDER BY id DESC').all() as ModelMappingRow[]
+      return db.prepare('SELECT * FROM model_mappings ORDER BY id DESC').all() as unknown as ModelMappingRow[]
     },
 
     /** 按 id 查询单条映射 */
     async findById(id: number): Promise<ModelMappingRow | null> {
-      const row = db.prepare('SELECT * FROM model_mappings WHERE id = ?').get([id]) as ModelMappingRow | undefined
+      const row = db.prepare('SELECT * FROM model_mappings WHERE id = ?').get(id) as ModelMappingRow | undefined
       return row ?? null
     },
 
@@ -39,7 +39,7 @@ export function createModelMappingRepository(db: Database) {
     async findActive(sourceModel: string): Promise<ModelMappingRow | null> {
       const row = db
         .prepare('SELECT * FROM model_mappings WHERE source_model = ? AND is_active = 1')
-        .get([sourceModel]) as ModelMappingRow | undefined
+        .get(sourceModel) as ModelMappingRow | undefined
       return row ?? null
     },
 

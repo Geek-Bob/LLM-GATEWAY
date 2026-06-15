@@ -2,20 +2,10 @@ import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import { createLogger } from '../core/logger'
+import { applyMigrators, type ConfigMigrator } from '../core/config-migration'
+import type { UpdateConfig } from '../../shared/types'
 
 const logger = createLogger('update-config')
-
-/** 自动更新的用户配置项 */
-export interface UpdateConfig {
-  /** 是否自动检查更新 */
-  isAutoCheckEnabled: boolean
-  /** 检查更新的时间间隔（毫秒），默认 4 小时 */
-  checkInterval: number
-  /** 是否允许预发布版本 */
-  isPrereleaseAllowed: boolean
-  /** 要跳过的版本号，用户可选择忽略某个版本 */
-  skipVersion: string | null
-}
 
 /** 默认配置：每 4 小时自动检查，仅稳定版 */
 const defaultConfig: UpdateConfig = {
@@ -24,6 +14,42 @@ const defaultConfig: UpdateConfig = {
   isPrereleaseAllowed: false,
   skipVersion: null
 }
+
+/**
+ * 旧字段 autoCheck → 新字段 isAutoCheckEnabled
+ * 仅当旧字段存在、新字段不存在、且类型匹配时迁移；否则返回 {}（幂等）
+ */
+const migrateAutoCheckField: ConfigMigrator<UpdateConfig> = (raw) => {
+  if (typeof raw !== 'object' || raw === null) return {}
+  const r = raw as Record<string, unknown>
+  if ('autoCheck' in r && !('isAutoCheckEnabled' in r) && typeof r.autoCheck === 'boolean') {
+    return { isAutoCheckEnabled: r.autoCheck }
+  }
+  return {}
+}
+
+/**
+ * 旧字段 allowPrerelease → 新字段 isPrereleaseAllowed
+ * 仅当旧字段存在、新字段不存在、且类型匹配时迁移；否则返回 {}（幂等）
+ */
+const migrateAllowPrereleaseField: ConfigMigrator<UpdateConfig> = (raw) => {
+  if (typeof raw !== 'object' || raw === null) return {}
+  const r = raw as Record<string, unknown>
+  if (
+    'allowPrerelease' in r &&
+    !('isPrereleaseAllowed' in r) &&
+    typeof r.allowPrerelease === 'boolean'
+  ) {
+    return { isPrereleaseAllowed: r.allowPrerelease }
+  }
+  return {}
+}
+
+/** 注册的字段迁移器（顺序应用，后者覆盖前者） */
+const MIGRATORS: ConfigMigrator<UpdateConfig>[] = [
+  migrateAutoCheckField,
+  migrateAllowPrereleaseField,
+]
 
 /**
  * 更新配置管理器
@@ -40,18 +66,35 @@ export class UpdateConfigManager {
     // 不在此处调用 loadConfig()，延迟到首次访问以减小启动阻塞
   }
 
-  /** 从磁盘加载配置，如果文件不存在或损坏则使用默认值 */
+  /** 从磁盘加载配置，如果文件不存在或损坏则使用默认值；自动迁移历史字段名 */
   private loadConfig(): UpdateConfig {
     if (this.config) return this.config
 
     try {
       if (fs.existsSync(this.configPath)) {
         const data = fs.readFileSync(this.configPath, 'utf-8')
-        this.config = { ...defaultConfig, ...JSON.parse(data) }
-        return this.config
+        const raw = JSON.parse(data)
+        let migrated: Partial<UpdateConfig> = {}
+        try {
+          migrated = applyMigrators<UpdateConfig>(raw, MIGRATORS)
+        } catch (err) {
+          logger.warn('Failed to migrate update config', {
+            error: err instanceof Error ? err.message : String(err)
+          })
+        }
+        this.config = { ...defaultConfig, ...raw, ...migrated }
+        // 有迁移发生 → 立即回写新 schema（幂等：再次读入时无字段可迁移）
+        if (Object.keys(migrated).length > 0) {
+          this.saveConfig()
+          logger.info('Migrated update config schema', { fields: Object.keys(migrated) })
+        }
+        // 局部 const 触发 TS narrowing：line 85 已保证 this.config 非 null
+        return this.config ?? defaultConfig
       }
     } catch (err) {
-      logger.warn('loadConfig failed', { error: err instanceof Error ? err.message : String(err) })
+      logger.warn('Failed to load update config', {
+        error: err instanceof Error ? err.message : String(err)
+      })
     }
     this.config = { ...defaultConfig }
     return this.config
@@ -62,7 +105,9 @@ export class UpdateConfigManager {
     try {
       fs.writeFileSync(this.configPath, JSON.stringify(this.config, null, 2))
     } catch (err) {
-      logger.warn('saveConfig failed', { error: err instanceof Error ? err.message : String(err) })
+      logger.warn('Failed to save update config', {
+        error: err instanceof Error ? err.message : String(err)
+      })
     }
   }
 

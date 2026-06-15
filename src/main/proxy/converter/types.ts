@@ -55,8 +55,10 @@ export interface StreamState {
   toolCallBaseIndex: number
   /** 当前工具调用组中的最大数组偏移量（用于批量关闭） */
   toolCallMaxIndexOffset: number
-  /** 流是否已终止（收到 finish_reason 后置 true） */
+  /** 流是否已终止（收到 finish_reason 后置 true，对应 O→C 方向的 isDone） */
   isDone: boolean
+  /** 是否已发出结束事件（用于日志和调试场景；createStreamContext 初始化为 false） */
+  done: boolean
   /** 缓存的 finish_reason（在收到 usage chunk 前暂存于此） */
   finishReason: string
   /** 模型名称（从首 chunk 提取） */

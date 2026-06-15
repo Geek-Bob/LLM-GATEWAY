@@ -200,6 +200,7 @@ export function createStreamContext(): StreamContext {
       index: 0,
       toolCallBaseIndex: 0,
       toolCallMaxIndexOffset: 0,
+      isDone: false,
       done: false,
       finishReason: '',
       model: '',

@@ -95,22 +95,33 @@ export function createConversationRepository(db: Database) {
         .all(conversationId) as unknown as MessageRow[]
     },
 
-    /** 向会话中添加消息，同时更新父会话的 updated_at */
+    /** 向会话中添加消息，同时更新父会话的 updated_at
+     *
+     * 跨 2 张表的写操作（INSERT messages + UPDATE conversations）必须事务化，
+     * 否则 INSERT 成功而 UPDATE 失败会导致 messages 已写入但会话时间戳未更新。
+     */
     async addMessage(conversationId: number, role: 'user' | 'assistant', content: string, thinking?: string): Promise<number> {
-      const result = db
-        .prepare(
-          `INSERT INTO messages (conversation_id, role, content, thinking)
-           VALUES (@conversation_id, @role, @content, @thinking)`
-        )
-        .run({
-          conversation_id: conversationId,
-          role,
-          content,
-          thinking: thinking || ''
-        })
+      db.exec('BEGIN')
+      try {
+        const result = db
+          .prepare(
+            `INSERT INTO messages (conversation_id, role, content, thinking)
+             VALUES (@conversation_id, @role, @content, @thinking)`
+          )
+          .run({
+            conversation_id: conversationId,
+            role,
+            content,
+            thinking: thinking || ''
+          })
 
-      db.prepare("UPDATE conversations SET updated_at = datetime('now') WHERE id = ?").run(conversationId)
-      return result.lastInsertRowid
+        db.prepare("UPDATE conversations SET updated_at = datetime('now') WHERE id = ?").run(conversationId)
+        db.exec('COMMIT')
+        return result.lastInsertRowid
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
     },
   }
 }

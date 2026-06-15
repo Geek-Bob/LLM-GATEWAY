@@ -70,7 +70,7 @@ export function createProviderRepository(db: Database) {
   return {
     /** 列出所有供应商，按创建时间降序排列 */
     async list(): Promise<ProviderRow[]> {
-      return db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as ProviderRow[]
+      return db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as unknown as ProviderRow[]
     },
 
     /** 按主键查询单个供应商 */
@@ -89,7 +89,7 @@ export function createProviderRepository(db: Database) {
     async listActive(): Promise<ProviderRow[]> {
       return db
         .prepare('SELECT * FROM providers WHERE is_active = 1 ORDER BY created_at DESC')
-        .all() as ProviderRow[]
+        .all() as unknown as ProviderRow[]
     },
 
     /** 列出所有供应商的 id 和 name，用于关联查询（如日志统计中显示供应商名称） */
