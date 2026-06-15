@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron'
 import { UpdateManager } from './manager'
-import type { UpdateConfig } from './config'
 import { wrapIpcHandler } from '../ipc/ipc-utils'
+import { updateConfigPartialSchema } from './update.schema'
 
 /**
  * 注册自动更新相关的 IPC 处理器
@@ -36,9 +36,10 @@ export function setupUpdateIpcHandlers(updateManager: UpdateManager): void {
     return updateManager.getConfig()
   }, 'update:getConfig'))
 
-  /** 更新配置项 */
-  ipcMain.handle('update:setConfig', wrapIpcHandler(async (_event, config: Partial<UpdateConfig>) => {
-    updateManager.updateConfig(config)
+  /** 更新配置项 — 入口处用 Zod 校验渲染进程透传的 partial 配置，拒绝未知字段与非法类型 */
+  ipcMain.handle('update:setConfig', wrapIpcHandler(async (_event, config: unknown) => {
+    const parsed = updateConfigPartialSchema.parse(config)
+    updateManager.updateConfig(parsed)
     return { success: true }
   }, 'update:setConfig'))
 

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { toast } from 'sonner'
 
 /** copied 状态自动重置为 false 的延迟时间（毫秒） */
 const RESET_DELAY_MS = 2000
@@ -21,8 +22,9 @@ export function useClipboard() {
       await navigator.clipboard.writeText(text)
       setCopied(true)
       setTimeout(() => setCopied(false), RESET_DELAY_MS)
-    } catch {
-      // clipboard write failed — silently ignore
+    } catch (e) {
+      console.error('[Clipboard] write failed', e)
+      toast.error('复制失败')
     }
   }, [])
 

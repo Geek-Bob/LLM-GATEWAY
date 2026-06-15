@@ -58,7 +58,7 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
    */
   const abort = useCallback(() => {
     abortRef.current?.abort()
-    readerRef.current?.cancel().catch(() => {})
+    readerRef.current?.cancel().catch((e) => console.debug('[ChatStream] reader cancel failed', e))
     abortRef.current = null
     readerRef.current = null
     setIsLoading(false)
@@ -203,7 +203,7 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
       }
     } finally {
       abortRef.current = null
-      readerRef.current?.cancel()?.catch(() => {})
+      readerRef.current?.cancel()?.catch((e) => console.debug('[ChatStream] reader cancel failed', e))
       readerRef.current = null
       setIsLoading(false)
     }

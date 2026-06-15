@@ -87,4 +87,39 @@ describe('Markdown', () => {
 
     expect(screen.getByText(/graph TD/)).toBeInTheDocument()
   })
+
+  it('应过滤 img 上的 onerror 属性以防 XSS', () => {
+    const content = '<img src="x" alt="bad" onerror="alert(1)">'
+
+    const { container } = render(<Markdown>{content}</Markdown>)
+
+    const img = container.querySelector('img')
+    expect(img).not.toBeNull()
+    expect(img?.hasAttribute('onerror')).toBe(false)
+    expect(img?.getAttribute('onerror')).toBeNull()
+  })
+
+  it('应剥离 javascript: 协议的链接 href', () => {
+    const content = '<a href="javascript:alert(1)">点我</a>'
+
+    const { container } = render(<Markdown>{content}</Markdown>)
+
+    const link = container.querySelector('a')
+    // rehype-sanitize 默认会移除 javascript: 协议（href 被删除或留下文本节点）
+    if (link) {
+      const href = link.getAttribute('href')
+      // href 应为 null（属性被剥离）或不以 javascript: 开头
+      if (href !== null) {
+        expect(href).not.toMatch(/^javascript:/i)
+      }
+    }
+  })
+
+  it('应过滤 script 标签防止脚本注入', () => {
+    const content = '<p>正常内容</p><script>window.__pwned=1</script>'
+
+    const { container } = render(<Markdown>{content}</Markdown>)
+
+    expect(container.querySelector('script')).toBeNull()
+  })
 })

@@ -51,7 +51,7 @@ export function useUpdateCheck(): UpdateCheckState {
   useEffect(() => {
     if (!api) return
 
-    api.update.getCurrentVersion().then((v) => setCurrentVersion(v)).catch((e) => console.error('Version check failed', e))
+    api.update.getCurrentVersion().then((v) => setCurrentVersion(v)).catch((e) => console.error('[UpdateCheck] Version check failed', e))
   }, [])
 
   // 注册主进程推送的更新事件监听

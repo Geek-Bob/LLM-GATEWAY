@@ -57,7 +57,7 @@ function loadMeta(): LogsMeta {
       return JSON.parse(data) as LogsMeta
     }
   } catch (error) {
-    logger.debug('Failed to load logs meta', { error })
+    logger.debug('Failed to load logs meta', { error: error instanceof Error ? error.message : String(error) })
   }
   return { entryCounter: 0, currentFileNumber: 0, currentFileLines: 0 }
 }
@@ -71,7 +71,7 @@ function saveMeta(): void {
       'utf-8'
     )
   } catch (error) {
-    logger.debug('Failed to save logs meta', { error })
+    logger.debug('Failed to save logs meta', { error: error instanceof Error ? error.message : String(error) })
   }
 }
 
@@ -98,7 +98,7 @@ export function getFileList(): string[] {
       .sort()
       .map((f) => path.join(logsDir!, f))
   } catch (error) {
-    logger.debug('Failed to list log files', { error })
+    logger.debug('Failed to list log files', { error: error instanceof Error ? error.message : String(error) })
     return []
   }
 }
@@ -136,7 +136,7 @@ function countLines(filePath: string): number {
     if (lastByte !== 10 && stat.size > 0) lines++
     return lines
   } catch (error) {
-    logger.debug('Failed to count lines', { error })
+    logger.debug('Failed to count lines', { error: error instanceof Error ? error.message : String(error) })
     return 0
   }
 }

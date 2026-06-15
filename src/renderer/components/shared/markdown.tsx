@@ -16,6 +16,7 @@ import { memo, useState, useEffect } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import type { Root } from 'hast'
 import { cn } from '@/lib/utils'
 import { Mermaid } from './mermaid'
@@ -60,6 +61,27 @@ function walk(node: any) {
       walk(child)
     }
   }
+}
+
+/**
+ * sanitize schema：在 defaultSchema 基础上扩展，允许代码高亮所需 className
+ *
+ * 安全策略：
+ * - 默认 schema 已过滤 script、iframe、onerror/onclick 等危险属性
+ * - 默认会剥离 javascript: 协议的链接 href
+ * - 此处显式允许 code/span/div 上的 className 属性，让 highlight.js 主题类生效
+ */
+const sanitizeSchema = {
+  ...defaultSchema,
+  attributes: {
+    ...defaultSchema.attributes,
+    code: [
+      ...((defaultSchema.attributes?.code as unknown[]) || []),
+      ['className', /^language-[a-z0-9-]+$/],
+    ],
+    span: [...((defaultSchema.attributes?.span as unknown[]) || []), ['className']],
+    div: [...((defaultSchema.attributes?.div as unknown[]) || []), ['className']],
+  },
 }
 
 /** Mermaid 代码块：支持图表/代码双视图切换 */
@@ -163,7 +185,7 @@ export const Markdown = memo(function Markdown({
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
-        rehypePlugins={[rehypeRaw, rehypeStripColorStyle]}
+        rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema], rehypeStripColorStyle]}
         components={{
           a: ({ node: _node, ...props }) => (
             <a {...props} target="_blank" rel="noopener noreferrer" />

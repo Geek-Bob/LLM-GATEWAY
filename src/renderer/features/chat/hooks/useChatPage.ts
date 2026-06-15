@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import { toast } from 'sonner'
 
 import { api } from '@/lib/ipc'
 import { setApiKey } from '@/lib/api-client'
@@ -105,11 +106,14 @@ export function useChatPage() {
         .then(() => api.conversations.get(convIdRef.current!))
         .then((conv) => {
           if (conv && conv.title === DEFAULT_CONVERSATION_TITLE) {
-            api.conversations.update(convIdRef.current!, { title: msg.content.slice(0, 30) || DEFAULT_CONVERSATION_TITLE })
+            return api.conversations.update(convIdRef.current!, { title: msg.content.slice(0, 30) || DEFAULT_CONVERSATION_TITLE })
           }
-          invalidateConversations()
         })
-        .catch((e) => console.error('Title update failed', e))
+        .then(() => { invalidateConversations() })
+        .catch((e) => {
+          console.error('[ChatPage] Title update failed', e)
+          toast.error('对话标题更新失败')
+        })
     }
   }, [selectedModel, invalidateConversations])
 
@@ -125,7 +129,10 @@ export function useChatPage() {
     setMessages((prev) => [...prev, userMessage])
 
     saveUserMessage(content, selectedProvider.id, selectedModel, selectedApiKeyId)
-      .catch((e) => console.error('Message save failed', e))
+      .catch((e) => {
+        console.error('[ChatPage] Message save failed', e)
+        toast.error('消息保存失败，请重试')
+      })
 
     const modelFull = `${selectedProvider.name}/${selectedModel}`
     send(modelFull, [

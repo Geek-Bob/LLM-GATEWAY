@@ -13,12 +13,14 @@ const logger = createLogger('ipc')
 /**
  * 包装 IPC handler，添加统一的 try/catch 错误处理
  *
- * - ZodError → 返回 `{ error: 'Invalid input: ...' }`
- * - 其他 Error → 记录日志 + 返回 `{ error: '...' }`
- * - 未知异常 → 记录日志 + 返回通用错误消息
+ * 错误分类（基于消息前缀，遵循 backend/34-error-handling.md）：
+ * - ZodError → `{ error: 'Invalid input: {field}: {message}' }`
+ * - 业务错误（消息以 `Failed to ` 开头）→ 原样返回给渲染进程，记录 warn
+ * - 系统错误（其他 Error / 非 Error 异常）→ 记录详细 stack，对外返回通用消息
+ *   `Failed to {channel}: internal error`，避免泄漏 SQLite/堆栈细节
  *
  * @param handler - 原始 handler 函数
- * @param channel - IPC 通道名（用于日志）
+ * @param channel - IPC 通道名（用于日志和系统错误消息）
  * @returns 包装后的 handler 函数
  */
 export function wrapIpcHandler<TArgs extends unknown[], TResult>(
@@ -34,8 +36,18 @@ export function wrapIpcHandler<TArgs extends unknown[], TResult>(
         return { error: `Invalid input: ${issues}` }
       }
       const message = e instanceof Error ? e.message : String(e)
-      logger.error(`IPC handler failed: ${channel}`, { error: message })
-      return { error: message }
+      // 业务错误：service 层抛出的、面向用户的可见错误，原样返回
+      if (message.startsWith('Failed to ')) {
+        logger.warn('IPC handler business error', { channel, error: message })
+        return { error: message }
+      }
+      // 系统错误：记录详情用于排查，对外返回通用消息以避免泄漏堆栈
+      logger.error('IPC handler system error', {
+        channel,
+        error: message,
+        stack: e instanceof Error ? e.stack : undefined,
+      })
+      return { error: `Failed to ${channel}: internal error` }
     }
   }
 }

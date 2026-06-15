@@ -71,6 +71,9 @@ export function createLogger(moduleName: string, opts?: FileTransportOptions): L
   }
 
   const log = (level: LogLevel, message: string, data?: Record<string, unknown>) => {
+    // 生产环境跳过 debug，避免日志文件无限膨胀（保留 info/warn/error）
+    if (level === 'debug' && process.env.NODE_ENV === 'production') return
+
     const ts = new Date().toISOString()
     const prefix = `[${ts}] [${level.toUpperCase()}] [${moduleName}]`
     const sanitizedForConsole = data ? sanitize(data) : undefined

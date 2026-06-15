@@ -3,10 +3,20 @@
  */
 
 import { ipcMain } from 'electron'
+import { z } from 'zod'
 import type { Database } from '../db/database'
 import { createModelsService } from '../domains/models/models.service'
 import { createModelMappingSchema, updateModelMappingSchema } from '../domains/models/models.schema'
 import { wrapIpcHandler } from './ipc-utils'
+
+/** 主键 id 校验：必须为正整数 */
+const idSchema = z.number().int().positive()
+
+/** models:mapping:update payload 校验：id 主键 + updates 字段（再由 service schema 二次校验） */
+const mappingUpdatePayloadSchema = z.object({
+  id: idSchema,
+  updates: z.record(z.string(), z.unknown()),
+})
 
 /**
  * 注册模型映射相关的 IPC handler
@@ -28,7 +38,8 @@ export function registerModelHandlers(db: Database): void {
     return modelsService.createModelMapping(input)
   }, 'models:mapping:create'))
 
-  ipcMain.handle('models:mapping:update', wrapIpcHandler(async (_event, { id, updates }: { id: number; updates: Record<string, unknown> }) => {
+  ipcMain.handle('models:mapping:update', wrapIpcHandler(async (_event, payload: unknown) => {
+    const { id, updates } = mappingUpdatePayloadSchema.parse(payload)
     const input = updateModelMappingSchema.parse(updates)
     return modelsService.updateModelMapping(id, input)
   }, 'models:mapping:update'))
