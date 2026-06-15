@@ -11,6 +11,7 @@
  */
 
 import type { Database } from './database'
+import type { CreateAgentInput, UpdateAgentInput } from '../../shared/types'
 
 /**
  * SQLite 返回的原始行类型（snake_case 字段名）
@@ -24,25 +25,6 @@ export interface AgentRow {
   is_builtin: number
   created_at: string
   updated_at: string
-}
-
-/**
- * 创建 Agent 的输入参数
- */
-export interface CreateAgentInput {
-  name: string
-  displayName: string
-  configPath: string
-  configFormat: 'json' | 'toml' | 'env'
-}
-
-/**
- * 更新 Agent 的输入参数（所有字段可选）
- */
-export interface UpdateAgentInput {
-  displayName?: string
-  configPath?: string
-  configFormat?: 'json' | 'toml' | 'env'
 }
 
 /**
@@ -62,7 +44,7 @@ export function createAgentRepository(db: Database) {
      */
     async list(): Promise<AgentRow[]> {
       const stmt = db.prepare('SELECT * FROM agents ORDER BY is_builtin DESC, name')
-      return stmt.all() as AgentRow[]
+      return stmt.all() as unknown as AgentRow[]
     },
 
     /**
@@ -98,9 +80,15 @@ export function createAgentRepository(db: Database) {
     async create(input: CreateAgentInput): Promise<AgentRow> {
       const stmt = db.prepare(
         `INSERT INTO agents (name, display_name, config_path, config_format, is_builtin)
-         VALUES (?, ?, ?, ?, 0)`
+         VALUES (@name, @display_name, @config_path, @config_format, @is_builtin)`
       )
-      const result = stmt.run([input.name, input.displayName, input.configPath, input.configFormat])
+      const result = stmt.run({
+        name: input.name,
+        display_name: input.displayName,
+        config_path: input.configPath,
+        config_format: input.configFormat,
+        is_builtin: 0,
+      })
       const agent = await this.getById(result.lastInsertRowid)
       if (!agent) throw new Error(`Failed to create agent: record not found after insert`)
       return agent
@@ -113,10 +101,9 @@ export function createAgentRepository(db: Database) {
      *
      * @param id - Agent ID
      * @param input - 更新参数
-     * @returns 更新后的完整 Agent 行对象
-     * @throws 如果 Agent 不存在则抛出错误
+     * @returns 更新后的完整 Agent 行对象，不存在时返回 null
      */
-    async update(id: number, input: UpdateAgentInput): Promise<AgentRow> {
+    async update(id: number, input: UpdateAgentInput): Promise<AgentRow | null> {
       const updates: string[] = []
       const values: unknown[] = []
 
@@ -135,9 +122,7 @@ export function createAgentRepository(db: Database) {
 
       // 无更新字段时直接返回当前 Agent
       if (updates.length === 0) {
-        const agent = await this.getById(id)
-        if (!agent) throw new Error(`Failed to get agent: agent ${id} not found`)
-        return agent
+        return await this.getById(id)
       }
 
       // 每次更新自动刷新 updated_at 时间戳
@@ -149,22 +134,16 @@ export function createAgentRepository(db: Database) {
       )
       stmt.run(values)
 
-      const agent = await this.getById(id)
-      if (!agent) throw new Error(`Failed to get agent: agent ${id} not found`)
-      return agent
+      return await this.getById(id)
     },
 
     /**
      * 删除 Agent
-     * 内置 Agent（is_builtin = 1）不可删除，会抛出错误
+     * 仅做物理删除，不做业务规则校验（内置 Agent 不可删除等业务规则由 service 层负责）
      *
      * @param id - Agent ID
-     * @throws 如果 Agent 不存在或为内置 Agent 则抛出错误
      */
     async remove(id: number): Promise<void> {
-      const agent = await this.getById(id)
-      if (!agent) throw new Error(`Failed to delete agent: agent ${id} not found`)
-      if (agent.is_builtin === 1) throw new Error(`Failed to delete agent: cannot delete builtin agent ${id}`)
       const stmt = db.prepare('DELETE FROM agents WHERE id = ?')
       stmt.run(id)
     },

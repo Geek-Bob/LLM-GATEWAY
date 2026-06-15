@@ -89,6 +89,14 @@ describe('Agent Service', () => {
     it('should not delete builtin agent', async () => {
       await expect(service.remove(1)).rejects.toThrow('Failed to delete agent: cannot delete builtin agent')
     })
+
+    it('should throw not found for non-existent agent', async () => {
+      await expect(service.remove(99999)).rejects.toThrow('Failed to delete agent: agent 99999 not found')
+    })
+
+    it('should throw not found when updating non-existent agent', async () => {
+      await expect(service.update(99999, { displayName: 'X' })).rejects.toThrow('Failed to update agent: agent 99999 not found')
+    })
   })
 
   describe('AgentConfig CRUD', () => {
@@ -155,6 +163,14 @@ describe('Agent Service', () => {
 
       // Try to delete the current config
       await expect(service.deleteConfig(config.id)).rejects.toThrow('Failed to delete config: cannot delete current config')
+    })
+
+    it('should throw not found when deleting non-existent config', async () => {
+      await expect(service.deleteConfig(99999)).rejects.toThrow('Failed to delete config: config 99999 not found')
+    })
+
+    it('should throw not found when updating non-existent config', async () => {
+      await expect(service.updateConfig(99999, { content: '{}' })).rejects.toThrow('Failed to update config: config 99999 not found')
     })
   })
 

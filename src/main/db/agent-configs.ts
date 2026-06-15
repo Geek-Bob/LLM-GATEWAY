@@ -6,12 +6,14 @@
  *
  * 关键设计决策：
  * - 采用依赖注入模式，接收 Database 实例而非使用全局getDb()
- * - 删除当前配置时抛出错误，防止误操作
+ * - 仅做基础设施错误（not found、UNIQUE 冲突），不涉及业务规则判断
+ *   （业务规则如"不能删 current config"和"config 必须属于该 agent"在 service 层校验）
  * - setCurrent 使用两步更新（先清除旧标记，再设置新标记）确保唯一性
  * - 字段映射采用显式 rowToConfig 函数，snake_case 转 camelCase
  */
 
 import type { Database } from './database'
+import type { CreateAgentConfigInput } from '../../shared/types'
 
 /**
  * SQLite 返回的原始行类型（snake_case 字段名）
@@ -24,15 +26,6 @@ export interface AgentConfigRow {
   is_current: number
   created_at: string
   updated_at: string
-}
-
-/**
- * 创建 AgentConfig 的输入参数
- */
-export interface CreateAgentConfigInput {
-  agentId: number
-  name: string
-  content: string
 }
 
 /**
@@ -53,7 +46,7 @@ export function createAgentConfigRepository(db: Database) {
      */
     async listByAgent(agentId: number): Promise<AgentConfigRow[]> {
       const stmt = db.prepare('SELECT * FROM agent_configs WHERE agent_id = ? ORDER BY name')
-      return stmt.all(agentId) as AgentConfigRow[]
+      return stmt.all(agentId) as unknown as AgentConfigRow[]
     },
 
     /**
@@ -104,34 +97,26 @@ export function createAgentConfigRepository(db: Database) {
      *
      * @param id - 配置 ID
      * @param content - 新的配置内容
-     * @returns 更新后的完整 AgentConfigRow 对象
-     * @throws 如果配置不存在则抛出错误
+     * @returns 更新后的完整 AgentConfigRow 对象，不存在时返回 null
      */
-    async updateContent(id: number, content: string): Promise<AgentConfigRow> {
+    async updateContent(id: number, content: string): Promise<AgentConfigRow | null> {
       const stmt = db.prepare(
         "UPDATE agent_configs SET content = ?, updated_at = datetime('now') WHERE id = ?"
       )
       stmt.run([content, id])
-      const config = await this.getById(id)
-      if (!config) throw new Error(`Failed to update config: config ${id} not found`)
-      return config
+      return await this.getById(id)
     },
 
     /**
      * 切换当前激活配置
      * 使用两步更新：先清除该 Agent 的所有 is_current 标记，再设置新的当前配置。
      *
+     * 业务规则校验（"config 必须属于 agent"）由 service 层负责，本层只做最终事务内的存在性检查。
+     *
      * @param agentId - Agent ID
      * @param configId - 要设为当前的配置 ID
      */
     async setCurrent(agentId: number, configId: number): Promise<void> {
-      // 先校验 configId 存在性
-      const config = await this.getById(configId)
-      if (!config) throw new Error(`Failed to set current config: config ${configId} not found`)
-      if (config.agent_id !== agentId) {
-        throw new Error(`Failed to set current config: config ${configId} does not belong to agent ${agentId}`)
-      }
-
       // 使用事务包装，防止第一条 UPDATE 成功、第二条失败导致无激活配置
       db.exec('BEGIN')
       try {
@@ -166,15 +151,12 @@ export function createAgentConfigRepository(db: Database) {
 
     /**
      * 删除配置
-     * 当前激活的配置不可删除，防止误操作
+     *
+     * 业务规则校验（"不能删 current config"）由 service 层负责，本层只做物理删除。
      *
      * @param id - 配置 ID
-     * @throws 如果配置不存在或为当前配置则抛出错误
      */
     async remove(id: number): Promise<void> {
-      const config = await this.getById(id)
-      if (!config) throw new Error(`Failed to delete config: config ${id} not found`)
-      if (config.is_current === 1) throw new Error(`Failed to delete config: cannot delete current config ${id}`)
       const stmt = db.prepare('DELETE FROM agent_configs WHERE id = ?')
       stmt.run(id)
     },

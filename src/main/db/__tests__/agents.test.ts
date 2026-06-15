@@ -46,7 +46,12 @@ describe('Agent Repository', () => {
   it('should update agent', async () => {
     const agents = await repo.list()
     const updated = await repo.update(agents[0].id, { displayName: 'Updated Name' })
-    expect(updated.display_name).toBe('Updated Name')
+    expect(updated?.display_name).toBe('Updated Name')
+  })
+
+  it('should return null when updating non-existent agent', async () => {
+    const updated = await repo.update(99999, { displayName: 'No One' })
+    expect(updated).toBeNull()
   })
 
   it('should delete custom agent', async () => {
@@ -61,10 +66,9 @@ describe('Agent Repository', () => {
     expect(found).toBeNull()
   })
 
-  it('should not delete builtin agent', async () => {
-    const agents = await repo.list()
-    const builtin = agents.find(a => a.is_builtin === 1)
-    await expect(repo.remove(builtin!.id)).rejects.toThrow('Failed to delete agent: cannot delete builtin agent')
+  it('should silently remove non-existent id (no throw)', async () => {
+    // db 层为纯 CRUD，删除不存在的 id 不抛错（存在性检查由 service 层负责）
+    await expect(repo.remove(99999)).resolves.toBeUndefined()
   })
 
   it('should get agent by name', async () => {

@@ -97,16 +97,22 @@ export function createAgentService(db: Database) {
      */
     async update(id: number, input: UpdateAgentInput): Promise<AgentEntity> {
       const row = await agentRepo.update(id, input)
+      if (!row) throw new Error(`Failed to update agent: agent ${id} not found`)
       return agentRowToEntity(row)
     },
 
     /**
      * 删除自定义 Agent（内置不可删）
      * @param id - Agent ID
-     * @throws 如果 Agent 不存在或为内置 Agent 则抛出错误
+     * @throws 如果 Agent 不存在则抛出 `agent ${id} not found` 错误
+     * @throws 如果 Agent 为内置 Agent 则抛出 `cannot delete builtin agent` 错误
      */
     async remove(id: number): Promise<void> {
-      return agentRepo.remove(id)
+      // 业务规则：内置 Agent 不可删除（在 service 层校验，保持 db 层为纯 CRUD）
+      const agent = await agentRepo.getById(id)
+      if (!agent) throw new Error(`Failed to delete agent: agent ${id} not found`)
+      if (agent.is_builtin === 1) throw new Error(`Failed to delete agent: cannot delete builtin agent ${id}`)
+      await agentRepo.remove(id)
     },
 
     /**
@@ -149,15 +155,26 @@ export function createAgentService(db: Database) {
      */
     async updateConfig(id: number, input: UpdateAgentConfigInput): Promise<AgentConfigEntity> {
       const row = await configRepo.updateContent(id, input.content)
+      if (!row) throw new Error(`Failed to update config: config ${id} not found`)
       return configRowToEntity(row)
     },
 
     /**
      * 删除配置
+     *
+     * 业务规则：当前激活的配置不可删除，防止误操作。
+     *
      * @param id - 配置 ID
-     * @throws 如果配置不存在或为当前配置则抛出错误
+     * @throws 如果配置不存在则抛出 not found 错误
+     * @throws 如果配置为当前激活配置则抛出 cannot delete current config 错误
      */
     async deleteConfig(id: number): Promise<void> {
+      // 业务规则：不能删除当前激活配置（在 service 层校验，保持 db 层为纯 CRUD）
+      const config = await configRepo.getById(id)
+      if (!config) throw new Error(`Failed to delete config: config ${id} not found`)
+      if (config.is_current === 1) {
+        throw new Error(`Failed to delete config: cannot delete current config ${id}`)
+      }
       return configRepo.remove(id)
     },
 
