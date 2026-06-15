@@ -2,10 +2,11 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { initDatabase, closeDatabase, getDb } from '../../db/connection'
 import { createTables } from '../../db/schema'
-import { createApiKey, verifyApiKey } from '../../db/api-keys'
-import { createProvider, getProviderByName, type ProviderRow } from '../../db/providers'
-import type { Provider } from '../../shared/types'
-import { createLogEntry, updateRequestStats, updateProviderStats } from '../../db/logs'
+import { createApiKeyRepository } from '../../db/api-keys'
+import { createProviderRepository, type ProviderRow } from '../../db/providers'
+import type { Provider } from '../../../shared/types'
+import { createLogEntry } from '../../db/logs'
+import { createLogStatsRepository } from '../../db/logs-stats'
 import { createModelsService } from '../../domains/models/models.service'
 import { createServer } from '../server'
 
@@ -32,14 +33,19 @@ describe('Hono Proxy Server', () => {
     await initDatabase(':memory:')
     createTables()
 
+    const db = getDb()
+    const apiKeyRepo = createApiKeyRepository(db)
+    const providerRepo = createProviderRepository(db)
+    const statsRepo = createLogStatsRepository(db)
+
     // Create an API key
-    const result = createApiKey('Test Key', 100)
+    const result = await apiKeyRepo.create('Test Key', 100)
     validApiKey = result.plaintextKey
 
     // Create a provider with plaintext API key
     // Note: baseUrl does NOT include /v1 — the proxy path includes it so
     // buildProxyUrl produces the correct full URL (see forwarder.test.ts)
-    createProvider({
+    await providerRepo.create({
       name: 'test-provider',
       providerType: 'openai',
       baseUrl: 'https://api.openai.com',
@@ -47,16 +53,16 @@ describe('Hono Proxy Server', () => {
       models: ['gpt-4', 'gpt-3.5-turbo']
     })
 
-    const modelsService = createModelsService(getDb())
+    const modelsService = createModelsService(db)
     app = createServer({
-      verifyApiKey,
+      verifyApiKey: (plaintextKey) => apiKeyRepo.verify(plaintextKey),
       createLogEntry,
-      updateRequestStats,
-      updateProviderStats,
+      updateRequestStats: (entry) => statsRepo.updateRequestStats(entry),
+      updateProviderStats: (entry) => statsRepo.updateProviderStats(entry),
       modelsService,
       getDebugMode: () => false,
-      lookupProvider: (name) => {
-        const row = getProviderByName(name)
+      lookupProvider: async (name) => {
+        const row = await providerRepo.findByName(name)
         return row ? toProvider(row) : undefined
       },
     })
@@ -307,8 +313,9 @@ describe('Hono Proxy Server', () => {
   })
 
   describe('POST /v1/messages', () => {
-    beforeAll(() => {
-      createProvider({
+    beforeAll(async () => {
+      const providerRepo = createProviderRepository(getDb())
+      await providerRepo.create({
         name: 'anthropic-test',
         providerType: 'anthropic',
         baseUrl: 'https://api.anthropic.com',

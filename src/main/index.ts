@@ -14,7 +14,7 @@ import { initLogsDir, createLogEntry } from './db/logs'
 import { createApiKeyRepository } from './db/api-keys'
 import { createProviderRepository, type ProviderRow } from './db/providers'
 import { createLogStatsRepository } from './db/logs-stats'
-import type { Provider } from './shared/types'
+import type { Provider } from '../shared/types'
 import { createModelsService } from './domains/models/models.service'
 import { getDebugMode } from './proxy/manager'
 import { startProxy, setProxyPort, initProxyServices } from './proxy/manager'
@@ -76,8 +76,8 @@ function loadIcon(): Electron.NativeImage {
     const iconPath = getIconPath()
     const img = nativeImage.createFromPath(iconPath)
     if (!img.isEmpty()) return img
-  } catch {
-    // Fall through to empty icon
+  } catch (e) {
+    logger.debug('Icon load failed, fallback to empty', { error: e instanceof Error ? e.message : String(e) })
   }
   return nativeImage.createEmpty()
 }
@@ -264,7 +264,7 @@ app.whenReady().then(async () => {
   // setupIpcHandlers 内部会访问数据库，必须在 startServer() 之后
   try {
     await startServer()
-    setupIpcHandlers(updateManager)
+    setupIpcHandlers(updateManager, getDb())
     notifyBackendReady()
   } catch (err) {
     logger.error('Failed to initialize backend', { error: err instanceof Error ? err.message : String(err) })

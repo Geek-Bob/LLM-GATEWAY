@@ -1,7 +1,7 @@
 import type { Database } from '../../db/database'
 import type { ProviderResponse, CreateProviderInput, UpdateProviderInput } from './provider.types'
 import { createProviderRepository, type ProviderRow } from '../../db/providers'
-import type { ProviderEntity } from '../../shared/types'
+import type { ProviderEntity } from '../../../shared/types'
 
 /**
  * 创建供应商业务服务
@@ -24,10 +24,9 @@ export function createProviderService(db: Database) {
     },
 
     /** 根据 name 精确匹配查询供应商（代理路由通过此方法解析模型 ID 中的前缀） */
-    getByName: (name: string): ProviderEntity | undefined => {
-      // 注意：此方法同步返回，因为 proxy 层需要同步调用
-      const row = db.prepare('SELECT * FROM providers WHERE name = ?').get(name) as ProviderRow | undefined
-      return row ? providerRowToResponse(row) : undefined
+    getByName: async (name: string): Promise<ProviderEntity | undefined> => {
+      const row = await repo.findByName(name)
+      return row ? providerRowToEntity(row) : undefined
     },
 
     /** 创建新供应商，models 字段会自动序列化为 JSON 字符串 */
@@ -63,6 +62,18 @@ function providerRowToResponse(row: ProviderRow): ProviderResponse {
     isActive: row.is_active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  }
+}
+
+/**
+ * 将数据库层 snake_case ProviderRow 转换为强类型 ProviderEntity（内部使用）。
+ * 与 providerRowToResponse 的差异：providerType 收窄到 'anthropic' | 'openai' 字面量类型。
+ * 运行时安全：ProviderInput 在 db 层已限定为字面量联合类型，存储值不会出现其他字符串。
+ */
+function providerRowToEntity(row: ProviderRow): ProviderEntity {
+  return {
+    ...providerRowToResponse(row),
+    providerType: row.provider_type as 'anthropic' | 'openai',
   }
 }
 
