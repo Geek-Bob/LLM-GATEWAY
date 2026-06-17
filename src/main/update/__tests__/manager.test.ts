@@ -58,12 +58,14 @@ describe('UpdateManager', () => {
     expect(updateManager).toBeDefined()
   })
 
-  it('logger 创建时应使用正确的 file transport 路径', async () => {
+  it('logger 创建时应使用统一的 debug-log 路径', async () => {
     const { createLogger } = await import('../../core/logger')
+    // mock 的 app.isPackaged=true → 正式包分支：dirname(getPath('exe'))/logs
+    // mock 的 getPath 统一返回 /tmp/test-userData，dirname=/tmp
     expect(createLogger).toHaveBeenCalledWith(
       'update-manager',
       expect.objectContaining({
-        file: path.join('/tmp/test-userData', 'logs', 'update.log'),
+        file: path.join('/tmp', 'logs', 'update.log'),
         truncate: false
       })
     )
@@ -99,6 +101,21 @@ describe('UpdateManager', () => {
     expect(result).toEqual({
       isAvailable: false,
       version: '1.0.0'
+    })
+  })
+
+  it('远程版本更旧时不应提示更新（防止降级）', async () => {
+    const { autoUpdater } = await import('electron-updater')
+    // 当前版本 1.0.0，远程 0.9.9 更旧
+    vi.mocked(autoUpdater.checkForUpdates).mockResolvedValue({
+      updateInfo: { version: '0.9.9' },
+      downloadPromise: Promise.resolve()
+    } as any)
+
+    const result = await updateManager.checkForUpdates()
+    expect(result).toEqual({
+      isAvailable: false,
+      version: '0.9.9'
     })
   })
 

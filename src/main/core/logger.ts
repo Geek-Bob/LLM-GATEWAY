@@ -15,7 +15,7 @@ type LogLevel = 'debug' | 'info' | 'warn' | 'error'
  * 日志器接口，提供四个日志级别方法
  * data 参数用于附加结构化上下文（如请求 ID、错误详情），输出时自动 JSON 序列化
  */
-interface Logger {
+export interface Logger {
   debug: (message: string, data?: Record<string, unknown>) => void
   info: (message: string, data?: Record<string, unknown>) => void
   warn: (message: string, data?: Record<string, unknown>) => void
@@ -24,8 +24,8 @@ interface Logger {
 
 /** file transport 配置 */
 export interface FileTransportOptions {
-  /** 日志文件绝对路径 */
-  file: string
+  /** 日志文件绝对路径；undefined 表示不落盘（如非 electron 运行时无法定位目录） */
+  file?: string
   /** 启动时清空日志文件（避免日志文件无限增长） */
   truncate?: boolean
 }

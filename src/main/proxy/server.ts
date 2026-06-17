@@ -25,14 +25,28 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { authMiddleware } from './middleware'
 import { RateLimiter } from './rate-limiter'
-import { createLogger } from '../core/logger'
+import { createLogger, type Logger } from '../core/logger'
+import { getDebugLogPath } from '../core/debug-log'
 import { createProxyHandler, type AppEnv, type ProxyHandlerServices } from './handler'
 import { createProxyLogService, type LogEntryProps } from './logger'
 import { createStreamService, sanitizeResponseHeaders } from './stream'
 import { convertSSEEvent, createStreamContext } from './converter'
 import type { Provider } from '../../shared/types'
 
-const logger = createLogger('proxy:server')
+// 认证调试日志：dev=项目根 auth-debug.log，正式包=安装目录 logs/
+// truncate:true 每次启动清空（认证审计的正式记录走 NDJSON 业务日志）
+// 懒加载：getDebugLogPath 需访问 electron app，延迟到运行时（app ready 后）求值，
+// 避免模块 import 阶段在非 electron 进程（vitest node 环境）抛错
+let _logger: Logger | null = null
+function logger(): Logger {
+  if (!_logger) {
+    _logger = createLogger('proxy:server', {
+      file: getDebugLogPath('auth-debug.log'),
+      truncate: true,
+    })
+  }
+  return _logger
+}
 
 /**
  * createServer 所需的全部外部服务依赖
@@ -107,7 +121,7 @@ export function createServer(services: ProxyServices) {
     c.req.raw.headers.forEach((v, k) => {
       allHeaders[k] = k === 'authorization' || k === 'x-api-key' ? '***' + v.slice(-4) : v
     })
-    logger.info('REQUEST', { path: c.req.path, method: c.req.method, allHeaders })
+    logger().info('REQUEST', { path: c.req.path, method: c.req.method, allHeaders })
     // 支持两种认证方式：Authorization: Bearer xxx 或 X-Api-Key: xxx
     const token = authMiddleware(authHeader) || c.req.header('x-api-key') || null
     if (!token) {
@@ -117,11 +131,11 @@ export function createServer(services: ProxyServices) {
     // 从数据库验证 API Key 有效性
     const apiKey = await services.verifyApiKey(token)
     if (!apiKey) {
-      logger.warn('AUTH FAIL: invalid key', { tokenSuffix: '***' + token.slice(-4) })
+      logger().warn('AUTH FAIL: invalid key', { tokenSuffix: '***' + token.slice(-4) })
       logService.logAuthFailure(c.req, 'invalid api key')
       return c.json({ error: 'unauthorized' }, 401)
     }
-    logger.info('AUTH OK', { keyId: apiKey.id, keyName: apiKey.name })
+    logger().info('AUTH OK', { keyId: apiKey.id, keyName: apiKey.name })
     // 将已验证的 API Key 信息注入请求上下文，供后续中间件和路由使用
     c.set('apiKey', apiKey)
     await next()

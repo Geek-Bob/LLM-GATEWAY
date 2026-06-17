@@ -14,11 +14,25 @@ import type { Context } from 'hono'
 import { buildProxyUrl, buildProxyHeaders } from './forwarder'
 import { convertRequest, convertResponse, createStreamContext } from './converter'
 import { resolveProvider } from './router'
-import { createLogger } from '../core/logger'
+import { createLogger, type Logger } from '../core/logger'
+import { getDebugLogPath } from '../core/debug-log'
 import type { ProxyLogService } from './logger'
 import type { LogDebugInfo, Provider } from '../../shared/types'
 
-const logger = createLogger('proxy:handler')
+// 请求链路调试日志：dev=项目根 proxy-debug.log，正式包=安装目录 logs/
+// truncate:true 每次启动清空（"调试日志每次启动清空"规则）；正式业务日志走 NDJSON
+// 懒加载：getDebugLogPath 需访问 electron app，必须延迟到运行时（app ready 后）求值，
+// 避免模块 import 阶段在非 electron 进程（vitest node 环境）抛错
+let _logger: Logger | null = null
+function logger(): Logger {
+  if (!_logger) {
+    _logger = createLogger('proxy:handler', {
+      file: getDebugLogPath('proxy-debug.log'),
+      truncate: true,
+    })
+  }
+  return _logger
+}
 
 /** 日志中 body 截断的最大字符数，避免大请求体撑爆日志 */
 const MAX_LOG_BODY_LENGTH = 4000
@@ -91,7 +105,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
   ): { proxyBody: any; proxyPath: string } | Response {
     try {
       const converted = convertRequest(proxyBody, apiFormat, route.provider.providerType as 'openai' | 'anthropic')
-      logger.info('CONVERSION', {
+      logger().info('CONVERSION', {
         from: apiFormat, to: route.provider.providerType,
         originalPath: proxyPath, convertedPath: converted.path,
         originalModel: proxyBody.model, convertedModel: converted.body.model,
@@ -106,7 +120,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
       }
       return { proxyBody: converted.body, proxyPath: converted.path }
     } catch (convErr: any) {
-      logger.warn('CONVERSION_ERROR', { error: convErr.message })
+      logger().warn('CONVERSION_ERROR', { error: convErr.message })
       return new Response(
         JSON.stringify({ error: `protocol_conversion_failed: ${convErr.message}` }),
         { status: 502, headers: { 'content-type': 'application/json' } }
@@ -131,11 +145,11 @@ export function createProxyHandler(services: ProxyHandlerServices) {
     const mapping = await findModelMapping(model)
     const resolvedModel = mapping ? mapping.targetModel : model
     if (debugInfo && mapping) {
-      logger.info('MODEL_MAPPING', { sourceModel: model, targetModel: mapping.targetModel })
+      logger().info('MODEL_MAPPING', { sourceModel: model, targetModel: mapping.targetModel })
     }
 
     const route = await resolveProvider(resolvedModel, lookupProvider)
-    logger.info('ROUTE_RESOLVED', {
+    logger().info('ROUTE_RESOLVED', {
       providerName: route.provider.name, providerType: route.provider.providerType,
       providerBaseUrl: route.provider.baseUrl, modelName: route.modelName,
       needsConversion: apiFormat !== route.provider.providerType,
@@ -198,7 +212,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
     }
 
     const { proxyHeaders, sanitizedHeaders } = buildUpstreamHeaders(c, route)
-    logger.info('UPSTREAM_REQUEST', {
+    logger().info('UPSTREAM_REQUEST', {
       url, method: 'POST', headers: sanitizedHeaders,
       body: JSON.stringify(proxyBody).slice(0, MAX_LOG_BODY_LENGTH), stream: !!proxyBody.stream,
     })
@@ -206,7 +220,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
     const response = await fetch(url, {
       method: 'POST', headers: proxyHeaders, body: JSON.stringify(proxyBody)
     })
-    logger.info('UPSTREAM_RESPONSE', {
+    logger().info('UPSTREAM_RESPONSE', {
       status: response.status, ok: response.ok,
       headers: Object.fromEntries(response.headers.entries()),
     })
@@ -235,7 +249,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
     return response.text().catch(
       () => `(failed to read error body: ${response.status})`
     ).then((errorText) => {
-      logger.warn('UPSTREAM_ERROR_BODY', { status: response.status, body: errorText.slice(0, MAX_LOG_BODY_LENGTH) })
+      logger().warn('UPSTREAM_ERROR_BODY', { status: response.status, body: errorText.slice(0, MAX_LOG_BODY_LENGTH) })
       let errorBody: any
       let isJson = false
       try { errorBody = JSON.parse(errorText); isJson = true }
@@ -277,11 +291,11 @@ export function createProxyHandler(services: ProxyHandlerServices) {
       const convertedStream = streamService.convertSSEStream(
         forClient, route.provider.providerType as 'openai' | 'anthropic', apiFormat, ctx
       )
-      logService.extractAndLogSSE(forLogging, logBase, route.provider.providerType as 'anthropic' | 'openai', debugInfo ?? undefined).catch((e) => logger.debug('SSE log extraction failed', { error: e instanceof Error ? e.message : String(e) }))
+      logService.extractAndLogSSE(forLogging, logBase, route.provider.providerType as 'anthropic' | 'openai', debugInfo ?? undefined).catch((e) => logger().debug('SSE log extraction failed', { error: e instanceof Error ? e.message : String(e) }))
       return new Response(convertedStream, { status: response.status, headers: streamService.sanitizeResponseHeaders(response.headers) })
     }
 
-    logService.extractAndLogSSE(forLogging, logBase, apiFormat, debugInfo ?? undefined).catch((e) => logger.debug('SSE log extraction failed', { error: e instanceof Error ? e.message : String(e) }))
+    logService.extractAndLogSSE(forLogging, logBase, apiFormat, debugInfo ?? undefined).catch((e) => logger().debug('SSE log extraction failed', { error: e instanceof Error ? e.message : String(e) }))
     return new Response(forClient, { status: response.status, headers: streamService.sanitizeResponseHeaders(response.headers) })
   }
 
@@ -299,7 +313,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
     debugInfo: LogDebugInfo | null
   ): Promise<Response> {
     const responseBody = await response.json()
-    logger.info('UPSTREAM_SUCCESS_BODY', { body: JSON.stringify(responseBody).slice(0, MAX_LOG_BODY_LENGTH) })
+    logger().info('UPSTREAM_SUCCESS_BODY', { body: JSON.stringify(responseBody).slice(0, MAX_LOG_BODY_LENGTH) })
     const convertedBody = needsConversion
       ? convertResponse(responseBody, route.provider.providerType as 'openai' | 'anthropic', apiFormat) : responseBody
     if (debugInfo) { debugInfo.upstream.statusCode = response.status; debugInfo.upstream.responseBody = JSON.stringify(responseBody) }
@@ -345,7 +359,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
       const body = await c.req.json()
       const model = body.model
       const clientHeaders = extractClientHeaders(c.req.raw.headers)
-      logger.info('CLIENT_REQUEST', {
+      logger().info('CLIENT_REQUEST', {
         apiFormat, path: requestPath, clientModel: model,
         clientBody: JSON.stringify(body).slice(0, MAX_LOG_BODY_LENGTH), clientHeaders,
       })
@@ -392,7 +406,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
     debugInfo?: LogDebugInfo | null
   ): Response {
     const message = err instanceof Error ? err.message : String(err)
-    logger.error('PROXY_ERROR', { error: message, stack: err instanceof Error ? err.stack?.slice(0, 1000) : undefined })
+    logger().error('PROXY_ERROR', { error: message, stack: err instanceof Error ? err.stack?.slice(0, 1000) : undefined })
     let status: number = 502
 
     // 根据错误消息关键词映射 HTTP 状态码（匹配 router.ts 的错误格式）

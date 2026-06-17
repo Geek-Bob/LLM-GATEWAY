@@ -1,7 +1,8 @@
 import type { UpdateInfo } from 'electron-updater'
-import * as path from 'path'
 import { app, BrowserWindow } from 'electron'
 import { createLogger } from '../core/logger'
+import { getDebugLogPath } from '../core/debug-log'
+import { isNewerVersion } from '../core/version'
 import { UpdateConfigManager } from './config'
 import type { UpdateConfig, UpdateCheckResult } from '../../shared/types'
 
@@ -19,8 +20,9 @@ export class UpdateManager {
     this.configManager = new UpdateConfigManager()
     // logger 必须在 constructor 内创建（app.getPath() 需 app ready 后才能调用）
     // 写入文件以便 packaged 用户能查看更新日志（stdout 在 packaged 下被丢弃）
+    // 路径走统一调试日志策略：dev=项目根、正式包=安装目录 logs/（见 core/debug-log.ts）
     this.logger = createLogger('update-manager', {
-      file: path.join(app.getPath('userData'), 'logs', 'update.log'),
+      file: getDebugLogPath('update.log'),
       truncate: false,  // 保留历史诊断信息
     })
     // autoUpdater 的初始化延迟到首次调用 ensureAutoUpdater() 时执行
@@ -29,11 +31,25 @@ export class UpdateManager {
   /**
    * 首次调用时动态导入 electron-updater 并注册事件监听。
    * 后续调用直接返回缓存的 autoUpdater 实例。
+   *
+   * electron-updater 通过 Object.defineProperty(exports, "autoUpdater", { get }) 导出，
+   * Node 运行时 await import() 的 cjs-module-lexer 无法静态识别该 getter 形式的命名导出，
+   * 故不能写 const { autoUpdater } = await import(...)（会解构为 undefined，
+   * 导致 autoUpdater.logger = null 抛 "Cannot set properties of undefined"）。
+   * 正确做法：经 import() 返回的 default（即 module.exports）走 getter 取实例。
    */
   private async ensureAutoUpdater(): Promise<any> {
     if (this._autoUpdater) return this._autoUpdater
 
-    const { autoUpdater } = await import('electron-updater')
+    const mod = await import('electron-updater') as any
+    // default 优先（Node 运行时 cjs interop）；?? 兼容仅命名导出的形态（如 vitest mock）
+    // 注意：vitest 的 ESM mock 在未声明 default 时访问 mod.default 会抛错，
+    // 故先用 'default' in mod 探测，避免触发守卫异常
+    const ns = mod && typeof mod === 'object' && 'default' in mod ? mod.default : mod
+    const autoUpdater = ns?.autoUpdater ?? mod?.autoUpdater
+    if (!autoUpdater) {
+      throw new Error('Failed to load electron-updater: autoUpdater is undefined')
+    }
     this._autoUpdater = autoUpdater
 
     // 初始化配置
@@ -55,7 +71,7 @@ export class UpdateManager {
       })
     })
 
-    autoUpdater.on('download-progress', (progress) => {
+    autoUpdater.on('download-progress', (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => {
       this.notifyRenderer('update:download-progress', {
         percent: progress.percent,
         bytesPerSecond: progress.bytesPerSecond,
@@ -126,9 +142,10 @@ export class UpdateManager {
         return { isAvailable: false, version: newVersion }
       }
 
-      // 版本相同说明已是最新
-      if (newVersion === currentVersion) {
-        this.logger.info('Same version, no update needed')
+      // 语义版本比较：远程不比本地更新（相同或更旧）则不提示更新，
+      // 防止远程回退发布时误报"有更新"导致用户降级
+      if (!isNewerVersion(newVersion, currentVersion)) {
+        this.logger.info('No newer version available', { currentVersion, newVersion })
         return { isAvailable: false, version: newVersion }
       }
 
