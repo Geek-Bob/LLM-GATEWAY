@@ -499,12 +499,12 @@ UI：Card（`components/ui/card`）标题"数据管理"+ 警示描述。两个 `
 - 无修改（纯验证任务）
 
 **验收标准：**
-- [ ] `npm test`（前端 + 后端全量）通过
-- [ ] `npx tsc --noEmit` 通过
-- [ ] `npm run lint` 通过
-- [ ] `npm run build` 全量构建通过（electron-vite 三进程构建）
-- [ ] 分层导入约束检查：`grep -r "from.*proxy" src/main/domains/datamanagement/` 无结果；`grep -r "from.*db/" src/main/ipc/datamanagement.ts` 仅 type-only（Database 类型）
-- [ ] 无 `console.log`（用 logger）、无 `confirm()`/`alert()`
+- [x] `npm test`（前端 + 后端全量）通过
+- [x] `npx tsc --noEmit` 通过
+- [x] `npm run lint` 通过
+- [x] `npm run build` 全量构建通过（electron-vite 三进程构建）
+- [x] 分层导入约束检查：`grep -r "from.*proxy" src/main/domains/datamanagement/` 无结果；`grep -r "from.*db/" src/main/ipc/datamanagement.ts` 仅 type-only（Database 类型）
+- [x] 无 `console.log`（用 logger）、无 `confirm()`/`alert()`
 
 **步骤：**
 1. 运行 `npm test`，修复任何失败

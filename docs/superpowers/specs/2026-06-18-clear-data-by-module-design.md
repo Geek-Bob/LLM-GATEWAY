@@ -67,7 +67,7 @@ flowchart TD
     A["Settings.tsx<br/>入口层·页面<br/>新增「数据管理」Card"] --> B["features/datamanagement/components<br/>DataManagementCard + ClearDataDialog"]
     B -->|"useClearData() mutation"| C["lib/queries/datamanagement.ts<br/>数据层·TanStack Query 封装"]
     C -->|"api.dataManagement.clear()"| D["ipc/datamanagement.ts<br/>接口层·wrapIpcHandler + Zod"]
-    D -->|"dataManagement:clear"| E["domains/datamanagement/<br/>datamanagement.service.ts<br/>业务层·编排各 Repository.clearAll()"]
+    D -->|"datamanagement:clear"| E["domains/datamanagement/<br/>datamanagement.service.ts<br/>业务层·编排各 Repository.clearAll()"]
     E --> F["createProviderRepository(db).clearAll()"]
     E --> G["createModelMappingRepository(db).clearAll()"]
     E --> H["createApiKeyRepository(db).clearAll()"]
@@ -274,7 +274,7 @@ classDiagram
 
 | Channel | Request | Response |
 |---------|---------|----------|
-| `dataManagement:clear` | `ClearDataInput` | `ClearDataResult` |
+| `datamanagement:clear` | `ClearDataInput` | `ClearDataResult` |
 
 通道命名遵循 `{domain}:{action}` 单数域规则（`backend/32-interface-contracts.md`）。
 
