@@ -1,5 +1,5 @@
-import type { ProviderEntity, ApiKeyEntity, AgentEntity, AgentConfigEntity, UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput, ClearDataInput, ClearDataResult } from '../shared/types'
-export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput, ClearDataInput, ClearDataResult }
+import type { ProviderEntity, ApiKeyEntity, AgentEntity, AgentConfigEntity, UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput, ClearDataInput, ClearDataResult, PricingEntity, RangeSummary } from '../shared/types'
+export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput, ClearDataInput, ClearDataResult, PricingEntity, RangeSummary }
 
 /** Agent 响应类型（与 shared/types.ts 的 AgentEntity 同义，向后兼容旧名） */
 export type AgentResponse = AgentEntity
@@ -32,6 +32,10 @@ export interface DashboardStats {
   totalTokensOut: number
   avgDurationMs: number
   totalErrors: number
+  /** 缓存命中输入 Token 数（费用核算扩展字段，向后兼容可选） */
+  cacheTokens?: number
+  /** 总费用美元（费用核算扩展字段，向后兼容可选） */
+  totalCost?: number
 }
 
 export interface ElectronAPI {
@@ -50,6 +54,8 @@ export interface ElectronAPI {
     query: (params: { page: number; limit: number }) => Promise<{ logs: LogEntry[]; total: number }>
     stats: (range: string) => Promise<DashboardStats>
     statsDetailed: (range: '24h' | '30d') => Promise<{ providerId: number; providerName: string; models: { model: string; totalRequests: number; totalTokensIn: number; totalTokensOut: number; totalErrors: number; dataPoints: { period: number | string; requests: number; tokensIn: number; tokensOut: number }[] }[] }[]>
+    /** 24h / 30d 全局汇总统计（Token + 费用维度，对应 logs:rangeSummary 通道） */
+    rangeSummary: (range: '24h' | '30d') => Promise<RangeSummary>
   }
   proxy: {
     status: () => Promise<{ port: number; running: boolean; url: string | null; debugMode: boolean }>
@@ -90,6 +96,16 @@ export interface ElectronAPI {
     deleteConfig: (id: number) => Promise<void>
     readConfigFile: (agentId: number) => Promise<string>
     switchConfig: (data: SwitchConfigInput) => Promise<void>
+  }
+  /**
+   * 单价管理
+   * 管理各模型在各供应商下的 Token 单价（美分/1M tokens），用于费用核算和仪表盘统计
+   */
+  pricing: {
+    list: () => Promise<PricingEntity[]>
+    getByProvider: (providerId: number) => Promise<PricingEntity[]>
+    upsert: (data: PricingEntity) => Promise<void>
+    delete: (data: { providerId: number; model: string }) => Promise<void>
   }
   /**
    * 数据管理

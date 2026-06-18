@@ -8,10 +8,11 @@
 import type {
   ProviderEntity, ApiKeyEntity, LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress,
   AgentEntity, AgentConfigEntity, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput,
-  ModelMapping, ModelInfo, ClearDataInput, ClearDataResult,
+  ModelMapping, ModelInfo, ClearDataInput, ClearDataResult, PricingEntity, RangeSummary,
 } from '../../shared/types'
 
 export type { AgentEntity, AgentConfigEntity }
+export type { PricingEntity, RangeSummary }
 
 /** 向后兼容别名 */
 export type AgentResponse = AgentEntity
@@ -48,6 +49,10 @@ export interface DashboardStats {
   totalTokensOut: number
   avgDurationMs: number
   totalErrors: number
+  /** 缓存命中输入 Token 数（费用核算扩展字段，向后兼容可选） */
+  cacheTokens?: number
+  /** 总费用美元（费用核算扩展字段，向后兼容可选） */
+  totalCost?: number
 }
 
 /** 本地对话记录（包含关联的供应商、模型和 API Key） */
@@ -108,6 +113,8 @@ declare global {
         query: (params: Record<string, unknown>) => Promise<{ logs: LogEntry[]; total: number }>
         stats: (range: string) => Promise<DashboardStats>
         statsDetailed: (range: '24h' | '30d') => Promise<ProviderStatsGroup[]>
+        /** 24h / 30d 全局汇总统计（Token + 费用维度） */
+        rangeSummary: (range: '24h' | '30d') => Promise<RangeSummary>
       }
       conversations: {
         list: () => Promise<Conversation[]>
@@ -170,6 +177,13 @@ declare global {
         readConfigFile: (agentId: number) => Promise<string>
         switchConfig: (data: SwitchConfigInput) => Promise<void>
       }
+      /** 单价管理：各模型在各供应商下的 Token 单价 CRUD（美分/1M tokens），用于费用核算 */
+      pricing: {
+        list: () => Promise<PricingEntity[]>
+        getByProvider: (providerId: number) => Promise<PricingEntity[]>
+        upsert: (data: PricingEntity) => Promise<void>
+        delete: (data: { providerId: number; model: string }) => Promise<void>
+      }
       /** 数据管理：按模块清空本地数据 */
       dataManagement: {
         clear: (input: ClearDataInput) => Promise<ClearDataResult>
@@ -184,6 +198,10 @@ export interface StatsDataPoint {
   requests: number
   tokensIn: number
   tokensOut: number
+  /** 缓存命中输入 Token 数（费用核算扩展字段，向后兼容可选） */
+  cacheTokens?: number
+  /** 该时段费用美元（费用核算扩展字段，向后兼容可选） */
+  cost?: number
 }
 
 /** 单个模型维度的统计数据（含时序数据点） */
@@ -193,6 +211,10 @@ export interface ProviderStatsModel {
   totalTokensIn: number
   totalTokensOut: number
   totalErrors: number
+  /** 缓存命中输入 Token 数（费用核算扩展字段，向后兼容可选） */
+  cacheTokens?: number
+  /** 该模型总费用美元（费用核算扩展字段，向后兼容可选） */
+  cost?: number
   dataPoints: StatsDataPoint[]
 }
 

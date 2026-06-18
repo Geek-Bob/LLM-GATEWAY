@@ -78,7 +78,7 @@ window.electronAPI = {
   },
   providers: { list: _providerList, create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   apiKeys: { list: _apiKeyList, create: vi.fn(), delete: vi.fn() },
-  logs: { query: vi.fn(), stats: vi.fn(), statsDetailed: vi.fn() },
+  logs: { query: vi.fn(), stats: vi.fn(), statsDetailed: vi.fn(), rangeSummary: vi.fn() },
   proxy: { status: vi.fn().mockResolvedValue({ isRunning: true, port: 8080, url: 'http://localhost:8080' }), start: vi.fn(), stop: vi.fn(), setPort: vi.fn(), getDebugMode: vi.fn().mockResolvedValue(false), setDebugMode: vi.fn() },
   conversations: {
     list: _conversationsList,
@@ -126,6 +126,12 @@ window.electronAPI = {
     deleteConfig: vi.fn().mockResolvedValue(undefined),
     readConfigFile: vi.fn().mockResolvedValue(''),
     switchConfig: vi.fn().mockResolvedValue(undefined),
+  },
+  pricing: {
+    list: vi.fn().mockResolvedValue([]),
+    getByProvider: vi.fn().mockResolvedValue([]),
+    upsert: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
   },
   dataManagement: {
     clear: vi.fn().mockResolvedValue({ business: { cleared: false }, operational: { cleared: false } }),
