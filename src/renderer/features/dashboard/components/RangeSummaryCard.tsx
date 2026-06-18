@@ -13,6 +13,7 @@
  * - range: 时间窗口，'24h' → "近 24 小时"，'30d' → "近 30 天"
  */
 import { useRangeSummary } from '@/lib/queries/stats'
+import { formatCost } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -36,16 +37,6 @@ const SUMMARY_COLUMNS = [
 ] as const
 
 type SummaryColumnKey = (typeof SUMMARY_COLUMNS)[number]['key']
-
-/** 格式化费用为字符串（2-4 位小数，统一元单位）。 @param cost 费用数值（元） @returns 形如 "$1.2345" 的字符串 */
-function formatCost(cost: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  }).format(cost)
-}
 
 /** 格式化 token / 次数为带千分位的字符串。 @param value 数值 @returns 形如 "1,100" 的字符串 */
 function formatNumber(value: number): string {

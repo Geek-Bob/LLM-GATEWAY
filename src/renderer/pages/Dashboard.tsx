@@ -11,7 +11,6 @@
  * 数据流：通过 TanStack Query hooks 获取数据，以 props 下发给子组件
  */
 
-import { useProviders } from '@/lib/queries/providers'
 import { useDashboardStats, useHourlyStats, useDailyStats } from '@/lib/queries/stats'
 import { motion } from 'framer-motion'
 import { pageVariants, childVariants } from '@/lib/animations'
@@ -24,15 +23,11 @@ import { RangeSummaryCard } from '@/features/dashboard/components/RangeSummaryCa
 
 /** 仪表盘页面，展示系统概览、代理状态、统计卡片和趋势图表。 @returns 仪表盘页面 JSX。 */
 export function Dashboard() {
-  const { data: providers, isLoading: providersLoading } = useProviders()
   const { data: stats, isLoading: statsLoading } = useDashboardStats()
   const { data: hourlyStats } = useHourlyStats()
   const { data: dailyStats, isLoading: dailyLoading } = useDailyStats()
 
-  const activeProviders = providers?.filter((p) => p.isActive).length ?? 0
-  const totalProviders = providers?.length ?? 0
-
-  if (providersLoading || statsLoading) {
+  if (statsLoading) {
     return (
       <div className="space-y-6">
         <div>
@@ -61,7 +56,7 @@ export function Dashboard() {
       </motion.div>
 
       <motion.div variants={childVariants} className="mb-8">
-        <DashboardStatsGrid stats={stats} activeProviders={activeProviders} totalProviders={totalProviders} />
+        <DashboardStatsGrid stats={stats} />
       </motion.div>
 
       <motion.div variants={childVariants} className="mb-6">
