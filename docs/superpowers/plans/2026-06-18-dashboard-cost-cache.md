@@ -344,12 +344,12 @@
 - 测试：扩展 `src/main/ipc/__tests__/integration.test.ts`
 
 **验收标准：**
-- [ ] pricing:list / getByProvider / upsert / delete 四通道可用
-- [ ] pricing:upsert 对非法输入（负单价）返回 Invalid input 错误
-- [ ] logs:rangeSummary('24h')/('30d') 返回 RangeSummary
-- [ ] 所有 handler 经 wrapIpcHandler 包装（handler 内无手写 try/catch）
-- [ ] setupIpcHandlers 调用 registerPricingHandlers
-- [ ] 集成测试通过
+- [x] pricing:list / getByProvider / upsert / delete 四通道可用
+- [x] pricing:upsert 对非法输入（负单价）返回 Invalid input 错误
+- [x] logs:rangeSummary('24h')/('30d') 返回 RangeSummary
+- [x] 所有 handler 经 wrapIpcHandler 包装（handler 内无手写 try/catch）
+- [x] setupIpcHandlers 调用 registerPricingHandlers
+- [x] 集成测试通过
 
 **步骤：**
 1. 编写 pricing IPC 集成测试
@@ -383,12 +383,12 @@
 - 修改：`src/preload/types.ts`、`src/preload/index.ts`、`src/renderer/lib/types.ts`、`src/renderer/lib/ipc.ts`
 
 **验收标准：**
-- [ ] window.electronAPI.pricing.{list,getByProvider,upsert,delete} 类型存在
-- [ ] window.electronAPI.logs.rangeSummary('24h') 返回 Promise<RangeSummary>
-- [ ] preload/types.ts 的 DashboardStats 含 cacheTokens?/totalCost?
-- [ ] renderer/lib/types.ts 的 DashboardStats 含 cacheTokens?/totalCost?
-- [ ] ProviderStatsModel/StatsDataPoint 含 cost/cacheTokens
-- [ ] `npx tsc --noEmit` 通过
+- [x] window.electronAPI.pricing.{list,getByProvider,upsert,delete} 类型存在
+- [x] window.electronAPI.logs.rangeSummary('24h') 返回 Promise<RangeSummary>
+- [x] preload/types.ts 的 DashboardStats 含 cacheTokens?/totalCost?
+- [x] renderer/lib/types.ts 的 DashboardStats 含 cacheTokens?/totalCost?
+- [x] ProviderStatsModel/StatsDataPoint 含 cost/cacheTokens
+- [x] `npx tsc --noEmit` 通过
 
 **步骤：**
 1. 扩展 preload types + index
