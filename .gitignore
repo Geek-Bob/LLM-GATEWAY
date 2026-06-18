@@ -5,6 +5,8 @@ dist/
 *.db-journal
 .DS_Store
 .superpowers/
+.understand-anything/
+.codegraph/
 references/
 *.log
 *.tsbuildinfo

@@ -181,8 +181,8 @@ sql.js（WASM SQLite），与主进程同进程。9 张表：
 | `providers` | id | LLM 供应商配置（API Key、模型列表） |
 | `model_mappings` | id | 模型映射（source_model → target_model，UNIQUE） |
 | `api_keys` | id | Gateway 密钥（SHA256 哈希 + 明文） |
-| `request_stats` | (stat_date, stat_hour) | 请求统计汇总 |
-| `request_stats_provider` | (stat_date, stat_hour, provider_id, model) | 按供应商/模型统计 |
+| `request_stats` | (stat_date, stat_hour) | 请求统计汇总（token/请求/耗时/错误按日时累加，由 tryLogEntry 写入） |
+| `request_stats_provider` | (stat_date, stat_hour, provider_id, model) | 按供应商/模型统计（同上，多 provider_id+model 维度） |
 | `conversations` | id | 对话列表 |
 | `messages` | id | 对话消息（FK→conversations，CASCADE） |
 | `agents` | id | Agent 配置（name UNIQUE、config_path、config_format） |
@@ -215,7 +215,7 @@ Hono 监听 `127.0.0.1:8080`。模块职责：
 | `forwarder.ts` | 上游 URL/Header 构建 |
 | `converter/` | OpenAI ↔ Anthropic 协议转换（request/response/sse） |
 | `stream.ts` | SSE 流转换服务 |
-| `logger.ts` | 代理日志聚合 + SSE token 抽取 |
+| `logger.ts` | extractUsageFromSSE 提取 token → tryLogEntry 三步落库（NDJSON + request_stats + request_stats_provider） |
 | `middleware.ts` | Auth 中间件（Bearer token 提取） |
 | `rate-limiter.ts` | 滑动窗口限流器 |
 | `manager.ts` | 代理生命周期管理 |
@@ -415,7 +415,7 @@ sequenceDiagram
         Chat->>U: 流式渲染气泡
     end
     Hook->>Hook: 收到 [DONE] 或流结束 → isStreaming=false
-    H->>H: 异步 extractAndLogSSE → 日志 + 统计
+    H->>H: tee() 拆流 → forLogging 异步提取 token 用量并落库（详见 8.5）
 ```
 
 ### 8.3 模型映射路由
@@ -467,6 +467,51 @@ sequenceDiagram
     end
     IPC-->>R: { success: true }
 ```
+
+### 8.5 Token 用量提取与落库
+
+每次代理请求结束时，从上游响应提取 token 用量并写入 NDJSON 日志 + 两张 SQLite 统计表。提取分三种路径，落库统一走 `tryLogEntry` 三步原子操作。
+
+```mermaid
+sequenceDiagram
+    participant H as handler.ts
+    participant Up as 上游 LLM
+    participant Log as proxy/logger.ts
+    participant NDJSON as logs-writer.ts
+    participant Stat as db/logs-stats.ts
+    participant DB as SQLite
+
+    H->>Up: fetch(上游)
+    alt 流式响应
+        Up-->>H: SSE ReadableStream
+        H->>H: tee() 拆流 [forClient, forLogging]
+        H->>Log: extractAndLogSSE(forLogging)
+        Log->>Log: 读完整流文本 → extractUsageFromSSE(text, apiFormat)
+        Note over Log: OpenAI: 每个 data: 行 usage.prompt_tokens/completion_tokens<br/>Anthropic: message_start→input_tokens + message_delta→output_tokens
+        Log->>Log: tryLogEntry({…, tokensIn, tokensOut})
+    else 非流式 JSON
+        Up-->>H: JSON body
+        H->>H: logJsonResponse 读 convertedBody.usage
+        Note over H: OpenAI: prompt_tokens/completion_tokens<br/>Anthropic: input_tokens/output_tokens
+        H->>Log: tryLogEntry({…, tokensIn, tokensOut})
+    else 错误(≥400)
+        Up-->>H: error body
+        H->>Log: tryLogEntry({…, error})（无 token）
+    end
+
+    Note over Log: tryLogEntry 三步原子（fire-and-forget，任一失败静默忽略）
+    Log->>NDJSON: createLogEntry（含 tokensIn/tokensOut + debug）
+    NDJSON->>NDJSON: 追加 NDJSON 文件（500 行/20 文件轮转）
+    Log->>Stat: updateRequestStats(tokensIn/tokensOut/durationMs/statusCode)
+    Stat->>DB: INSERT request_stats ON CONFLICT(stat_date,stat_hour) DO UPDATE 累加
+    Log->>Stat: updateProviderStats(providerId/model/...)
+    Stat->>DB: INSERT request_stats_provider ON CONFLICT DO UPDATE 累加
+```
+
+**关键点：**
+- 流式与非流式分支提取 token 的位置不同（SSE 文本 vs JSON body.usage），但产出相同的 `{tokensIn, tokensOut}` 后汇入 `tryLogEntry`。
+- 统计采用**预聚合**：每次请求 INSERT 一行增量，`ON CONFLICT(stat_date, stat_hour, ...)` 时累加 total_requests/tokens/errors/duration，避免查询时全量扫描 NDJSON。Dashboard 统计卡片读这两张表。
+- token 用量**只在请求落库时一次性写入** NDJSON（明细）+ 统计表（聚合），全程 fire-and-forget，不阻塞代理响应。
 
 ---
 
@@ -531,23 +576,7 @@ erDiagram
 
 ---
 
-## 十、关键约定
-
-| 约定 | 要点 | 详见 |
-|------|------|------|
-| 分层导入 | 上层→下层单向；proxy 禁导入 db/domains（工厂注入）；core 禁反向依赖 | `30-layered-architecture.md` |
-| Repository 模式 | `createXxxRepository(db)` 工厂，禁 `getDb()`，纯 CRUD | `31-domain-modeling.md` |
-| 接口契约 | IPC 入口 Zod `.parse()`，handler 经 `wrapIpcHandler` | `32-interface-contracts.md` |
-| 错误格式 | `Failed to {action} {entity}: {reason}` | `34-error-handling.md` |
-| 安全 | API Key 仅留后 4 位脱敏；代理只监听 127.0.0.1；禁可逆加密 | `35-security.md` |
-| 日志 | 禁 console，用 `core/logger`；生产禁 DEBUG；NDJSON 500 行/20 文件轮转 | `36-observability.md` |
-| TanStack Query | queryKey `['domain','action',...params]`；mutation 后 invalidate | `31-renderer.md` |
-| Markdown XSS | rehype-sanitize 仅作用于可信内容（AI 响应） | `32-component-reuse.md` |
-| 配置迁移 | `applyMigrators<T>(raw, migrators)` 合并前先迁移旧字段 | `core/config-migration.ts` |
-
----
-
-## 十一、关键数据格式
+## 十、关键数据格式
 
 ```typescript
 // 模型映射（snake_case Row → camelCase 实体）
@@ -578,7 +607,7 @@ interface LogDebugInfo { client: { body, apiFormat }; route: { providerName, pro
 
 ---
 
-## 十二、测试
+## 十一、测试
 
 vitest（前后端配置分离）+ jsdom。数据库测试用 sql.js 内存库不 mock，测试文件与源 co-located。
 

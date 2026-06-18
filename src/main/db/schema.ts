@@ -65,6 +65,7 @@ export function createTables(): void {
       total_requests INTEGER DEFAULT 0,
       total_tokens_in INTEGER DEFAULT 0,
       total_tokens_out INTEGER DEFAULT 0,
+      total_cache_tokens INTEGER NOT NULL DEFAULT 0,
       total_errors INTEGER DEFAULT 0,
       total_duration_ms INTEGER DEFAULT 0,
       PRIMARY KEY (stat_date, stat_hour)
@@ -80,9 +81,28 @@ export function createTables(): void {
       total_requests INTEGER DEFAULT 0,
       total_tokens_in INTEGER DEFAULT 0,
       total_tokens_out INTEGER DEFAULT 0,
+      total_cache_tokens INTEGER NOT NULL DEFAULT 0,
       total_errors INTEGER DEFAULT 0,
       total_duration_ms INTEGER DEFAULT 0,
       PRIMARY KEY (stat_date, stat_hour, provider_id, model)
+    );
+
+    -- 供应商单价表：存储每个供应商各模型的百万 tokens 单价
+    -- 用于仪表板费用计算，按 (provider_id, model) 联合主键
+    -- price_in_cached: 缓存命中输入单价（元/百万tokens）
+    -- price_in_uncached: 缓存未命中输入单价（元/百万tokens）
+    -- price_out: 输出单价（元/百万tokens）
+    -- 供应商删除时级联清理关联单价记录
+    CREATE TABLE IF NOT EXISTS provider_pricing (
+      provider_id INTEGER NOT NULL,
+      model TEXT NOT NULL,
+      price_in_cached REAL NOT NULL DEFAULT 0,
+      price_in_uncached REAL NOT NULL DEFAULT 0,
+      price_out REAL NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (provider_id, model),
+      FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE
     );
 
     -- 对话表：存储聊天会话元信息（主题、使用的模型和供应商）
