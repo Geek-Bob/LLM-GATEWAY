@@ -418,10 +418,10 @@
 - 修改：`src/renderer/lib/queries/stats.ts`、`src/renderer/lib/queries/providers.ts`
 
 **验收标准：**
-- [ ] useRangeSummary queryKey 为 `['stats','rangeSummary',range]`
-- [ ] useUpsertPricing 成功后 invalidate pricing 相关 queryKey
-- [ ] 所有 queryKey 为层级化数组（非字符串）
-- [ ] `npx tsc --noEmit` 通过
+- [x] useRangeSummary queryKey 为 `['stats','rangeSummary',range]`
+- [x] useUpsertPricing 成功后 invalidate pricing 相关 queryKey
+- [x] 所有 queryKey 为层级化数组（非字符串）
+- [x] `npx tsc --noEmit` 通过
 
 **步骤：**
 1. 编写 useRangeSummary
@@ -452,13 +452,13 @@
 - 测试：扩展 ProviderFormDialog 测试
 
 **验收标准：**
-- [ ] 每个已添加模型显示 3 个单价输入
-- [ ] 编辑模式回填已有单价
-- [ ] 保存成功后对每个模型 upsert pricing
-- [ ] 新建模式用返回的 provider id upsert
-- [ ] 新增/移除模型同步增删单价行
-- [ ] 复用 Input/Label，无原生 input
-- [ ] 组件测试通过
+- [x] 每个已添加模型显示 3 个单价输入
+- [x] 编辑模式回填已有单价
+- [x] 保存成功后对每个模型 upsert pricing
+- [x] 新建模式用返回的 provider id upsert
+- [x] 新增/移除模型同步增删单价行
+- [x] 复用 Input/Label，无原生 input
+- [x] 组件测试通过
 
 **步骤：**
 1. 编写单价配置区渲染 + 回填测试
@@ -492,13 +492,13 @@
 - 测试：`src/renderer/features/dashboard/components/__tests__/RangeSummaryCard.test.tsx`
 
 **验收标准：**
-- [ ] 渲染 token 4 列（总/缓存/非缓存/输出）数值
-- [ ] 渲染费用 4 列（总/缓存/非缓存/输出）数值
-- [ ] 渲染次数
-- [ ] 加载态显示 Skeleton
-- [ ] 空数据显示 0 / 提示
-- [ ] 组件测试（渲染 + 加载态 + 空数据）通过
-- [ ] `npm run test:frontend` 通过
+- [x] 渲染 token 4 列（总/缓存/非缓存/输出）数值
+- [x] 渲染费用 4 列（总/缓存/非缓存/输出）数值
+- [x] 渲染次数
+- [x] 加载态显示 Skeleton
+- [x] 空数据显示 0 / 提示
+- [x] 组件测试（渲染 + 加载态 + 空数据）通过
+- [x] `npm run test:frontend` 通过
 
 **步骤：**
 1. 编写组件测试（渲染数值 + 加载态 + 空数据）
