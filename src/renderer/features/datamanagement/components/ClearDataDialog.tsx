@@ -10,7 +10,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Input } from '@/components/ui/input'
-import { cn } from '@/lib/utils'
+import { buttonVariants } from '@/components/ui/button'
 
 /** 用户必须输入以解锁确认按钮的校验字符串 */
 const CONFIRM_TEXT = '清空'
@@ -80,10 +80,6 @@ export function ClearDataDialog({
     onConfirm()
   }
 
-  const handleCancel = () => {
-    onOpenChange(false)
-  }
-
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
@@ -109,11 +105,11 @@ export function ClearDataDialog({
         />
 
         <AlertDialogFooter>
-          <AlertDialogCancel onClick={handleCancel}>取消</AlertDialogCancel>
+          <AlertDialogCancel>取消</AlertDialogCancel>
           <AlertDialogAction
             onClick={handleConfirm}
             disabled={!canConfirm}
-            className={cn('bg-destructive text-destructive-foreground shadow-sm hover:bg-destructive/90')}
+            className={buttonVariants({ variant: 'destructive' })}
           >
             {isPending ? '清空中...' : '确认清空'}
           </AlertDialogAction>
