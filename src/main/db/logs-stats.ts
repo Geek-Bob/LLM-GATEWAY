@@ -5,13 +5,13 @@
  * 按小时粒度聚合，支持 24h / 7d / 30d 范围的聚合查询。
  * 避免每次查询时全量扫描 NDJSON 文件。
  *
- * 费用计算：单价存 provider_pricing 表（美分/1M tokens），查询时 LEFT JOIN 实时算。
+ * 费用计算：单价存 provider_pricing 表（元/百万tokens），查询时 LEFT JOIN 实时算。
  * 全局表 request_stats 无 model 维度，费用通过 request_stats_provider JOIN pricing 计算。
  */
 
 import type { Database } from './database'
 
-/** 费用换算分母：单价单位为美分/1M tokens，结果为美元 */
+/** 费用换算分母：单价单位为元/百万tokens，结果为元 */
 const COST_DIVISOR = 1_000_000
 
 /**
@@ -138,7 +138,7 @@ export function createLogStatsRepository(db: Database) {
      * 先按 provider_id+model 聚合 token，再 JOIN pricing 逐模型算费用后 SUM。
      * 缺单价（JOIN 不到）费用按 0（COALESCE）；非缓存输入 clamp 到 0（MAX(0, ...)）。
      * @param range - '24h' | '7d' | '30d'
-     * @returns { totalCost, cacheCost, uncachedCost, outputCost }（美元）
+     * @returns { totalCost, cacheCost, uncachedCost, outputCost }（元）
      */
     getCostSummary,
 
@@ -170,7 +170,7 @@ export function createLogStatsRepository(db: Database) {
             SUM(rsp.total_cache_tokens) as cache_tokens,
             MAX(0, SUM(rsp.total_tokens_in) - SUM(rsp.total_cache_tokens)) as uncached_tokens,
             SUM(rsp.total_tokens_out) as output_tokens,
-            -- 每模型费用（缺单价 COALESCE 为 0）；单价单位美分/1M tokens，除以 1e6 得美元
+            -- 每模型费用（缺单价 COALESCE 为 0）；单价单位元/百万tokens，除以 1e6 得元
             COALESCE(
               SUM(rsp.total_cache_tokens) * pp.price_in_cached / ${COST_DIVISOR}
               + MAX(0, SUM(rsp.total_tokens_in) - SUM(rsp.total_cache_tokens)) * pp.price_in_uncached / ${COST_DIVISOR}
