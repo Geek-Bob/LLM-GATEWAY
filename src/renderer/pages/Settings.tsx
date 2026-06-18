@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { TableSkeleton } from '@/components/shared/table-skeleton'
 import { UpdateButton } from '@/features/update/components/UpdateButton'
+import { DataManagementCard } from '@/features/datamanagement/components/DataManagementCard'
 import { PageHeader } from '@/components/shared/page-header'
 import { pageVariants, childVariants } from '@/lib/animations'
 
@@ -94,6 +95,10 @@ export function SettingsPage() {
             </CardContent>
           </Card>
         )}
+      </motion.div>
+
+      <motion.div variants={childVariants}>
+        <DataManagementCard />
       </motion.div>
 
       <motion.div variants={childVariants}>

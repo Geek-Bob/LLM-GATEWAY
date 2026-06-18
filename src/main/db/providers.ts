@@ -135,6 +135,16 @@ export function createProviderRepository(db: Database) {
     async remove(id: number): Promise<void> {
       db.prepare('DELETE FROM providers WHERE id = ?').run(id)
     },
+
+    /**
+     * 清空 providers 表全部记录
+     *
+     * 供「按模块清空业务数据」功能调用，删除所有供应商配置。
+     * 风格与 remove(id) 一致：直接 prepare().run()，无返回值。
+     */
+    async clearAll(): Promise<void> {
+      db.prepare('DELETE FROM providers').run()
+    },
   }
 }
 

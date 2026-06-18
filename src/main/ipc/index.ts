@@ -19,6 +19,7 @@ import { registerModelHandlers } from './models'
 import { registerAgentHandlers } from './agents'
 import { registerUpdateHandlers } from './update'
 import { registerSystemHandlers } from './system'
+import { registerDataManagementHandlers } from './datamanagement'
 
 /**
  * 注册所有 IPC handler，连接渲染进程请求与 domain service 层
@@ -36,4 +37,5 @@ export function setupIpcHandlers(updateManager: UpdateManager, db: Database): vo
   registerAgentHandlers(db)
   registerUpdateHandlers(updateManager)
   registerSystemHandlers()
+  registerDataManagementHandlers(db)
 }

@@ -174,4 +174,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     readConfigFile: (agentId: number) => ipcRenderer.invoke('agent:readConfigFile', agentId),
     switchConfig: (data: unknown) => ipcRenderer.invoke('agent:switchConfig', data),
   },
+  /**
+   * 数据管理
+   * clear: 按模块清空本地数据（business=业务数据，operational=运行数据），
+   * 主进程在事务中完成清空并返回各类完成报告
+   */
+  dataManagement: {
+    clear: (input: { business: boolean; operational: boolean }) =>
+      ipcRenderer.invoke('datamanagement:clear', input),
+  },
 })

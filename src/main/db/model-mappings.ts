@@ -76,6 +76,16 @@ export function createModelMappingRepository(db: Database) {
     async remove(id: number): Promise<void> {
       db.prepare('DELETE FROM model_mappings WHERE id = ?').run([id])
     },
+
+    /**
+     * 清空 model_mappings 表全部记录
+     *
+     * 供「按模块清空业务数据」功能调用，删除所有模型映射规则。
+     * 风格与 remove(id) 一致：直接 prepare().run()，无返回值。
+     */
+    async clearAll(): Promise<void> {
+      db.prepare('DELETE FROM model_mappings').run()
+    },
   }
 }
 

@@ -263,3 +263,34 @@ export function cleanupOldLogs(): void {
     files.shift()
   }
 }
+
+/**
+ * 清空全部 NDJSON 日志并重置模块计数器状态（运行数据清空）。
+ *
+ * 三步操作：
+ * 1. 删除日志目录下所有匹配 `logs-XXXX.ndjson` 的文件 + `logs-meta.json`
+ * 2. 重置模块级变量 currentFileNumber / currentFileLines / entryCounter 为 0
+ * 3. 不重建空文件——`createLogEntry` 已有首次写入初始化逻辑，下次写入自动创建 `logs-0001.ndjson`
+ *
+ * 不加锁：清空由用户在 UI 手动触发，与代理请求写入日志的理论竞态可接受
+ * （日志非关键数据，下次轮转自愈，详见设计文档 5.2/10 节）。
+ *
+ * @throws Error 当 logsDir 未初始化时抛 'Logs directory not initialized'（与 createLogEntry 严格一致，不静默跳过）
+ */
+export function resetLogs(): void {
+  if (!logsDir) throw new Error('Logs directory not initialized')
+
+  const files = getFileList()
+  for (const fp of files) {
+    fs.unlinkSync(fp)
+  }
+
+  const metaPath = path.join(logsDir, 'logs-meta.json')
+  if (fs.existsSync(metaPath)) {
+    fs.unlinkSync(metaPath)
+  }
+
+  currentFileNumber = 0
+  currentFileLines = 0
+  entryCounter = 0
+}
