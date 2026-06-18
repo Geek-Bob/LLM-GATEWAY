@@ -8,7 +8,7 @@
 import type {
   ProviderEntity, ApiKeyEntity, LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress,
   AgentEntity, AgentConfigEntity, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput,
-  ModelMapping, ModelInfo,
+  ModelMapping, ModelInfo, ClearDataInput, ClearDataResult,
 } from '../../shared/types'
 
 export type { AgentEntity, AgentConfigEntity }
@@ -169,6 +169,10 @@ declare global {
         deleteConfig: (id: number) => Promise<void>
         readConfigFile: (agentId: number) => Promise<string>
         switchConfig: (data: SwitchConfigInput) => Promise<void>
+      }
+      /** 数据管理：按模块清空本地数据 */
+      dataManagement: {
+        clear: (input: ClearDataInput) => Promise<ClearDataResult>
       }
     }
   }

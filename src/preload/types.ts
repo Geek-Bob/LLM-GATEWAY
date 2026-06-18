@@ -1,5 +1,5 @@
-import type { ProviderEntity, ApiKeyEntity, AgentEntity, AgentConfigEntity, UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput } from '../shared/types'
-export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput }
+import type { ProviderEntity, ApiKeyEntity, AgentEntity, AgentConfigEntity, UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput, ClearDataInput, ClearDataResult } from '../shared/types'
+export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput, ClearDataInput, ClearDataResult }
 
 /** Agent 响应类型（与 shared/types.ts 的 AgentEntity 同义，向后兼容旧名） */
 export type AgentResponse = AgentEntity
@@ -90,5 +90,13 @@ export interface ElectronAPI {
     deleteConfig: (id: number) => Promise<void>
     readConfigFile: (agentId: number) => Promise<string>
     switchConfig: (data: SwitchConfigInput) => Promise<void>
+  }
+  /**
+   * 数据管理
+   * clear: 按模块清空本地数据（business=业务数据，operational=运行数据），
+   * 返回各类清空是否完成的报告
+   */
+  dataManagement: {
+    clear: (input: ClearDataInput) => Promise<ClearDataResult>
   }
 }

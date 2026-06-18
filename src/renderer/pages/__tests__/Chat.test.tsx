@@ -127,6 +127,9 @@ window.electronAPI = {
     readConfigFile: vi.fn().mockResolvedValue(''),
     switchConfig: vi.fn().mockResolvedValue(undefined),
   },
+  dataManagement: {
+    clear: vi.fn().mockResolvedValue({ business: { cleared: false }, operational: { cleared: false } }),
+  },
 }
 
 const originalFetch = globalThis.fetch
