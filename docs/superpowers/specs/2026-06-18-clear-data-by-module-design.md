@@ -60,14 +60,14 @@ LLM Gateway 的数据分散在两类存储：
 
 ## 4. 总体架构
 
-新增 `data-management` domain 作为跨聚合根的清空编排器，严格遵循五层架构与依赖注入链。
+新增 `datamanagement` domain 作为跨聚合根的清空编排器，严格遵循五层架构与依赖注入链。
 
 ```mermaid
 flowchart TD
-    A["Settings.tsx<br/>入口层·页面<br/>新增「数据管理」Card"] --> B["features/data-management/components<br/>DataManagementCard + ClearDataDialog"]
-    B -->|"useClearData() mutation"| C["lib/queries/data-management.ts<br/>数据层·TanStack Query 封装"]
-    C -->|"api.dataManagement.clear()"| D["ipc/data-management.ts<br/>接口层·wrapIpcHandler + Zod"]
-    D -->|"dataManagement:clear"| E["domains/data-management/<br/>data-management.service.ts<br/>业务层·编排各 Repository.clearAll()"]
+    A["Settings.tsx<br/>入口层·页面<br/>新增「数据管理」Card"] --> B["features/datamanagement/components<br/>DataManagementCard + ClearDataDialog"]
+    B -->|"useClearData() mutation"| C["lib/queries/datamanagement.ts<br/>数据层·TanStack Query 封装"]
+    C -->|"api.dataManagement.clear()"| D["ipc/datamanagement.ts<br/>接口层·wrapIpcHandler + Zod"]
+    D -->|"dataManagement:clear"| E["domains/datamanagement/<br/>datamanagement.service.ts<br/>业务层·编排各 Repository.clearAll()"]
     E --> F["createProviderRepository(db).clearAll()"]
     E --> G["createModelMappingRepository(db).clearAll()"]
     E --> H["createApiKeyRepository(db).clearAll()"]
@@ -78,9 +78,9 @@ flowchart TD
 
 ### 分层合规性
 
-- 业务层（`domains/data-management/`）只导入 `db/`（Repository）与 `core/`，不碰 `proxy/`、不导入 hono
-- 接口层（`ipc/data-management.ts`）不直接导入 `db/` 的业务函数（仅 type-only 导入 Database 类型 + 注入 db 实例），校验在入口 Zod `.parse()` 完成
-- 前端走 `lib/queries/data-management.ts` 封装，组件内不直接 `window.electronAPI.invoke`
+- 业务层（`domains/datamanagement/`）只导入 `db/`（Repository）与 `core/`，不碰 `proxy/`、不导入 hono
+- 接口层（`ipc/datamanagement.ts`）不直接导入 `db/` 的业务函数（仅 type-only 导入 Database 类型 + 注入 db 实例），校验在入口 Zod `.parse()` 完成
+- 前端走 `lib/queries/datamanagement.ts` 封装，组件内不直接 `window.electronAPI.invoke`
 - 全部符合 `.claude/rules/backend/30-layered-architecture.md` 导入路径约束
 
 ## 5. 数据流
@@ -329,8 +329,8 @@ export type DataManagementService = ReturnType<typeof createDataManagementServic
 
 | 类型 | 文件 | 覆盖 |
 |------|------|------|
-| Schema 单测 | `data-management.schema.test.ts` | 两个 false 拒绝；非 boolean 拒绝；合法输入接受 |
-| Service 单测 | `data-management.service.test.ts` | `clear({business:true})` 清空 4 表 + 验证 `agents`/`agent_configs` 行数**不变**；`clear({operational:true})` 清统计表 + 删日志文件 + meta 重置；业务事务中途失败 → ROLLBACK（验证部分清空不残留）；组合输入 `clear({business:true,operational:true})` 验证先业务后运行；运行数据失败时业务已清空（部分成功语义） |
+| Schema 单测 | `datamanagement.schema.test.ts` | 两个 false 拒绝；非 boolean 拒绝；合法输入接受 |
+| Service 单测 | `datamanagement.service.test.ts` | `clear({business:true})` 清空 4 表 + 验证 `agents`/`agent_configs` 行数**不变**；`clear({operational:true})` 清统计表 + 删日志文件 + meta 重置；业务事务中途失败 → ROLLBACK（验证部分清空不残留）；组合输入 `clear({business:true,operational:true})` 验证先业务后运行；运行数据失败时业务已清空（部分成功语义） |
 
 > **测试手段说明**：验证"agents 行数不变"时，测试自行创建 `createAgentRepository(db)`（或直接 `db.prepare('SELECT COUNT(*)...')`）查询，**不通过被测的 service**（service 不持有 agentRepo）。属测试内的只读断言，不违反"测试不导入非本 domain service"规则——仅用 Repository 查询，不调用其 service 方法。
 | 组件测试 | `ClearDataDialog.test.tsx` | 未勾选→按钮禁用；勾选→弹窗；输入非"清空"→确认禁用；输入"清空"→确认启用→点击→成功 toast + 缓存失效 |
@@ -352,15 +352,15 @@ export type DataManagementService = ReturnType<typeof createDataManagementServic
 
 | 文件 | 层 | 说明 |
 |------|----|------|
-| `src/main/domains/data-management/data-management.service.ts` | 业务层 | 清空编排 |
-| `src/main/domains/data-management/data-management.schema.ts` | 业务层 | Zod 校验 |
-| `src/main/domains/data-management/data-management.types.ts` | 业务层 | 类型派生 |
-| `src/main/domains/data-management/__tests__/*.test.ts` | — | service + schema 单测 |
-| `src/main/ipc/data-management.ts` | 接口层 | IPC handler |
-| `src/renderer/features/data-management/components/DataManagementCard.tsx` | 表现层 | 勾选 + 触发按钮 |
-| `src/renderer/features/data-management/components/ClearDataDialog.tsx` | 表现层 | 强确认弹窗 |
-| `src/renderer/features/data-management/components/__tests__/*.test.tsx` | — | 组件测试 |
-| `src/renderer/lib/queries/data-management.ts` | 数据层 | TanStack Query 封装 |
+| `src/main/domains/datamanagement/datamanagement.service.ts` | 业务层 | 清空编排 |
+| `src/main/domains/datamanagement/datamanagement.schema.ts` | 业务层 | Zod 校验 |
+| `src/main/domains/datamanagement/datamanagement.types.ts` | 业务层 | 类型派生 |
+| `src/main/domains/datamanagement/__tests__/*.test.ts` | — | service + schema 单测 |
+| `src/main/ipc/datamanagement.ts` | 接口层 | IPC handler |
+| `src/renderer/features/datamanagement/components/DataManagementCard.tsx` | 表现层 | 勾选 + 触发按钮 |
+| `src/renderer/features/datamanagement/components/ClearDataDialog.tsx` | 表现层 | 强确认弹窗 |
+| `src/renderer/features/datamanagement/components/__tests__/*.test.tsx` | — | 组件测试 |
+| `src/renderer/lib/queries/datamanagement.ts` | 数据层 | TanStack Query 封装 |
 
 ### 修改
 
@@ -373,16 +373,18 @@ export type DataManagementService = ReturnType<typeof createDataManagementServic
 | `src/main/db/logs-stats.ts` | 加 `clearAll()`（此文件已存在，含 `createLogStatsRepository`，见 `src/main/db/logs-stats.ts`） |
 | `src/main/db/logs-writer.ts` | 加 `resetLogs()` 导出 |
 | `src/main/ipc/index.ts` | 注册 `registerDataManagementHandlers(db)` |
-| `src/renderer/lib/ipc.ts` | 加 `dataManagement.clear` API |
+| `src/preload/index.ts` | 加 `dataManagement` 命名空间（`clear: (input) => ipcRenderer.invoke('datamanagement:clear', input)`） |
+| `src/preload/types.ts` | `ElectronAPI` 接口加 `dataManagement: { clear: (input: ClearDataInput) => Promise<ClearDataResult> }` |
+| `src/renderer/lib/ipc.ts` | 无需改（`api = window.electronAPI`，preload 暴露后自动可用） |
 | `src/renderer/pages/Settings.tsx` | 插入"数据管理"Card |
 | `src/shared/types.ts` | 派生 `ClearDataInput` / `ClearDataResult` |
 
 ## 12. 实施顺序（供 writing-plans 参考）
 
 1. **契约先行**：`shared/types.ts` 派生类型 + 各 Repository `clearAll()` + `logs-writer.resetLogs()`（数据层，可并行）
-2. **业务层**：`data-management` domain service + schema（依赖契约）
-3. **接口层**：`ipc/data-management.ts` + 注册（依赖 service）
-4. **数据层前端**：`lib/queries/data-management.ts` + `lib/ipc.ts`（依赖 IPC 通道）
+2. **业务层**：`datamanagement` domain service + schema（依赖契约）
+3. **接口层**：`ipc/datamanagement.ts` + 注册（依赖 service）
+4. **数据层前端**：`lib/queries/datamanagement.ts` + `lib/ipc.ts`（依赖 IPC 通道）
 5. **表现层**：`DataManagementCard` + `ClearDataDialog` + Settings 集成（依赖 query 封装）
 6. **TDD**：每步 RED→GREEN→REFACTOR，service/schema/组件测试同步
 
