@@ -530,11 +530,11 @@
 - 修改：`src/renderer/pages/Dashboard.tsx`、`src/renderer/features/dashboard/components/DashboardStats.tsx`
 
 **验收标准：**
-- [ ] Dashboard 渲染 24h 与 30d 两个 RangeSummaryCard
-- [ ] DashboardStatsGrid 第 3 卡显示"近 7 天花费"而非供应商标记
-- [ ] 花费值来自 stats.totalCost
-- [ ] 顶部 4 卡、汇总表、趋势手风琴结构保留
-- [ ] `npm run test:frontend` 通过
+- [x] Dashboard 渲染 24h 与 30d 两个 RangeSummaryCard
+- [x] DashboardStatsGrid 第 3 卡显示"近 7 天花费"而非供应商标记
+- [x] 花费值来自 stats.totalCost
+- [x] 顶部 4 卡、汇总表、趋势手风琴结构保留
+- [x] `npm run test:frontend` 通过
 
 **步骤：**
 1. 改造 DashboardStatsGrid 第 3 卡
