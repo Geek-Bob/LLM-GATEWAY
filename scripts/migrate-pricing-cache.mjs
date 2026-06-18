@@ -6,6 +6,20 @@
  * 执行 ALTER TABLE ADD COLUMN total_cache_tokens（幂等：先查列是否存在）
  * 并创建 provider_pricing 表（CREATE TABLE IF NOT EXISTS）。
  *
+ * ── 迁移依赖顺序 ────────────────────────────────────────
+ * 从旧版本升级的路径：
+ *   1. 先运行 node scripts/migrate-db.mjs              ← 建旧表结构（providers/api_keys 列重命名）
+ *   2. 再运行 node scripts/migrate-pricing-cache.mjs    ← 当前脚本
+ *
+ * 本脚本做三件事：
+ *   - request_stats 表添加 total_cache_tokens 列
+ *   - request_stats_provider 表添加 total_cache_tokens 列
+ *   - 新建 provider_pricing 表（供应商单价配置）
+ *
+ * migrate-db.mjs 不处理 total_cache_tokens 和 provider_pricing，
+ * 因此本脚本必须在 migrate-db.mjs 之后独立运行。
+ * ───────────────────────────────────────────────────────
+ *
  * 用法：
  *   node scripts/migrate-pricing-cache.mjs [数据库路径]
  *   默认路径：%APPDATA%/llm-gateway/config.db

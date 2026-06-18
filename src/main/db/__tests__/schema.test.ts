@@ -102,8 +102,60 @@ describe('Schema - createTables', () => {
     expect(columnNames).toContain('total_requests')
     expect(columnNames).toContain('total_tokens_in')
     expect(columnNames).toContain('total_tokens_out')
+    expect(columnNames).toContain('total_cache_tokens')
     expect(columnNames).toContain('total_errors')
     expect(columnNames).toContain('total_duration_ms')
+  })
+
+  it('should have correct request_stats_provider columns', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const columns = getDb()!
+      .prepare("PRAGMA table_info('request_stats_provider')")
+      .all() as Array<{ name: string; type: string; notnull: number; pk: number }>
+
+    const columnNames = columns.map((c) => c.name)
+    expect(columnNames).toContain('stat_date')
+    expect(columnNames).toContain('stat_hour')
+    expect(columnNames).toContain('provider_id')
+    expect(columnNames).toContain('model')
+    expect(columnNames).toContain('total_requests')
+    expect(columnNames).toContain('total_tokens_in')
+    expect(columnNames).toContain('total_tokens_out')
+    expect(columnNames).toContain('total_cache_tokens')
+    expect(columnNames).toContain('total_errors')
+    expect(columnNames).toContain('total_duration_ms')
+  })
+
+  it('should create provider_pricing table', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const row = getDb()!
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='provider_pricing'")
+      .get() as { name: string } | undefined
+
+    expect(row).toBeDefined()
+    expect(row!.name).toBe('provider_pricing')
+  })
+
+  it('should have correct provider_pricing columns', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const columns = getDb()!
+      .prepare("PRAGMA table_info('provider_pricing')")
+      .all() as Array<{ name: string; type: string; notnull: number; pk: number }>
+
+    const columnNames = columns.map((c) => c.name)
+    expect(columnNames).toContain('provider_id')
+    expect(columnNames).toContain('model')
+    expect(columnNames).toContain('price_in_cached')
+    expect(columnNames).toContain('price_in_uncached')
+    expect(columnNames).toContain('price_out')
+    expect(columnNames).toContain('created_at')
+    expect(columnNames).toContain('updated_at')
   })
 
   it('should enforce UNIQUE constraint on providers.name', async () => {
