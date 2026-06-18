@@ -204,3 +204,24 @@ export interface ParsedSSELine {
   /** SSE 数据体（data: 字段的 JSON 字符串值） */
   data: string | null
 }
+
+// ====== 数据管理类型（主进程/渲染进程共享） ======
+
+/**
+ * 清空数据指令（渲染进程 → 主进程）。
+ * business=清空业务数据，operational=清空运行数据。
+ * 各层通过此接口引用，禁止在 db/ 或 domains/ 中重新定义同名 interface。
+ */
+export interface ClearDataInput {
+  business: boolean
+  operational: boolean
+}
+
+/**
+ * 清空数据结果（主进程 → 渲染进程）。
+ * business/operational 各为 { cleared: boolean } 对象，报告该类清空是否完成。
+ */
+export interface ClearDataResult {
+  business: { cleared: boolean }
+  operational: { cleared: boolean }
+}
