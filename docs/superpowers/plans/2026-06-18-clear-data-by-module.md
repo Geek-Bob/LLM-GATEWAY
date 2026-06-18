@@ -458,17 +458,17 @@ UI：Card（`components/ui/card`）标题"数据管理"+ 警示描述。两个 `
 - 测试：`src/renderer/features/datamanagement/components/__tests__/DataManagementCard.test.tsx`
 
 **验收标准：**
-- [ ] 渲染"数据管理"Card，含两个 Checkbox 和"清空选中数据"按钮
-- [ ] 两个 Checkbox 都未勾选时，按钮 disabled
-- [ ] 勾选任一 Checkbox 后，按钮 enabled
-- [ ] 点击按钮打开 `ClearDataDialog`，传入当前勾选状态
-- [ ] 弹窗确认成功后：调用 `useClearData` 的 mutate（mock 验证调用参数匹配勾选），显示 `toast.success`，关闭弹窗，Checkbox 重置为未勾选
-- [ ] 弹窗确认失败（mock mutate reject）时：显示 `toast.error(getErrorMessage(e))`，弹窗可保持或关闭（择一，测试断言一致即可）
-- [ ] 使用共享组件（Card/Checkbox/Button/AlertDialog），无原生元素
-- [ ] Settings 页"关于我们"Card 之前出现"数据管理"Card
-- [ ] 入场动画用 `childVariants` 包裹，与 Settings 其他 Card 一致
-- [ ] 所有测试通过：`npx vitest run src/renderer/features/datamanagement/components/__tests__/DataManagementCard.test.tsx`
-- [ ] `npm run test:frontend` 前端全量测试通过
+- [x] 渲染"数据管理"Card，含两个 Checkbox 和"清空选中数据"按钮
+- [x] 两个 Checkbox 都未勾选时，按钮 disabled
+- [x] 勾选任一 Checkbox 后，按钮 enabled
+- [x] 点击按钮打开 `ClearDataDialog`，传入当前勾选状态
+- [x] 弹窗确认成功后：调用 `useClearData` 的 mutate（mock 验证调用参数匹配勾选），显示 `toast.success`，关闭弹窗，Checkbox 重置为未勾选
+- [x] 弹窗确认失败（mock mutate reject）时：显示 `toast.error(getErrorMessage(e))`，弹窗可保持或关闭（择一，测试断言一致即可）
+- [x] 使用共享组件（Card/Checkbox/Button/AlertDialog），无原生元素
+- [x] Settings 页"关于我们"Card 之前出现"数据管理"Card
+- [x] 入场动画用 `childVariants` 包裹，与 Settings 其他 Card 一致
+- [x] 所有测试通过：`npx vitest run src/renderer/features/datamanagement/components/__tests__/DataManagementCard.test.tsx`
+- [x] `npm run test:frontend` 前端全量测试通过
 
 **步骤：**
 1. 编写 DataManagementCard 组件测试：勾选状态切换、按钮启用条件、打开弹窗、确认成功/失败两条路径（mock useClearData 的 mutateAsync）
