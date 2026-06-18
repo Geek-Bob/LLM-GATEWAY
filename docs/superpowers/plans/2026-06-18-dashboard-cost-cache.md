@@ -180,11 +180,11 @@
 - 测试：`src/main/domains/pricing/__tests__/pricing.schema.test.ts`、`pricing.service.test.ts`
 
 **验收标准：**
-- [ ] schema 拒绝非负数单价、空 model、非整数 providerId
-- [ ] service.upsert 委派 Repository.upsert 并完成字段转换
-- [ ] service.getByProvider 返回 camelCase 数组
-- [ ] service 测试用内存数据库，不 mock Repository（直接走真实 db）
-- [ ] 所有测试通过：`npx vitest run src/main/domains/pricing/`
+- [x] schema 拒绝非负数单价、空 model、非整数 providerId
+- [x] service.upsert 委派 Repository.upsert 并完成字段转换
+- [x] service.getByProvider 返回 camelCase 数组
+- [x] service 测试用内存数据库，不 mock Repository（直接走真实 db）
+- [x] 所有测试通过：`npx vitest run src/main/domains/pricing/`
 
 **步骤：**
 1. 编写 schema 测试（合法接受 + 非法拒绝 + 边界）
@@ -304,12 +304,12 @@
 - 测试：扩展 `stats.service.test.ts`、`logs.service.test.ts`
 
 **验收标准：**
-- [ ] summary 返回含 cacheTokens 与 totalCost
-- [ ] summaryDetailed('24h')/('30d') 返回完整 RangeSummary 字段
-- [ ] detailedStats 每模型含 cacheTokens 与 cost
-- [ ] detailedStats 每时间点含 cacheTokens 与 cost
-- [ ] service 测试用内存数据库，不 mock statsRepo
-- [ ] 所有测试通过
+- [x] summary 返回含 cacheTokens 与 totalCost
+- [x] summaryDetailed('24h')/('30d') 返回完整 RangeSummary 字段
+- [x] detailedStats 每模型含 cacheTokens 与 cost
+- [x] detailedStats 每时间点含 cacheTokens 与 cost
+- [x] service 测试用内存数据库，不 mock statsRepo
+- [x] 所有测试通过
 
 **步骤：**
 1. 编写 summaryDetailed 测试
