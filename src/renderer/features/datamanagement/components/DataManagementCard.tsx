@@ -12,13 +12,11 @@
  * 本组件不直接调 IPC，不持有清空逻辑（委派 useClearData）。
  */
 import { useState } from 'react'
-import { motion } from 'framer-motion'
 import { toast } from 'sonner'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { childVariants } from '@/lib/animations'
 import { getErrorMessage } from '@/lib/utils'
 import { useClearData } from '@/lib/queries/datamanagement'
 import { ClearDataDialog } from '@/features/datamanagement/components/ClearDataDialog'
@@ -69,8 +67,18 @@ export function DataManagementCard() {
     }
   }
 
+  /**
+   * 弹窗开关拦截：清空中（isPending）拒绝关闭。
+   * 数据清空不可恢复，关闭弹窗会让用户失去进度感知与重试入口；
+   * 非清空中按 Esc / 点遮罩 / 点取消仍允许正常关闭。
+   */
+  const handleDialogOpenChange = (open: boolean): void => {
+    if (!open && clearData.isPending) return
+    setDialogOpen(open)
+  }
+
   return (
-    <motion.div variants={childVariants}>
+    <>
       <Card>
         <CardHeader>
           <CardTitle>数据管理</CardTitle>
@@ -117,11 +125,11 @@ export function DataManagementCard() {
 
       <ClearDataDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={handleDialogOpenChange}
         selectedModules={{ business, operational }}
         onConfirm={handleConfirm}
         isPending={clearData.isPending}
       />
-    </motion.div>
+    </>
   )
 }

@@ -97,7 +97,9 @@ export function SettingsPage() {
         )}
       </motion.div>
 
-      <DataManagementCard />
+      <motion.div variants={childVariants}>
+        <DataManagementCard />
+      </motion.div>
 
       <motion.div variants={childVariants}>
         <Card>
