@@ -243,6 +243,7 @@ export function ProviderFormDialog({
       const fieldNames: Record<string, string> = {
         name: '名称', providerType: '供应商类型', baseUrl: 'Base URL',
         apiKey: 'API Key', models: '模型列表',
+        priceInCached: '缓存命中单价', priceInUncached: '缓存未命中单价', priceOut: '输出单价',
       }
       if (field && fieldNames[field]) {
         toast.error(`保存失败: ${fieldNames[field]} 格式不正确`)
@@ -400,6 +401,7 @@ export function ProviderFormDialog({
                       <Input
                         inputMode="decimal"
                         placeholder="缓存命中"
+                        aria-label={`${m} 缓存命中单价`}
                         value={row.priceInCached}
                         onChange={(e) => handlePricingChange(m, 'priceInCached', e.target.value)}
                         className="h-8 text-xs"
@@ -407,6 +409,7 @@ export function ProviderFormDialog({
                       <Input
                         inputMode="decimal"
                         placeholder="缓存未命中"
+                        aria-label={`${m} 缓存未命中单价`}
                         value={row.priceInUncached}
                         onChange={(e) => handlePricingChange(m, 'priceInUncached', e.target.value)}
                         className="h-8 text-xs"
@@ -414,6 +417,7 @@ export function ProviderFormDialog({
                       <Input
                         inputMode="decimal"
                         placeholder="输出"
+                        aria-label={`${m} 输出单价`}
                         value={row.priceOut}
                         onChange={(e) => handlePricingChange(m, 'priceOut', e.target.value)}
                         className="h-8 text-xs"

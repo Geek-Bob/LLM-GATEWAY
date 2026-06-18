@@ -34,7 +34,7 @@ export interface DashboardStats {
   totalErrors: number
   /** 缓存命中输入 Token 数（费用核算扩展字段，向后兼容可选） */
   cacheTokens?: number
-  /** 总费用美元（费用核算扩展字段，向后兼容可选） */
+  /** 总费用（元）（费用核算扩展字段，向后兼容可选） */
   totalCost?: number
 }
 
@@ -99,7 +99,7 @@ export interface ElectronAPI {
   }
   /**
    * 单价管理
-   * 管理各模型在各供应商下的 Token 单价（美分/1M tokens），用于费用核算和仪表盘统计
+   * 管理各模型在各供应商下的 Token 单价（元/百万tokens），用于费用核算和仪表盘统计
    */
   pricing: {
     list: () => Promise<PricingEntity[]>

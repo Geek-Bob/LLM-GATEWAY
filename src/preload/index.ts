@@ -177,7 +177,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   /**
    * 单价管理
-   * 管理各模型在各供应商下的 Token 单价（美分/1M tokens），用于费用核算和仪表盘统计
+   * 管理各模型在各供应商下的 Token 单价（元/百万tokens），用于费用核算和仪表盘统计
    */
   pricing: {
     list: () => ipcRenderer.invoke('pricing:list'),

@@ -137,7 +137,7 @@ describe('LogStats Repository (Pre-computed Stats)', () => {
 
   it('getStats 应返回 totalCost（全局费用汇总，7d 也算费用）', async () => {
     // 注入 pricing：providerId=1, model=gpt-4
-    // 单价：cached=100 美分/1M, uncached=300 美分/1M, out=600 美分/1M
+    // 单价：cached=100 元/百万tokens, uncached=300 元/百万tokens, out=600 元/百万tokens
     insertPricing(1, 'gpt-4', 100, 300, 600)
 
     // provider 维度：tokensIn=1000, cache=400, tokensOut=500

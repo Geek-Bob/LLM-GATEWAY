@@ -37,7 +37,7 @@ const SUMMARY_COLUMNS = [
 
 type SummaryColumnKey = (typeof SUMMARY_COLUMNS)[number]['key']
 
-/** 格式化费用为美元字符串（2-4 位小数，统一元单位）。 @param cost 费用数值（美元） @returns 形如 "$1.2345" 的字符串 */
+/** 格式化费用为字符串（2-4 位小数，统一元单位）。 @param cost 费用数值（元） @returns 形如 "$1.2345" 的字符串 */
 function formatCost(cost: number): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',

@@ -227,17 +227,17 @@ export interface ClearDataResult {
 }
 
 /**
- * 单价记录，存储各模型在各供应商下的 Token 单价（美分/1M tokens）。
+ * 单价记录，存储各模型在各供应商下的 Token 单价（元/百万tokens）。
  * 用于费用核算和仪表盘统计。
  */
 export interface PricingEntity {
   providerId: number
   model: string
-  /** 缓存命中输入价格（美分/1M tokens） */
+  /** 缓存命中输入价格（元/百万tokens） */
   priceInCached: number
-  /** 缓存未命中输入价格（美分/1M tokens） */
+  /** 缓存未命中输入价格（元/百万tokens） */
   priceInUncached: number
-  /** 输出价格（美分/1M tokens） */
+  /** 输出价格（元/百万tokens） */
   priceOut: number
 }
 
@@ -256,13 +256,13 @@ export interface RangeSummary {
   uncachedTokens: number
   /** 输出 Token 数 */
   outputTokens: number
-  /** 总费用（美元） */
+  /** 总费用（元） */
   totalCost: number
-  /** 缓存命中输入费用（美元） */
+  /** 缓存命中输入费用（元） */
   cacheCost: number
-  /** 缓存未命中输入费用（美元） */
+  /** 缓存未命中输入费用（元） */
   uncachedCost: number
-  /** 输出费用（美元） */
+  /** 输出费用（元） */
   outputCost: number
   /** 总请求数 */
   totalRequests: number
