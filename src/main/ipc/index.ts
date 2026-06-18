@@ -20,6 +20,7 @@ import { registerAgentHandlers } from './agents'
 import { registerUpdateHandlers } from './update'
 import { registerSystemHandlers } from './system'
 import { registerDataManagementHandlers } from './datamanagement'
+import { registerPricingHandlers } from './pricing'
 
 /**
  * 注册所有 IPC handler，连接渲染进程请求与 domain service 层
@@ -38,4 +39,5 @@ export function setupIpcHandlers(updateManager: UpdateManager, db: Database): vo
   registerUpdateHandlers(updateManager)
   registerSystemHandlers()
   registerDataManagementHandlers(db)
+  registerPricingHandlers(db)
 }

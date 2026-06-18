@@ -1,5 +1,23 @@
 // @vitest-environment node
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
+
+// Mock electron.ipcMain，捕获 IPC handler 注册以便集成测试直接调用 handler
+const handlerRegistry = new Map<string, (...args: unknown[]) => unknown>()
+vi.mock('electron', () => ({
+  ipcMain: {
+    handle: (channel: string, handler: (...args: unknown[]) => unknown) => {
+      handlerRegistry.set(channel, handler)
+    },
+  },
+  // core/debug-log.ts 经 createServer 链路 import app；提供 dev 模式 stub
+  // 使 getDebugLogPath 守卫（typeof app.isPackaged !== 'boolean'）放行走 dev 分支
+  app: {
+    isPackaged: false,
+    getAppPath: () => 'E:/code/llm-gateway',
+    getPath: () => 'E:/code/llm-gateway'
+  }
+}))
+
 import { initDatabase, closeDatabase, getDb } from '../../db/connection'
 import { createTables } from '../../db/schema'
 import { createApiKeyRepository } from '../../db/api-keys'
@@ -10,6 +28,8 @@ import { createLogStatsRepository } from '../../db/logs-stats'
 import { createModelsService } from '../../domains/models/models.service'
 import { createConversationRepository } from '../../db/conversations'
 import { createServer } from '../../proxy/server'
+import { registerPricingHandlers } from '../pricing'
+import { registerLogHandlers } from '../logs'
 
 /** snake_case ProviderRow → camelCase Provider，proxy 路由专用 */
 function toProvider(row: ProviderRow): Provider {
@@ -30,6 +50,9 @@ describe('IPC Integration (Renderer → Main process)', () => {
   beforeAll(async () => {
     await initDatabase(':memory:')
     createTables()
+    // 注册 IPC handler 到 mock 的 ipcMain，集成测试通过 handlerRegistry 直接调用
+    registerPricingHandlers(getDb())
+    registerLogHandlers(getDb())
   })
 
   afterAll(() => {
@@ -199,6 +222,158 @@ describe('IPC Integration (Renderer → Main process)', () => {
         }
       })
       expect(modelsRes.status).toBe(200)
+    })
+  })
+
+  type PricingItem = {
+    providerId: number
+    model: string
+    priceInCached: number
+    priceInUncached: number
+    priceOut: number
+  }
+
+  describe('Pricing IPC handlers', () => {
+    let providerId: number
+
+    beforeAll(async () => {
+      // provider_pricing 外键引用 providers(id)，需先建供应商
+      const repo = createProviderRepository(getDb())
+      const created = await repo.create({
+        name: 'Pricing Test Provider',
+        providerType: 'openai',
+        baseUrl: 'https://api.openai.com',
+        apiKey: 'sk-pricing-test',
+        models: ['gpt-4']
+      })
+      providerId = created.id
+    })
+
+    it('pricing:upsert 写入正常输入应返回 PricingResponse', async () => {
+      const upsert = handlerRegistry.get('pricing:upsert')!
+      const result = (await upsert({}, {
+        providerId,
+        model: 'gpt-4',
+        priceInCached: 0.5,
+        priceInUncached: 1.5,
+        priceOut: 3.0
+      })) as PricingItem
+      expect(result).toMatchObject({
+        providerId,
+        model: 'gpt-4',
+        priceInCached: 0.5,
+        priceInUncached: 1.5,
+        priceOut: 3.0
+      })
+    })
+
+    it('pricing:list 应包含已写入的记录', async () => {
+      const list = handlerRegistry.get('pricing:list')!
+      const result = (await list({})) as PricingItem[]
+      expect(result.some(p => p.providerId === providerId && p.model === 'gpt-4')).toBe(true)
+    })
+
+    it('pricing:getByProvider 应返回该供应商的记录', async () => {
+      const getByProvider = handlerRegistry.get('pricing:getByProvider')!
+      const result = (await getByProvider({}, { providerId })) as PricingItem[]
+      expect(result.length).toBeGreaterThanOrEqual(1)
+      expect(result.every(p => p.providerId === providerId)).toBe(true)
+    })
+
+    it('pricing:upsert 重复调用应幂等更新而非新增', async () => {
+      const upsert = handlerRegistry.get('pricing:upsert')!
+      const list = handlerRegistry.get('pricing:list')!
+      const before = (await list({})) as PricingItem[]
+      const countBefore = before.filter(p => p.providerId === providerId && p.model === 'gpt-4').length
+
+      await upsert({}, {
+        providerId,
+        model: 'gpt-4',
+        priceInCached: 0.8,
+        priceInUncached: 1.8,
+        priceOut: 3.5
+      })
+
+      const after = (await list({})) as PricingItem[]
+      const countAfter = after.filter(p => p.providerId === providerId && p.model === 'gpt-4').length
+      expect(countAfter).toBe(countBefore)
+      const updated = after.find(p => p.providerId === providerId && p.model === 'gpt-4')!
+      expect(updated.priceInCached).toBe(0.8)
+      expect(updated.priceOut).toBe(3.5)
+    })
+
+    it('pricing:upsert 负单价应返回 Invalid input 错误', async () => {
+      const upsert = handlerRegistry.get('pricing:upsert')!
+      const result = (await upsert({}, {
+        providerId,
+        model: 'gpt-4',
+        priceInCached: -1,
+        priceInUncached: 1.5,
+        priceOut: 3.0
+      })) as { error: string }
+      expect(result).toMatchObject({ error: expect.stringContaining('Invalid input') })
+      expect(result.error).toContain('priceInCached')
+    })
+
+    it('pricing:upsert 缺字段应返回 Invalid input 错误', async () => {
+      const upsert = handlerRegistry.get('pricing:upsert')!
+      const result = await upsert({}, { providerId, model: 'gpt-4' })
+      expect(result).toMatchObject({ error: expect.stringContaining('Invalid input') })
+    })
+
+    it('pricing:delete 应删除记录', async () => {
+      const del = handlerRegistry.get('pricing:delete')!
+      const getByProvider = handlerRegistry.get('pricing:getByProvider')!
+      await del({}, { providerId, model: 'gpt-4' })
+      const result = (await getByProvider({}, { providerId })) as PricingItem[]
+      expect(result.some(p => p.model === 'gpt-4')).toBe(false)
+    })
+
+    it('pricing:delete 非法输入（缺 model）应返回 Invalid input 错误', async () => {
+      const del = handlerRegistry.get('pricing:delete')!
+      const result = await del({}, { providerId })
+      expect(result).toMatchObject({ error: expect.stringContaining('Invalid input') })
+    })
+  })
+
+  describe('logs:rangeSummary IPC handler', () => {
+    it("logs:rangeSummary('24h') 应返回 RangeSummary 结构", async () => {
+      const handler = handlerRegistry.get('logs:rangeSummary')!
+      const result = await handler({}, '24h')
+      expect(result).toMatchObject({
+        totalTokens: expect.any(Number),
+        inputTokens: expect.any(Number),
+        cacheTokens: expect.any(Number),
+        uncachedTokens: expect.any(Number),
+        outputTokens: expect.any(Number),
+        totalCost: expect.any(Number),
+        cacheCost: expect.any(Number),
+        uncachedCost: expect.any(Number),
+        outputCost: expect.any(Number),
+        totalRequests: expect.any(Number)
+      })
+    })
+
+    it("logs:rangeSummary('30d') 无日志时应返回零值汇总", async () => {
+      const handler = handlerRegistry.get('logs:rangeSummary')!
+      const result = await handler({}, '30d')
+      expect(result).toMatchObject({
+        totalTokens: 0,
+        totalRequests: 0,
+        totalCost: 0
+      })
+    })
+
+    it("logs:rangeSummary('7d') 不在合法枚举内应返回 Invalid input", async () => {
+      const handler = handlerRegistry.get('logs:rangeSummary')!
+      const result = await handler({}, '7d')
+      expect(result).toMatchObject({ error: expect.stringContaining('Invalid input') })
+    })
+
+    it('logs:rangeSummary 缺参数应返回 Invalid input', async () => {
+      const handler = handlerRegistry.get('logs:rangeSummary')!
+      const result = await handler({}, undefined)
+      expect(result).toMatchObject({ error: expect.stringContaining('Invalid input') })
     })
   })
 })

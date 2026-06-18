@@ -31,4 +31,15 @@ export function registerLogHandlers(db: Database): void {
     const { range: validRange } = detailedStatsRangeSchema.parse({ range })
     return logsService.detailedStats(validRange)
   }, 'logs:statsDetailed'))
+
+  /**
+   * logs:rangeSummary — 24h / 30d 全局汇总（token 三分 + 费用三分 + totalRequests）
+   *
+   * 注意：此 handler 注册在 ipc/logs.ts（聚合域归 logs），但内部调用 statsService
+   * （非 logsService），遵循设计文档 §4.5 调用链：summaryDetailed 由 stats domain 提供。
+   */
+  ipcMain.handle('logs:rangeSummary', wrapIpcHandler(async (_event, range: unknown) => {
+    const { range: validRange } = detailedStatsRangeSchema.parse({ range })
+    return statsService.summaryDetailed(validRange)
+  }, 'logs:rangeSummary'))
 }
