@@ -9,6 +9,10 @@ export interface StatsResponse {
   totalRequests: number
   totalTokensIn: number
   totalTokensOut: number
+  /** 缓存命中输入 Token 数（透传自 request_stats.total_cache_tokens） */
+  cacheTokens: number
   avgDurationMs: number
   totalErrors: number
+  /** 总费用（元，透传自 getCostSummary.totalCost） */
+  totalCost: number
 }

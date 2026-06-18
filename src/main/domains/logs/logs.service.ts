@@ -69,14 +69,16 @@ export function createLogsService(db: Database) {
 
     /**
      * 获取详细统计，按供应商 -> 模型 -> 时间点分层组织
-     * 将 db 返回的平铺行数据重组为嵌套结构，便于前端渲染 Dashboard 图表
+     * 将 db 返回的平铺行数据重组为嵌套结构，便于前端渲染 Dashboard 图表。
+     * 每行已含 total_cache_tokens 与 cost（db 层 JOIN pricing 算好），
+     * service 层完成 snake→camelCase 映射：model 维度跨时间点累加，dataPoint 维度单值透传。
      */
     detailedStats: async (range: '24h' | '30d'): Promise<DetailedStatsProvider[]> => {
       const rows = await statsRepo.getDetailedStats(range) as {
         provider_id: number; model: string;
         total_requests: number; total_tokens_in: number;
-        total_tokens_out: number; total_errors: number;
-        period: number | string
+        total_tokens_out: number; total_cache_tokens: number;
+        total_errors: number; period: number | string; cost: number
       }[]
 
       const providers = await providerRepo.listNames()
@@ -87,8 +89,8 @@ export function createLogsService(db: Database) {
         models: Map<string, {
           model: string; totalRequests: number;
           totalTokensIn: number; totalTokensOut: number;
-          totalErrors: number;
-          dataPoints: { period: number | string; requests: number; tokensIn: number; tokensOut: number }[]
+          cacheTokens: number; totalErrors: number; cost: number;
+          dataPoints: { period: number | string; requests: number; tokensIn: number; tokensOut: number; cacheTokens: number; cost: number }[]
         }>
       }>()
 
@@ -107,7 +109,8 @@ export function createLogsService(db: Database) {
         if (!pm.models.has(model)) {
           pm.models.set(model, {
             model,
-            totalRequests: 0, totalTokensIn: 0, totalTokensOut: 0, totalErrors: 0,
+            totalRequests: 0, totalTokensIn: 0, totalTokensOut: 0,
+            cacheTokens: 0, totalErrors: 0, cost: 0,
             dataPoints: []
           })
         }
@@ -115,12 +118,16 @@ export function createLogsService(db: Database) {
         mm.totalRequests += row.total_requests
         mm.totalTokensIn += row.total_tokens_in
         mm.totalTokensOut += row.total_tokens_out
+        mm.cacheTokens += row.total_cache_tokens
         mm.totalErrors += row.total_errors
+        mm.cost += row.cost
         mm.dataPoints.push({
           period: row.period,
           requests: row.total_requests,
           tokensIn: row.total_tokens_in,
-          tokensOut: row.total_tokens_out
+          tokensOut: row.total_tokens_out,
+          cacheTokens: row.total_cache_tokens,
+          cost: row.cost
         })
       }
 
@@ -132,7 +139,9 @@ export function createLogsService(db: Database) {
           totalRequests: m.totalRequests,
           totalTokensIn: m.totalTokensIn,
           totalTokensOut: m.totalTokensOut,
+          cacheTokens: m.cacheTokens,
           totalErrors: m.totalErrors,
+          cost: m.cost,
           dataPoints: m.dataPoints
         }))
       }))
