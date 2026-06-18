@@ -34,6 +34,52 @@ function resolveDateCondition(range: string): string {
  * @returns LogStats Repository 对象
  */
 export function createLogStatsRepository(db: Database) {
+  /**
+   * 费用汇总内部实现（闭包，通过 db 访问注入实例）。
+   * 基于 request_stats_provider LEFT JOIN provider_pricing，按 provider_id+model 聚合后 SUM。
+   * 缺单价（JOIN 不到）费用按 0（COALESCE）；非缓存输入 clamp 到 0（MAX(0, ...)）。
+   * @param range - '24h' | '7d' | '30d'
+   * @returns { totalCost, cacheCost, uncachedCost, outputCost }（元）
+   */
+  function getCostSummary(range: string): {
+    totalCost: number
+    cacheCost: number
+    uncachedCost: number
+    outputCost: number
+  } {
+    const dateCondition = resolveDateCondition(range)
+    const row = db.prepare(
+      `SELECT
+        COALESCE(SUM(pm.total_cost), 0) as total_cost,
+        COALESCE(SUM(pm.cache_cost), 0) as cache_cost,
+        COALESCE(SUM(pm.uncached_cost), 0) as uncached_cost,
+        COALESCE(SUM(pm.output_cost), 0) as output_cost
+      FROM (
+        SELECT
+          COALESCE(
+            SUM(rsp.total_cache_tokens) * pp.price_in_cached / ${COST_DIVISOR}
+            + MAX(0, SUM(rsp.total_tokens_in) - SUM(rsp.total_cache_tokens)) * pp.price_in_uncached / ${COST_DIVISOR}
+            + SUM(rsp.total_tokens_out) * pp.price_out / ${COST_DIVISOR},
+            0
+          ) as total_cost,
+          COALESCE(SUM(rsp.total_cache_tokens) * pp.price_in_cached / ${COST_DIVISOR}, 0) as cache_cost,
+          COALESCE(MAX(0, SUM(rsp.total_tokens_in) - SUM(rsp.total_cache_tokens)) * pp.price_in_uncached / ${COST_DIVISOR}, 0) as uncached_cost,
+          COALESCE(SUM(rsp.total_tokens_out) * pp.price_out / ${COST_DIVISOR}, 0) as output_cost
+        FROM request_stats_provider rsp
+        LEFT JOIN provider_pricing pp ON pp.provider_id = rsp.provider_id AND pp.model = rsp.model
+        WHERE ${dateCondition}
+        GROUP BY rsp.provider_id, rsp.model
+      ) pm`
+    ).get() as Record<string, unknown> | undefined
+
+    return {
+      totalCost: Number(row?.total_cost) || 0,
+      cacheCost: Number(row?.cache_cost) || 0,
+      uncachedCost: Number(row?.uncached_cost) || 0,
+      outputCost: Number(row?.output_cost) || 0
+    }
+  }
+
   return {
     /** 写入全局请求统计（按日期+小时聚合，含错误计数与缓存 token） */
     async updateRequestStats(entry: {
@@ -132,15 +178,6 @@ export function createLogStatsRepository(db: Database) {
       const cost = getCostSummary(range)
       return { ...base, total_cost: cost.totalCost }
     },
-
-    /**
-     * 内部方法：按时间范围汇总费用（基于 request_stats_provider LEFT JOIN provider_pricing）。
-     * 先按 provider_id+model 聚合 token，再 JOIN pricing 逐模型算费用后 SUM。
-     * 缺单价（JOIN 不到）费用按 0（COALESCE）；非缓存输入 clamp 到 0（MAX(0, ...)）。
-     * @param range - '24h' | '7d' | '30d'
-     * @returns { totalCost, cacheCost, uncachedCost, outputCost }（元）
-     */
-    getCostSummary,
 
     /**
      * 获取 24h / 30d 全局汇总（token 三分 + 费用三分 + totalRequests）。
@@ -249,49 +286,6 @@ export function createLogStatsRepository(db: Database) {
         ORDER BY rsp.provider_id, rsp.model, ${periodCol}`
       ).all() as Record<string, unknown>[]
     },
-  }
-
-  /**
-   * 费用汇总内部实现（闭包，通过 db 访问注入实例）。
-   * 基于 request_stats_provider LEFT JOIN provider_pricing，按 provider_id+model 聚合后 SUM。
-   */
-  function getCostSummary(range: string): {
-    totalCost: number
-    cacheCost: number
-    uncachedCost: number
-    outputCost: number
-  } {
-    const dateCondition = resolveDateCondition(range)
-    const row = db.prepare(
-      `SELECT
-        COALESCE(SUM(pm.total_cost), 0) as total_cost,
-        COALESCE(SUM(pm.cache_cost), 0) as cache_cost,
-        COALESCE(SUM(pm.uncached_cost), 0) as uncached_cost,
-        COALESCE(SUM(pm.output_cost), 0) as output_cost
-      FROM (
-        SELECT
-          COALESCE(
-            SUM(rsp.total_cache_tokens) * pp.price_in_cached / ${COST_DIVISOR}
-            + MAX(0, SUM(rsp.total_tokens_in) - SUM(rsp.total_cache_tokens)) * pp.price_in_uncached / ${COST_DIVISOR}
-            + SUM(rsp.total_tokens_out) * pp.price_out / ${COST_DIVISOR},
-            0
-          ) as total_cost,
-          COALESCE(SUM(rsp.total_cache_tokens) * pp.price_in_cached / ${COST_DIVISOR}, 0) as cache_cost,
-          COALESCE(MAX(0, SUM(rsp.total_tokens_in) - SUM(rsp.total_cache_tokens)) * pp.price_in_uncached / ${COST_DIVISOR}, 0) as uncached_cost,
-          COALESCE(SUM(rsp.total_tokens_out) * pp.price_out / ${COST_DIVISOR}, 0) as output_cost
-        FROM request_stats_provider rsp
-        LEFT JOIN provider_pricing pp ON pp.provider_id = rsp.provider_id AND pp.model = rsp.model
-        WHERE ${dateCondition}
-        GROUP BY rsp.provider_id, rsp.model
-      ) pm`
-    ).get() as Record<string, unknown> | undefined
-
-    return {
-      totalCost: Number(row?.total_cost) || 0,
-      cacheCost: Number(row?.cache_cost) || 0,
-      uncachedCost: Number(row?.uncached_cost) || 0,
-      outputCost: Number(row?.output_cost) || 0
-    }
   }
 }
 

@@ -56,7 +56,7 @@ const repositoryContracts: Array<[string, RepoFactory, string[]]> = [
   [
     'createLogStatsRepository',
     createLogStatsRepository as unknown as RepoFactory,
-    ['updateRequestStats', 'updateProviderStats', 'getStats', 'getDetailedStats']
+    ['updateRequestStats', 'updateProviderStats', 'getStats', 'getRangeSummary', 'getDetailedStats']
   ]
 ]
 
