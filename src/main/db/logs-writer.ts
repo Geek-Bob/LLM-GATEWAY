@@ -83,6 +83,8 @@ export interface LogEntryProps {
   statusCode?: number
   tokensIn?: number
   tokensOut?: number
+  /** 缓存命中的输入 token 数（OpenAI: cached_tokens；Anthropic: cache_read_input_tokens） */
+  cacheTokens?: number
   durationMs?: number
   error?: string
   debug?: LogDebugInfo
@@ -243,6 +245,7 @@ export function createLogEntry(entry: LogEntryProps): void {
       status_code: entry.statusCode,
       tokens_in: entry.tokensIn,
       tokens_out: entry.tokensOut,
+      cache_tokens: entry.cacheTokens,
       duration_ms: entry.durationMs,
       error: entry.error,
       created_at: new Date().toISOString(),

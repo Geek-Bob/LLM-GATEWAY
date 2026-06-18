@@ -60,9 +60,9 @@ export interface ProxyServices {
   /** 写入 NDJSON 日志（来自 db/logs） */
   createLogEntry: (entry: LogEntryProps) => void
   /** 更新全局请求统计（来自 db/logs） */
-  updateRequestStats: (entry: { tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => Promise<void>
+  updateRequestStats: (entry: { tokensIn?: number; tokensOut?: number; cacheTokens?: number; durationMs?: number; statusCode?: number }) => Promise<void>
   /** 更新供应商请求统计（来自 db/logs） */
-  updateProviderStats: (entry: { providerId?: number; model: string; tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => Promise<void>
+  updateProviderStats: (entry: { providerId?: number; model: string; tokensIn?: number; tokensOut?: number; cacheTokens?: number; durationMs?: number; statusCode?: number }) => Promise<void>
   /** 模型映射服务（来自 domains/models） */
   modelsService: {
     getAllModels: () => Promise<Array<{ id: string; provider: string }>>

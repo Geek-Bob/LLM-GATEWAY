@@ -215,7 +215,7 @@ Hono 监听 `127.0.0.1:8080`。模块职责：
 | `forwarder.ts` | 上游 URL/Header 构建 |
 | `converter/` | OpenAI ↔ Anthropic 协议转换（request/response/sse） |
 | `stream.ts` | SSE 流转换服务 |
-| `logger.ts` | extractUsageFromSSE 提取 token → tryLogEntry 三步落库（NDJSON + request_stats + request_stats_provider） |
+| `logger.ts` | extractUsageFromSSE 提取 token（含 cacheTokens 缓存命中）→ tryLogEntry 三步落库（NDJSON + request_stats + request_stats_provider） |
 | `middleware.ts` | Auth 中间件（Bearer token 提取） |
 | `rate-limiter.ts` | 滑动窗口限流器 |
 | `manager.ts` | 代理生命周期管理 |
@@ -487,8 +487,8 @@ sequenceDiagram
         H->>H: tee() 拆流 [forClient, forLogging]
         H->>Log: extractAndLogSSE(forLogging)
         Log->>Log: 读完整流文本 → extractUsageFromSSE(text, apiFormat)
-        Note over Log: OpenAI: 每个 data: 行 usage.prompt_tokens/completion_tokens<br/>Anthropic: message_start→input_tokens + message_delta→output_tokens
-        Log->>Log: tryLogEntry({…, tokensIn, tokensOut})
+        Note over Log: OpenAI: usage.prompt_tokens/completion_tokens + prompt_tokens_details.cached_tokens<br/>Anthropic: message_start→input_tokens + cache_read_input_tokens + message_delta→output_tokens<br/>(cache_creation_input_tokens 不计入 cacheTokens)
+        Log->>Log: tryLogEntry({…, tokensIn, tokensOut, cacheTokens})
     else 非流式 JSON
         Up-->>H: JSON body
         H->>H: logJsonResponse 读 convertedBody.usage
@@ -500,16 +500,17 @@ sequenceDiagram
     end
 
     Note over Log: tryLogEntry 三步原子（fire-and-forget，任一失败静默忽略）
-    Log->>NDJSON: createLogEntry（含 tokensIn/tokensOut + debug）
+    Log->>NDJSON: createLogEntry（含 tokensIn/tokensOut/cacheTokens + debug）
     NDJSON->>NDJSON: 追加 NDJSON 文件（500 行/20 文件轮转）
-    Log->>Stat: updateRequestStats(tokensIn/tokensOut/durationMs/statusCode)
+    Log->>Stat: updateRequestStats(tokensIn/tokensOut/cacheTokens/durationMs/statusCode)
     Stat->>DB: INSERT request_stats ON CONFLICT(stat_date,stat_hour) DO UPDATE 累加
-    Log->>Stat: updateProviderStats(providerId/model/...)
+    Log->>Stat: updateProviderStats(providerId/model/...cacheTokens)
     Stat->>DB: INSERT request_stats_provider ON CONFLICT DO UPDATE 累加
 ```
 
 **关键点：**
-- 流式与非流式分支提取 token 的位置不同（SSE 文本 vs JSON body.usage），但产出相同的 `{tokensIn, tokensOut}` 后汇入 `tryLogEntry`。
+- 流式与非流式分支提取 token 的位置不同（SSE 文本 vs JSON body.usage），但产出相同的 `{tokensIn, tokensOut}` 后汇入 `tryLogEntry`。流式分支额外提取 `cacheTokens`（缓存命中输入 token）。
+- 缓存 token 采集口径二分法：OpenAI 取 `usage.prompt_tokens_details.cached_tokens`；Anthropic 取 message_start 的 `usage.cache_read_input_tokens`（`cache_creation_input_tokens` 写缓存不计入）。无缓存字段时 `cacheTokens=0`。
 - 统计采用**预聚合**：每次请求 INSERT 一行增量，`ON CONFLICT(stat_date, stat_hour, ...)` 时累加 total_requests/tokens/errors/duration，避免查询时全量扫描 NDJSON。Dashboard 统计卡片读这两张表。
 - token 用量**只在请求落库时一次性写入** NDJSON（明细）+ 统计表（聚合），全程 fire-and-forget，不阻塞代理响应。
 

@@ -154,6 +154,34 @@ describe('NDJSON Log Sharding', () => {
       expect(entry.debug.conversion.to).toBe('anthropic')
       expect(entry.debug.conversion.convertedPath).toBe('/v1/messages')
     })
+
+    it('should store cache_tokens field when provided', () => {
+      createLogEntry({
+        model: 'gpt-4',
+        apiFormat: 'openai',
+        tokensIn: 100,
+        tokensOut: 50,
+        cacheTokens: 30
+      })
+
+      const files = fs.readdirSync(logDir).filter((f) => f.endsWith('.ndjson'))
+      const content = fs.readFileSync(path.join(logDir, files[0]), 'utf-8')
+      const entry = JSON.parse(content.trim())
+
+      expect(entry.cache_tokens).toBe(30)
+      expect(entry.tokens_in).toBe(100)
+      expect(entry.tokens_out).toBe(50)
+    })
+
+    it('should omit cache_tokens field when not provided', () => {
+      createLogEntry({ model: 'gpt-4', apiFormat: 'openai' })
+
+      const files = fs.readdirSync(logDir).filter((f) => f.endsWith('.ndjson'))
+      const content = fs.readFileSync(path.join(logDir, files[0]), 'utf-8')
+      const entry = JSON.parse(content.trim())
+
+      expect(entry.cache_tokens).toBeUndefined()
+    })
   })
 
   describe('queryLogs', () => {

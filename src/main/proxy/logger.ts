@@ -31,6 +31,8 @@ export interface LogEntryProps {
   statusCode?: number
   tokensIn?: number
   tokensOut?: number
+  /** 缓存命中的输入 token 数（OpenAI: prompt_tokens_details.cached_tokens；Anthropic: usage.cache_read_input_tokens） */
+  cacheTokens?: number
   durationMs?: number
   error?: string
   debug?: LogDebugInfo
@@ -51,7 +53,7 @@ export interface ProxyLogService {
     apiFormat: 'anthropic' | 'openai',
     debug?: LogDebugInfo
   ) => Promise<void>
-  extractUsageFromSSE: (text: string, apiFormat: 'anthropic' | 'openai') => { tokensIn: number; tokensOut: number }
+  extractUsageFromSSE: (text: string, apiFormat: 'anthropic' | 'openai') => { tokensIn: number; tokensOut: number; cacheTokens: number }
   extractContentFromSSE: (text: string, apiFormat: 'anthropic' | 'openai') => string
 }
 
@@ -65,8 +67,8 @@ export interface ProxyLogService {
  */
 export function createProxyLogService(deps: {
   createLogEntry: (entry: LogEntryProps) => void
-  updateRequestStats: (entry: { tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => Promise<void>
-  updateProviderStats: (entry: { providerId?: number; model: string; tokensIn?: number; tokensOut?: number; durationMs?: number; statusCode?: number }) => Promise<void>
+  updateRequestStats: (entry: { tokensIn?: number; tokensOut?: number; cacheTokens?: number; durationMs?: number; statusCode?: number }) => Promise<void>
+  updateProviderStats: (entry: { providerId?: number; model: string; tokensIn?: number; tokensOut?: number; cacheTokens?: number; durationMs?: number; statusCode?: number }) => Promise<void>
 }): ProxyLogService {
   /**
    * 写入请求日志（三步原子操作）
@@ -166,18 +168,25 @@ export function createProxyLogService(deps: {
    * 从 SSE 事件流文本中提取 token 用量
    *
    * OpenAI 格式：usage 字段在每个 chunk 的顶层
-   *   { "usage": { "prompt_tokens": 100, "completion_tokens": 50 } }
+   *   { "usage": { "prompt_tokens": 100, "completion_tokens": 50, "prompt_tokens_details": { "cached_tokens": 30 } } }
    *
    * Anthropic 格式：usage 分布在两个事件中
-   *   message_start -> { "message": { "usage": { "input_tokens": 100, "output_tokens": 0 } } }
+   *   message_start -> { "message": { "usage": { "input_tokens": 100, "output_tokens": 0, "cache_read_input_tokens": 40 } } }
    *   message_delta -> { "usage": { "output_tokens": 50 } }
+   *
+   * 缓存口径二分法：
+   *   - OpenAI：usage.prompt_tokens_details.cached_tokens（命中的输入 token）
+   *   - Anthropic：message_start 的 usage.cache_read_input_tokens（缓存命中）；
+   *     cache_creation_input_tokens（写缓存）不计入 cacheTokens
+   *   - 无缓存字段 → cacheTokens=0
    */
   function extractUsageFromSSE(
     text: string,
     apiFormat: 'anthropic' | 'openai'
-  ): { tokensIn: number; tokensOut: number } {
+  ): { tokensIn: number; tokensOut: number; cacheTokens: number } {
     let tokensIn = 0
     let tokensOut = 0
+    let cacheTokens = 0
 
     if (apiFormat === 'openai') {
       // OpenAI：遍历所有 data: 行，提取 usage 字段（兼容有空格和无空格）
@@ -190,6 +199,8 @@ export function createProxyLogService(deps: {
           if (data.usage) {
             tokensIn = data.usage.prompt_tokens ?? tokensIn
             tokensOut = data.usage.completion_tokens ?? tokensOut
+            // 缓存命中 token：OpenAI 在 prompt_tokens_details.cached_tokens
+            cacheTokens = data.usage.prompt_tokens_details?.cached_tokens ?? cacheTokens
           }
         } catch { /* 跳过格式错误的 JSON */ }
       }
@@ -207,6 +218,9 @@ export function createProxyLogService(deps: {
             if (eventType === 'message_start' && data.message?.usage) {
               tokensIn = data.message.usage.input_tokens ?? tokensIn
               tokensOut = data.message.usage.output_tokens ?? tokensOut
+              // 缓存命中 token：Anthropic 在 cache_read_input_tokens；
+              // cache_creation_input_tokens（写缓存）不计入
+              cacheTokens = data.message.usage.cache_read_input_tokens ?? cacheTokens
             }
             // message_delta 事件：包含最终 output_tokens
             if (eventType === 'message_delta' && data.usage) {
@@ -217,7 +231,7 @@ export function createProxyLogService(deps: {
       }
     }
 
-    return { tokensIn, tokensOut }
+    return { tokensIn, tokensOut, cacheTokens }
   }
 
   /**
