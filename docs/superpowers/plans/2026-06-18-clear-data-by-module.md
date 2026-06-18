@@ -288,14 +288,14 @@
 - 测试：`src/main/ipc/__tests__/datamanagement.test.ts`
 
 **验收标准：**
-- [ ] `datamanagement:clear` handler 经 `wrapIpcHandler` 包装（非裸 `ipcMain.handle`）
-- [ ] data 参数标注 `unknown`，入口调用 `clearDataSchema.parse(data)`
-- [ ] handler 委派 `service.clear(input)`，不做额外转换，返回值类型与 service 一致
-- [ ] 合法输入（`{business:true}`）返回 `ClearDataResult` 结构
-- [ ] 非法输入（`{business:false, operational:false}` 或非 boolean）被 ZodError 拦截，`wrapIpcHandler` 映射为 `{ error: 'Invalid input: ...' }`
-- [ ] `ipc/index.ts` 中 `registerDataManagementHandlers(db)` 在 `setupIpcHandlers` 内被调用
-- [ ] handler 内无手写 try/catch（除非分支处理特定错误，本任务无此需要）
-- [ ] 所有测试通过：`npx vitest run src/main/ipc/__tests__/datamanagement.test.ts`
+- [x] `datamanagement:clear` handler 经 `wrapIpcHandler` 包装（非裸 `ipcMain.handle`）
+- [x] data 参数标注 `unknown`，入口调用 `clearDataSchema.parse(data)`
+- [x] handler 委派 `service.clear(input)`，不做额外转换，返回值类型与 service 一致
+- [x] 合法输入（`{business:true}`）返回 `ClearDataResult` 结构
+- [x] 非法输入（`{business:false, operational:false}` 或非 boolean）被 ZodError 拦截，`wrapIpcHandler` 映射为 `{ error: 'Invalid input: ...' }`
+- [x] `ipc/index.ts` 中 `registerDataManagementHandlers(db)` 在 `setupIpcHandlers` 内被调用
+- [x] handler 内无手写 try/catch（除非分支处理特定错误，本任务无此需要）
+- [x] 所有测试通过：`npx vitest run src/main/ipc/__tests__/datamanagement.test.ts`
 
 **步骤：**
 1. 编写 IPC handler 集成测试：mock 或真实调用 service，验证合法输入返回结果、非法输入返回 `{error: 'Invalid input...'}`、handler 不吞错误
@@ -329,11 +329,11 @@
 - 测试：类型层面由 `npx tsc --noEmit` 保证（preload 改动主要影响类型契约）
 
 **验收标准：**
-- [ ] `ElectronAPI` 接口含 `dataManagement: { clear: (input: ClearDataInput) => Promise<ClearDataResult> }`
-- [ ] `preload/index.ts` 暴露 `dataManagement.clear`，调用 `ipcRenderer.invoke('datamanagement:clear', input)`
-- [ ] preload 两处均 type-only 导入 shared 类型，不导入 main/renderer 运行时代码
-- [ ] 通道名 `datamanagement:clear` 与 Task 5 注册的通道一致
-- [ ] `npx tsc --noEmit` 通过（renderer 侧 `api.dataManagement.clear` 类型可解析）
+- [x] `ElectronAPI` 接口含 `dataManagement: { clear: (input: ClearDataInput) => Promise<ClearDataResult> }`
+- [x] `preload/index.ts` 暴露 `dataManagement.clear`，调用 `ipcRenderer.invoke('datamanagement:clear', input)`
+- [x] preload 两处均 type-only 导入 shared 类型，不导入 main/renderer 运行时代码
+- [x] 通道名 `datamanagement:clear` 与 Task 5 注册的通道一致
+- [x] `npx tsc --noEmit` 通过（renderer 侧 `api.dataManagement.clear` 类型可解析）
 
 **步骤：**
 1. 修改 `preload/types.ts` 加接口声明
@@ -366,12 +366,12 @@
 - 测试：`src/renderer/lib/queries/__tests__/datamanagement.test.ts`（mock `api.dataManagement.clear` + QueryClient，验证 onSuccess 调用 invalidateQueries）
 
 **验收标准：**
-- [ ] `useClearData()` 返回 useMutation 对象，mutate 时调用 `api.dataManagement.clear(input)`
-- [ ] `onSuccess` 中：input.business=true 时调用 `qc.invalidateQueries({ queryKey: ['providers'] })`、`['modelMappings']`、`['apiKeys']`、`['conversations']`
-- [ ] `onSuccess` 中：input.operational=true 时调用 `qc.invalidateQueries({ queryKey: ['logs'] })`、`['stats']`
-- [ ] 组合输入时两组 invalidate 都触发
-- [ ] 不在组件外直接调 IPC，通过 `api`（lib/ipc.ts）封装
-- [ ] 所有测试通过：`npx vitest run src/renderer/lib/queries/__tests__/datamanagement.test.ts`
+- [x] `useClearData()` 返回 useMutation 对象，mutate 时调用 `api.dataManagement.clear(input)`
+- [x] `onSuccess` 中：input.business=true 时调用 `qc.invalidateQueries({ queryKey: ['providers'] })`、`['modelMappings']`、`['apiKeys']`、`['conversations']`
+- [x] `onSuccess` 中：input.operational=true 时调用 `qc.invalidateQueries({ queryKey: ['logs'] })`、`['stats']`
+- [x] 组合输入时两组 invalidate 都触发
+- [x] 不在组件外直接调 IPC，通过 `api`（lib/ipc.ts）封装
+- [x] 所有测试通过：`npx vitest run src/renderer/lib/queries/__tests__/datamanagement.test.ts`
 
 **步骤：**
 1. 编写测试：mock `window.electronAPI.dataManagement.clear`，用 QueryClient 包装，触发 mutate，断言 `invalidateQueries` 被以正确 queryKey 调用
@@ -406,17 +406,17 @@ UI：`AlertDialog`（`components/ui/alert-dialog`）。标题"确认清空数据
 - 测试：`src/renderer/features/datamanagement/components/__tests__/ClearDataDialog.test.tsx`
 
 **验收标准：**
-- [ ] open=true 时弹窗渲染，标题"确认清空数据"
-- [ ] 内容展示根据 selectedModules 拼接的"即将清空：业务数据、运行数据"（仅展示为 true 的）
-- [ ] 展示"此操作不可恢复！"警告
-- [ ] Input 初始为空时，"确认清空"按钮 disabled
-- [ ] 输入非"清空"（如"清"或"clear"）时，按钮仍 disabled
-- [ ] 输入"清空"时，按钮 enabled
-- [ ] 点击"确认清空"（enabled 状态）调用 `onConfirm`
-- [ ] 点击"取消"调用 `onOpenChange(false)`
-- [ ] isPending=true 时按钮 disabled 且显示加载态
-- [ ] 使用 `components/ui/alert-dialog` 和 `components/ui/input`，无原生元素/confirm/alert
-- [ ] 所有测试通过：`npx vitest run src/renderer/features/datamanagement/components/__tests__/ClearDataDialog.test.tsx`
+- [x] open=true 时弹窗渲染，标题"确认清空数据"
+- [x] 内容展示根据 selectedModules 拼接的"即将清空：业务数据、运行数据"（仅展示为 true 的）
+- [x] 展示"此操作不可恢复！"警告
+- [x] Input 初始为空时，"确认清空"按钮 disabled
+- [x] 输入非"清空"（如"清"或"clear"）时，按钮仍 disabled
+- [x] 输入"清空"时，按钮 enabled
+- [x] 点击"确认清空"（enabled 状态）调用 `onConfirm`
+- [x] 点击"取消"调用 `onOpenChange(false)`
+- [x] isPending=true 时按钮 disabled 且显示加载态
+- [x] 使用 `components/ui/alert-dialog` 和 `components/ui/input`，无原生元素/confirm/alert
+- [x] 所有测试通过：`npx vitest run src/renderer/features/datamanagement/components/__tests__/ClearDataDialog.test.tsx`
 
 **步骤：**
 1. 编写组件测试：渲染弹窗，用 `userEvent.type` 输入"清空"，断言按钮启用；输入其他值断言禁用；点击确认断言 onConfirm 调用
