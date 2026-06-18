@@ -104,7 +104,7 @@ export interface ElectronAPI {
   pricing: {
     list: () => Promise<PricingEntity[]>
     getByProvider: (providerId: number) => Promise<PricingEntity[]>
-    upsert: (data: PricingEntity) => Promise<void>
+    upsert: (data: PricingEntity) => Promise<PricingEntity>
     delete: (data: { providerId: number; model: string }) => Promise<void>
   }
   /**

@@ -181,7 +181,7 @@ declare global {
       pricing: {
         list: () => Promise<PricingEntity[]>
         getByProvider: (providerId: number) => Promise<PricingEntity[]>
-        upsert: (data: PricingEntity) => Promise<void>
+        upsert: (data: PricingEntity) => Promise<PricingEntity>
         delete: (data: { providerId: number; model: string }) => Promise<void>
       }
       /** 数据管理：按模块清空本地数据 */
@@ -198,10 +198,10 @@ export interface StatsDataPoint {
   requests: number
   tokensIn: number
   tokensOut: number
-  /** 缓存命中输入 Token 数（费用核算扩展字段，向后兼容可选） */
-  cacheTokens?: number
-  /** 该时段费用美元（费用核算扩展字段，向后兼容可选） */
-  cost?: number
+  /** 缓存命中输入 Token 数（费用核算扩展字段，detailedStats 100% 返回） */
+  cacheTokens: number
+  /** 该时段费用美元（费用核算扩展字段，detailedStats 100% 返回） */
+  cost: number
 }
 
 /** 单个模型维度的统计数据（含时序数据点） */
@@ -211,10 +211,10 @@ export interface ProviderStatsModel {
   totalTokensIn: number
   totalTokensOut: number
   totalErrors: number
-  /** 缓存命中输入 Token 数（费用核算扩展字段，向后兼容可选） */
-  cacheTokens?: number
-  /** 该模型总费用美元（费用核算扩展字段，向后兼容可选） */
-  cost?: number
+  /** 缓存命中输入 Token 数（费用核算扩展字段，detailedStats 100% 返回） */
+  cacheTokens: number
+  /** 该模型总费用美元（费用核算扩展字段，detailedStats 100% 返回） */
+  cost: number
   dataPoints: StatsDataPoint[]
 }
 
