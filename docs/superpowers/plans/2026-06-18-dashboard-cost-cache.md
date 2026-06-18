@@ -105,11 +105,11 @@
 - 创建：`scripts/migrate-pricing-cache.mjs`
 
 **验收标准：**
-- [ ] `createTables` 执行后 provider_pricing 表存在且含三单价列 + 时间戳列 + PK + FK
-- [ ] 新库的 request_stats / request_stats_provider 含 total_cache_tokens 列
-- [ ] 迁移脚本对已存在表幂等执行（重复运行不报错）
-- [ ] 迁移脚本先查 `pragma_table_info` 再 ALTER
-- [ ] `npm run test:backend` 现有 db 测试通过
+- [x] `createTables` 执行后 provider_pricing 表存在且含三单价列 + 时间戳列 + PK + FK
+- [x] 新库的 request_stats / request_stats_provider 含 total_cache_tokens 列
+- [x] 迁移脚本对已存在表幂等执行（重复运行不报错）
+- [x] 迁移脚本先查 `pragma_table_info` 再 ALTER
+- [x] `npm run test:backend` 现有 db 测试通过
 
 **步骤：**
 1. 修改 schema.ts 建表 SQL
@@ -563,12 +563,12 @@
 - 修改：`docs/ARCHITECTURE.md`
 
 **验收标准：**
-- [ ] `npm test` 全量通过（输出重定向到临时文件，仅 grep 关键结果）
-- [ ] `npx tsc --noEmit` 通过
-- [ ] `npm run lint` 通过
-- [ ] ARCHITECTURE.md 数据流含 cache_tokens 与 pricing 链路
-- [ ] ARCHITECTURE.md 目录结构含新增文件
-- [ ] 提交
+- [x] `npm test` 全量通过（输出重定向到临时文件，仅 grep 关键结果）
+- [x] `npx tsc --noEmit` 通过
+- [x] `npm run lint` 通过
+- [x] ARCHITECTURE.md 数据流含 cache_tokens 与 pricing 链路
+- [x] ARCHITECTURE.md 目录结构含新增文件
+- [x] 提交
 
 **步骤：**
 1. 运行全量测试（输出重定向 /tmp）
