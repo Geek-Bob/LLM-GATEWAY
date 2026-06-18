@@ -44,7 +44,7 @@ paths:
 # 检查清单
 - Dark-only 策略不被破坏
 - 所有颜色使用主题变量，无硬编码色值（语义颜色用 CSS 变量，过渡期允许 Tailwind 色值）
-- 圆角使用 `rounded-xl`（容器）或 `rounded-md`（小元素）
+- 圆角遵循 5 档规范：`rounded-2xl`（Dialog/AlertDialog）/ `rounded-xl`（Card/Popover/DropdownMenu Content）/ `rounded-lg`（DropdownMenu Item/Select/Tooltip/Input）/ `rounded-md`（Badge/Button）
 - 阴影遵循 3 级规范
 - 无静态内联 `style={{ }}`（动态 transform 等除外）
 - Tailwind 任意值有注释说明原因

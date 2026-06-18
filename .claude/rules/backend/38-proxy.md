@@ -1,5 +1,7 @@
 ---
-description: 代理层规范（路由、SSE 兼容性、认证头差异），始终加载
+description: 代理层规范（路由、SSE 兼容性、认证头差异），仅编辑代理层代码时加载
+paths:
+  - "src/main/proxy/**"
 ---
 
 # 代理层规范

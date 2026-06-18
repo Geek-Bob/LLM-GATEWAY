@@ -23,7 +23,9 @@ const logger = createLogger('proxy:manager')
 
 let server: ServerType | null = null
 let currentPort = 8080
-let debugMode = true
+// 保守默认：关闭。由入口层 startServer() 调 setDebugMode(!app.isPackaged) 在启动时设置实际默认值
+// （dev 开启便于排查，生产关闭符合「生产环境禁止 DEBUG 日志」铁律）。用户可通过 proxy:update IPC 运行时切换。
+let debugMode = false
 /** 缓存的外部服务依赖，由 initProxyServices() 注入 */
 let cachedServices: ProxyServices | null = null
 

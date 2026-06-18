@@ -16,7 +16,7 @@ import { createProviderRepository, type ProviderRow } from './db/providers'
 import { createLogStatsRepository } from './db/logs-stats'
 import type { Provider } from '../shared/types'
 import { createModelsService } from './domains/models/models.service'
-import { getDebugMode } from './proxy/manager'
+import { getDebugMode, setDebugMode } from './proxy/manager'
 import { startProxy, setProxyPort, initProxyServices } from './proxy/manager'
 import { setupIpcHandlers } from './ipc'
 import { UpdateManager } from './update/manager'
@@ -229,6 +229,9 @@ async function startServer(): Promise<void> {
     },
   })
   setProxyPort(PROXY_PORT)
+  // debug 模式默认值：dev 开启便于排查，生产关闭以符合「生产环境禁止 DEBUG 日志」铁律。
+  // 用户仍可通过 proxy:update IPC 运行时切换。
+  setDebugMode(!app.isPackaged)
   startProxy()
 }
 

@@ -48,7 +48,9 @@ src/main/
 │       └── index.ts              # barrel export
 ├── core/                     # 基础设施层：通用工具
 │   ├── logger.ts                 # 统一日志
-│   └── config-migration.ts       # 启动时一次性配置/数据迁移
+│   ├── config-migration.ts       # 启动时一次性配置/数据迁移
+│   ├── debug-log.ts              # 调试日志路径助手（getDebugLogPath/getDebugLogDir）
+│   └── version.ts                # 语义版本比较（compareVersions/isNewerVersion，供 update 模块）
 └── update/                   # 入口层：自动更新
 ```
 

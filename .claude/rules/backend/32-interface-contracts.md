@@ -17,6 +17,7 @@ description: IPC 接口契约（输入校验、输出格式），始终加载
 
 ## IPC 通道命名
 - 格式：`{domain}:{action}` 或 `{domain}:{subResource}:{action}`；domain 统一使用单数（provider/agent/apikey/conversation），聚合域 logs/models 保留复数（已有命名）
+  - 判定标准：单实体 CRUD 域用单数（操作单一聚合根，如 provider/agent/apikey/conversation）；跨实体聚合查询域用复数（logs 聚合 NDJSON 日志+统计、models 聚合模型映射+全量模型列表）
 - 动作词：基础 CRUD 使用 list/getById/create/update/delete；扩展动作允许复合动词（如 listConfigs、switchConfig、readConfigFile）或子资源段（如 models:mapping:create）；统一 camelCase
 - 禁止使用驼峰或下划线混用
 

@@ -2,12 +2,10 @@
 
 此文件为 Claude Code 在此仓库中工作时提供指引。
 
-> 最后更新：2026-06-15 (v1.0.4 — Repository 工厂模式 + 配置迁移框架 + Markdown XSS 防护)
-
 ## 项目概述
 - 多 LLM 供应商统一代理 + 聊天 + 仪表盘的 Electron 42 桌面客户端
 - 面向需要在多个 LLM 供应商之间切换的开发者和团队
-- 技术定位：AI Agent 时代的协议棱镜，一次接入 OpenAI / Anthropic / 开源模型，协议零损耗
+- 一次接入 OpenAI / Anthropic / 开源模型，通过本地代理做协议转换
 
 ## 技术栈
 
@@ -89,11 +87,17 @@ Chat 代理：Renderer → HTTP (localhost:8080) → Hono proxy → upstream Pro
 ```
 
 ### 入口点
-- 主进程：`src/main/index.ts`（窗口/Tray/启动）
+- 主进程：`src/main/index.ts`（窗口/Tray/启动；`getDb()` 在此获取后注入 `setupIpcHandlers`）
 - 启动迁移：`src/main/core/config-migration.ts`（JSON 配置字段迁移框架 `applyMigrators`）
-- IPC 注册：`src/main/ipc/index.ts`（全部业务 CRUD handler，按域拆分）
+- IPC 注册：`src/main/ipc/index.ts`（全部业务 CRUD handler，按域拆分；接收入口层注入的 db）
 - 渲染进程：`src/renderer/App.tsx`（路由 + 更新检测）
 - 代理服务器：`src/main/proxy/server.ts`（Hono 应用）
+
+### 基础设施模块（core/）
+- `logger.ts` — 统一日志（console+file 双 transport，敏感字段脱敏，生产 DEBUG 门控）
+- `config-migration.ts` — JSON 配置字段迁移框架 `applyMigrators<T>`
+- `debug-log.ts` — 调试日志路径助手 `getDebugLogPath`（dev=项目根/正式包=安装目录 logs/）
+- `version.ts` — 语义版本比较 `compareVersions` / `isNewerVersion`（供 update 模块防降级）
 
 ### 数据流
 ```
@@ -148,7 +152,7 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 - SSE 兼容性、Anthropic 认证、焦点操控等编码规范详见对应 rules/ 文件
 
 ## 规则模块
-> 加载方式由各文件 frontmatter 中的 `paths` 字段决定，此处仅为索引参考。
+> 加载方式：frontmatter 无 `paths` 字段则始终加载；有 `paths` 字段则仅匹配路径时按需加载。此处仅为索引参考。
 
 ### 通用规则（`common/` 目录，所有语言/场景适用）
 | 文件 | 加载方式 | 职责 |
@@ -177,4 +181,4 @@ NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮
 | `backend/35-security.md` | 始终加载 | 安全：信任边界、输入校验、API Key 保护 |
 | `backend/36-observability.md` | 始终加载 | 可观测性：日志分层、格式、链路追踪、轮转 |
 | `backend/37-testing.md` | 始终加载 | 测试策略：金字塔、Mock 边界、测试数据管理（TDD 铁律） |
-| `backend/38-proxy.md` | 始终加载 | 代理层：路由、SSE 兼容性、认证头差异 |
+| `backend/38-proxy.md` | 按需加载 | 代理层：路由、SSE 兼容性、认证头差异 |

@@ -52,6 +52,8 @@ for (const item of items) {
 
 // ✅ 正确：批量插入（事务内）
 // 项目使用 sql.js/WASM，无 db.transaction() 声明性 API；事务用 BEGIN/COMMIT/ROLLBACK 显式控制
+// 注：db 即经 createXxxRepository(db) 注入的 Database 实例（db/database.ts 封装），
+// exec/prepare/run 均为该封装的同步 API（sql.js 本身同步），事务语义同标准 SQLite
 db.exec('BEGIN')
 try {
   const stmt = db.prepare('INSERT INTO messages (content) VALUES (?)')

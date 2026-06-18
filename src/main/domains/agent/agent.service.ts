@@ -7,8 +7,8 @@
  * - 配置切换（原子写入到 Agent 配置路径）
  *
  * 关键设计决策：
- * - Agent Repository 使用依赖注入模式（Pattern A），便于测试
- * - AgentConfig Repository 使用依赖注入模式（Pattern A），接收 Database 实例
+ * - Agent Repository 采用工厂注入模式（模式 B），createAgentRepository(db) 接收 Database 实例，便于测试
+ * - AgentConfig Repository 采用工厂注入模式（模式 B），createAgentConfigRepository(db) 接收 Database 实例
  * - switchConfig 使用原子写入（临时文件 + rename），确保配置一致性
  * - 写入失败时回滚数据库状态
  */
@@ -104,8 +104,8 @@ export function createAgentService(db: Database) {
     /**
      * 删除自定义 Agent（内置不可删）
      * @param id - Agent ID
-     * @throws 如果 Agent 不存在则抛出 `agent ${id} not found` 错误
-     * @throws 如果 Agent 为内置 Agent 则抛出 `cannot delete builtin agent` 错误
+     * @throws 如果 Agent 不存在则抛出 not found 错误（`Failed to delete agent: agent ${id} not found`）
+     * @throws 如果 Agent 为内置 Agent 则抛出 `Failed to delete agent: cannot delete builtin agent ${id}` 错误
      */
     async remove(id: number): Promise<void> {
       // 业务规则：内置 Agent 不可删除（在 service 层校验，保持 db 层为纯 CRUD）

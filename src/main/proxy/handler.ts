@@ -13,7 +13,8 @@
 import type { Context } from 'hono'
 import { buildProxyUrl, buildProxyHeaders } from './forwarder'
 import { convertRequest, convertResponse, createStreamContext } from './converter'
-import { resolveProvider } from './router'
+import { resolveProvider, type ModelRoute } from './router'
+import type { StreamContext } from './converter/types'
 import { createLogger, type Logger } from '../core/logger'
 import { getDebugLogPath } from '../core/debug-log'
 import type { ProxyLogService } from './logger'
@@ -38,6 +39,26 @@ function logger(): Logger {
 const MAX_LOG_BODY_LENGTH = 4000
 
 /**
+ * 代理请求体类型。协议转换后结构不固定（含 messages/tools 等供应商差异字段），
+ * 仅约束核心可读字段，其余以 unknown 索引签名收口，避免 any。
+ */
+interface ProxyRequestBody {
+  model: string
+  stream?: boolean
+  [key: string]: unknown
+}
+
+/** 代理请求日志基础信息，随响应处理流传递给 logService */
+interface ProxyLogBase {
+  apiKeyId: number
+  providerId: number
+  model: string
+  apiFormat: 'anthropic' | 'openai'
+  statusCode: number
+  durationMs: number
+}
+
+/**
  * 代理 handler 所需的全部服务依赖
  *
  * 由 createServer() 组装后注入，handler 自身不构造任何服务实例。
@@ -55,7 +76,7 @@ export interface ProxyHandlerServices {
       upstreamStream: ReadableStream<Uint8Array>,
       from: 'openai' | 'anthropic',
       to: 'openai' | 'anthropic',
-      ctx: any
+      ctx: StreamContext
     ) => ReadableStream<Uint8Array>
     sanitizeResponseHeaders: (headers: Headers) => Record<string, string>
   }
@@ -100,9 +121,9 @@ export function createProxyHandler(services: ProxyHandlerServices) {
    * 转换请求体和路径，失败时返回 502 错误 Response。
    */
   function convertIfNeeded(
-    proxyBody: any, proxyPath: string, apiFormat: 'anthropic' | 'openai',
-    route: any, requestPath: string, bodyModel: string, debugInfo: LogDebugInfo | null
-  ): { proxyBody: any; proxyPath: string } | Response {
+    proxyBody: ProxyRequestBody, proxyPath: string, apiFormat: 'anthropic' | 'openai',
+    route: ModelRoute, requestPath: string, bodyModel: string, debugInfo: LogDebugInfo | null
+  ): { proxyBody: ProxyRequestBody; proxyPath: string } | Response {
     try {
       const converted = convertRequest(proxyBody, apiFormat, route.provider.providerType as 'openai' | 'anthropic')
       logger().info('CONVERSION', {
@@ -119,10 +140,11 @@ export function createProxyHandler(services: ProxyHandlerServices) {
         }
       }
       return { proxyBody: converted.body, proxyPath: converted.path }
-    } catch (convErr: any) {
-      logger().warn('CONVERSION_ERROR', { error: convErr.message })
+    } catch (convErr: unknown) {
+      const msg = convErr instanceof Error ? convErr.message : String(convErr)
+      logger().warn('CONVERSION_ERROR', { error: msg })
       return new Response(
-        JSON.stringify({ error: `protocol_conversion_failed: ${convErr.message}` }),
+        JSON.stringify({ error: `protocol_conversion_failed: ${msg}` }),
         { status: 502, headers: { 'content-type': 'application/json' } }
       )
     }
@@ -140,8 +162,8 @@ export function createProxyHandler(services: ProxyHandlerServices) {
    */
   async function resolveRoute(
     model: string, requestPath: string, apiFormat: 'anthropic' | 'openai',
-    body: any, debugInfo: LogDebugInfo | null
-  ): Promise<{ route: any; proxyBody: any; proxyPath: string; needsConversion: boolean } | Response> {
+    body: ProxyRequestBody, debugInfo: LogDebugInfo | null
+  ): Promise<{ route: ModelRoute; proxyBody: ProxyRequestBody; proxyPath: string; needsConversion: boolean } | Response> {
     const mapping = await findModelMapping(model)
     const resolvedModel = mapping ? mapping.targetModel : model
     if (debugInfo && mapping) {
@@ -163,7 +185,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
 
     const needsConversion = apiFormat !== route.provider.providerType
     let proxyPath = requestPath
-    let proxyBody: any = { ...body, model: route.modelName }
+    let proxyBody: ProxyRequestBody = { ...body, model: route.modelName }
 
     if (needsConversion) {
       const result = convertIfNeeded(proxyBody, proxyPath, apiFormat, route, requestPath, body.model, debugInfo)
@@ -179,7 +201,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
    * 同时返回脱敏版本用于日志记录。
    */
   function buildUpstreamHeaders(
-    c: Context<AppEnv>, route: any
+    c: Context<AppEnv>, route: ModelRoute
   ): { proxyHeaders: Record<string, string>; sanitizedHeaders: Record<string, string> } {
     const originalHeaders: Record<string, string> = {}
     const contentType = c.req.header('content-type')
@@ -201,10 +223,10 @@ export function createProxyHandler(services: ProxyHandlerServices) {
    * 构建上游请求并发送 fetch，返回响应和日志基础信息。
    */
   async function buildAndFetchUpstream(
-    c: Context<AppEnv>, route: any, proxyBody: any, proxyPath: string,
+    c: Context<AppEnv>, route: ModelRoute, proxyBody: ProxyRequestBody, proxyPath: string,
     model: string, apiFormat: 'anthropic' | 'openai',
     startTime: number, debugInfo: LogDebugInfo | null
-  ): Promise<{ response: Response; logBase: any }> {
+  ): Promise<{ response: Response; logBase: ProxyLogBase }> {
     const url = buildProxyUrl(route.provider, proxyPath)
     if (debugInfo) {
       debugInfo.upstream.url = url
@@ -240,19 +262,19 @@ export function createProxyHandler(services: ProxyHandlerServices) {
   function handleErrorResponse(
     c: Context<AppEnv>,
     response: Response,
-    route: any,
+    route: ModelRoute,
     needsConversion: boolean,
     apiFormat: 'anthropic' | 'openai',
-    logBase: any,
+    logBase: ProxyLogBase,
     debugInfo: LogDebugInfo | null
   ): Promise<Response> {
     return response.text().catch(
       () => `(failed to read error body: ${response.status})`
     ).then((errorText) => {
       logger().warn('UPSTREAM_ERROR_BODY', { status: response.status, body: errorText.slice(0, MAX_LOG_BODY_LENGTH) })
-      let errorBody: any
+      let errorBody: Record<string, unknown>
       let isJson = false
-      try { errorBody = JSON.parse(errorText); isJson = true }
+      try { errorBody = JSON.parse(errorText) as Record<string, unknown>; isJson = true }
       catch { errorBody = { error: { message: errorText.slice(0, 500) } } }
 
       if (!needsConversion && !isJson) {
@@ -264,7 +286,9 @@ export function createProxyHandler(services: ProxyHandlerServices) {
       const convertedError = needsConversion
         ? convertResponse(errorBody, route.provider.providerType as 'openai' | 'anthropic', apiFormat) : errorBody
       if (debugInfo) { debugInfo.upstream.statusCode = response.status; debugInfo.upstream.responseBody = errorText }
-      const errMsg = errorBody?.error?.message || errorBody?.error || errorText.slice(0, 200)
+      const errRaw = (errorBody as { error?: { message?: unknown } | unknown })?.error
+      const errMsg = (typeof errRaw === 'object' && errRaw !== null && 'message' in errRaw
+        ? (errRaw as { message: unknown }).message : errRaw) ?? errorText.slice(0, 200)
       logService.tryLogEntry({ ...logBase, error: typeof errMsg === 'string' ? errMsg : String(errMsg).slice(0, 200), debug: debugInfo ?? undefined })
       return c.json(convertedError, response.status as any)
     })
@@ -275,12 +299,12 @@ export function createProxyHandler(services: ProxyHandlerServices) {
    * tee() 拆分流：一份给客户端，一份异步提取 token 用量写日志。
    */
   function handleStreamResponse(
-    c: Context<AppEnv>,
+    _c: Context<AppEnv>,
     response: Response,
-    route: any,
+    route: ModelRoute,
     needsConversion: boolean,
     apiFormat: 'anthropic' | 'openai',
-    logBase: any,
+    logBase: ProxyLogBase,
     debugInfo: LogDebugInfo | null
   ): Response {
     const [forClient, forLogging] = response.body!.tee()
@@ -306,10 +330,10 @@ export function createProxyHandler(services: ProxyHandlerServices) {
   async function handleNonStreamResponse(
     c: Context<AppEnv>,
     response: Response,
-    route: any,
+    route: ModelRoute,
     needsConversion: boolean,
     apiFormat: 'anthropic' | 'openai',
-    logBase: any,
+    logBase: ProxyLogBase,
     debugInfo: LogDebugInfo | null
   ): Promise<Response> {
     const responseBody = await response.json()
@@ -356,7 +380,7 @@ export function createProxyHandler(services: ProxyHandlerServices) {
       upstream: { url: '', body: '', statusCode: 0, responseBody: '' }
     } : null
     try {
-      const body = await c.req.json()
+      const body = await c.req.json() as ProxyRequestBody
       const model = body.model
       const clientHeaders = extractClientHeaders(c.req.raw.headers)
       logger().info('CLIENT_REQUEST', {

@@ -55,6 +55,6 @@ import { rowFadeIn } from '@/lib/animations'
 # 检查清单
 - 页面入场使用 `pageVariants` + `childVariants`
 - 列表行入场使用 `rowFadeIn(idx)`
-- Radix 原语动画由 `tailwindcss-animate` 控制
+- Radix 原语动画由 Tailwind v4 内置 data-state utility 控制（`animate-in`/`animate-out`/`fade-in-0`/`zoom-in-95`/`slide-in-from-*`，无需 tailwindcss-animate 插件）
 - 页面/列表动画由 `framer-motion` 控制
 - duration 遵循标准：页面 0.3s、子元素 0.2s、交互 0.15s

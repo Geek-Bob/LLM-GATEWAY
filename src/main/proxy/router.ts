@@ -15,7 +15,8 @@ import type { Provider } from '../../shared/types'
 /** 按名称查找供应商的函数签名（异步，由调用方注入，解耦 db 层） */
 type ProviderLookup = (name: string) => Promise<Provider | undefined>
 
-interface ModelRoute {
+/** resolveProvider 的返回结构：解析出的前缀、模型名、匹配到的供应商 */
+export interface ModelRoute {
   prefix: string
   modelName: string
   provider: Provider
