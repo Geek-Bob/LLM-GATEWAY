@@ -31,6 +31,8 @@
 | `src/main/ipc/datamanagement.ts` | `registerDataManagementHandlers(db)` IPC handler | 新增 |
 | `src/main/ipc/index.ts` | 注册 `registerDataManagementHandlers(db)` | 修改 |
 
+> **命名约定说明：** 现有 `src/main/ipc/` 文件多用复数（`providers.ts`/`apikeys.ts`/`conversations.ts`），但那是因对应 domain 单词有自然复数。`datamanagement` 是单一聚合域单词（无自然复数形态），且 IPC 通道 `datamanagement:clear` 已用单数域（遵循 `backend/32-interface-contracts.md` 单实体域单数规则），故 IPC 文件名 `datamanagement.ts` 跟随通道域名单数，与 domain 目录 `domains/datamanagement/` 一致。
+
 ### preload 桥接层
 
 | 文件 | 职责 | 动作 |
@@ -72,7 +74,7 @@
 **验收标准：**
 - [ ] `ClearDataInput` 接口含且仅含 `business: boolean` 与 `operational: boolean` 两个字段
 - [ ] `ClearDataResult` 接口的 `business` 和 `operational` 均为 `{ cleared: boolean }` 结构
-- [ ] 类型断言测试通过：`npx vitest run src/main/domains/datamanagement/__tests__/datamanagement.types.test-d.ts`（或 `npx tsd` 视项目配置，类型测试文件 `.test-d.ts`）
+- [ ] 类型断言测试通过：`npx vitest run src/main/domains/datamanagement/__tests__/datamanagement.types.test-d.ts`（用 vitest `expectTypeOf`；若 `.test-d.ts` 在当前 vitest 配置不被识别，退化为编译期静态断言 `const _input: ClearDataInput = { business: true, operational: false }` + `satisfies` 验证字段集合，由 `npx tsc --noEmit` 保证）
 - [ ] `npx tsc --noEmit` 全量类型检查通过（修改 shared/types.ts 后强制要求）
 
 **步骤：**
@@ -137,7 +139,7 @@
 **需求描述：**
 `logStatsRepo.clearAll()` 依次执行 `DELETE FROM request_stats` 和 `DELETE FROM request_stats_provider`（两张表都要清）。
 
-`resetLogs()` 是 `logs-writer.ts` 导出的裸函数（非 Repository，符合 NDJSON 模块豁免）。三步：① 删除 `logsDir` 下所有匹配 `/^logs-\d{4}\.ndjson$/` 的文件 + `logs-meta.json`；② 重置模块级变量 `currentFileNumber = 0`、`currentFileLines = 0`、`entryCounter = 0`；③ 不重建空文件（`createLogEntry` 已有首次写入初始化逻辑）。函数必须处理 `logsDir` 为 null 的情况（未初始化时安全 no-op 或抛明确错误，参考现有 `createLogEntry` 的 `'Logs directory not initialized'` 处理）。配 JSDoc 说明三步操作。
+`resetLogs()` 是 `logs-writer.ts` 导出的裸函数（非 Repository，符合 NDJSON 模块豁免）。三步：① 删除 `logsDir` 下所有匹配 `/^logs-\d{4}\.ndjson$/` 的文件 + `logs-meta.json`；② 重置模块级变量 `currentFileNumber = 0`、`currentFileLines = 0`、`entryCounter = 0`；③ 不重建空文件（`createLogEntry` 已有首次写入初始化逻辑）。函数必须处理 `logsDir` 为 null 的情况——**抛 `new Error('Logs directory not initialized')`**（与现有 `createLogEntry` 严格一致，不安全跳过）。**不加锁**（设计文档 5.2/10 节已论证清空瞬间竞态可接受，日志非关键数据）。配 JSDoc 说明三步操作。
 
 **产出（Produces）：**
 - 方法：`createLogStatsRepository(db).clearAll`
@@ -156,7 +158,7 @@
 - [ ] `resetLogs()` 调用后，日志目录下所有 `logs-XXXX.ndjson` 文件被删除，`logs-meta.json` 被删除
 - [ ] `resetLogs()` 后模块计数器归零：`getEntryCounter()` 返回 0、`getCurrentFileLines()` 返回 0
 - [ ] `resetLogs()` 后再调用 `createLogEntry()` 能正常写入，自动创建 `logs-0001.ndjson`，计数器从 1 开始
-- [ ] `resetLogs()` 在 `logsDir` 未初始化时不崩溃（抛 `'Logs directory not initialized'` 或安全跳过，与 `createLogEntry` 一致）
+- [ ] `resetLogs()` 在 `logsDir` 未初始化时抛 `new Error('Logs directory not initialized')`（与 `createLogEntry` 严格一致，不静默跳过）
 - [ ] 测试用临时目录隔离（不污染真实日志目录），用 `initLogsDir(tmpDir)` 初始化
 - [ ] 所有测试通过：`npx vitest run src/main/db/__tests__/clear-all.operational.test.ts`
 
@@ -221,7 +223,7 @@
 工厂内实例化 5 个 Repository（provider/modelMapping/apiKey/conversation/logStats）+ import `resetLogs` 裸函数。`clear(input)` 方法逻辑：
 
 - 若 `input.business` 为 true：开 `BEGIN` 事务，依次调 4 个业务 Repository 的 `clearAll()`，全部成功 `COMMIT`；任一失败 `ROLLBACK` 并抛 `Failed to clear business data: {reason}`（reason 取 error.message）。业务失败则**不执行运行数据步骤**，整个 clear 失败。
-- 若 `input.operational` 为 true（且业务步骤已成功或未要求业务）：调 `logStatsRepo.clearAll()` 和 `resetLogs()`，分步执行无事务；失败抛 `Failed to clear operational data: {reason}`。此时若业务已清空，属部分成功——错误消息需体现"业务数据已清空，运行数据清空失败"。
+- 若 `input.operational` 为 true（且业务步骤已成功或未要求业务）：调 `logStatsRepo.clearAll()` 和 `resetLogs()`，分步执行无事务；失败抛 `Failed to clear operational data: {reason}`。此时若业务已清空，属部分成功——错误消息需拼接提示，格式为 `Failed to clear operational data: {reason} (business data already cleared)`，让用户知晓业务数据已实际清空不可恢复、运行数据需重试。
 - 返回 `ClearDataResult`，对应字段 `{ cleared: true }`；未执行的类别不返回 cleared:true（或返回 `{cleared:false}`，由未要求该类决定）。
 - 不引用 agentRepo（Agent 表完全不参与）。
 
@@ -247,7 +249,7 @@
 - [ ] `clear({operational:true})` 清空两张统计表 + 删除日志文件 + 重置计数器，返回 `operational.cleared === true`
 - [ ] `clear({business:true, operational:true})` 先业务后运行，两者均 cleared:true
 - [ ] 业务数据在事务中：若模拟中途失败（如 mock 某个 Repository.clearAll 抛错），`ROLLBACK` 后 4 表均未清空（原子性验证），抛 `Failed to clear business data: ...`
-- [ ] 组合输入下运行数据失败时：业务已清空（不可回滚），抛 `Failed to clear operational data: ...`，且业务表确认为空
+- [ ] 组合输入下运行数据失败时：业务已清空（不可回滚），抛 `Failed to clear operational data: {reason} (business data already cleared)`（消息含"business data already cleared"提示），且业务表确认为空
 - [ ] 测试用内存数据库 + 临时日志目录，不 mock 内部 Repository（mock 外部文件系统或用真实临时目录）
 - [ ] `messages` 表随 conversations 级联清空
 - [ ] 所有测试通过：`npx vitest run src/main/domains/datamanagement/__tests__/datamanagement.service.test.ts`
@@ -318,7 +320,8 @@
 
 **消费（Consumes）：**
 - Task 0：`ClearDataInput`、`ClearDataResult`（type-only 导入）
-- Task 5：IPC 通道 `datamanagement:clear`（运行时 invoke 目标）
+
+> 说明：IPC 通道名 `datamanagement:clear` 是契约约定字符串（硬编码于 preload/index.ts），preload 编译期不依赖 Task 5 的 `ipc/datamanagement.ts` 模块（preload 禁止 import main），故本任务仅依赖 Task 0 的类型，可与 Task 5 同层并行。运行时 invoke 目标由 Task 5 注册，前端组件（Task 9）集成前不会实际调用，无运行时风险。
 
 **文件：**
 - 修改：`src/preload/types.ts`
@@ -349,7 +352,7 @@
 **设计文档索引：** `docs/superpowers/specs/2026-06-18-clear-data-by-module-design.md#64-清空后处理`（对应第 6.4 节，queryKey 规范见 `frontend/31-renderer.md`）
 
 **需求描述：**
-`useClearData()` 返回 `useMutation`，`mutationFn` 调 `api.dataManagement.clear(input)`。`onSuccess` 根据 input 失效缓存：清空业务数据时 invalidate `['providers']`、`['modelMappings']`、`['apiKeys']`、`['conversations']`；清空运行数据时 invalidate `['logs']`、`['stats']`（用 `qc.invalidateQueries({ queryKey: [domain] })` 前缀失效，覆盖各 action）。`onError` 不在此处 toast（由调用组件处理，保持 query 层纯数据，遵循 `frontend/31-renderer.md`——组件决定错误 UI；或按项目惯例在 query onError 用 toast，参照现有 `useProviders` 无 onError、错误由组件处理的模式）。queryKey 不在此任务定义（本任务无 query，仅 mutation）。
+`useClearData()` 返回 `useMutation`，`mutationFn` 调 `api.dataManagement.clear(input)`。`onSuccess` 根据 input 失效缓存：清空业务数据时 invalidate `['providers']`、`['modelMappings']`、`['apiKeys']`、`['conversations']`；清空运行数据时 invalidate `['logs']`、`['stats']`（用 `qc.invalidateQueries({ queryKey: [domain] })` 前缀失效，覆盖各 action）。**不在 query 层 toast**——`onError` 留空，错误 UI 由调用组件（Task 9 的 DataManagementCard）处理，遵循 `frontend/31-renderer.md`（参照现有 `useProviders` 无 onError、错误由组件处理的模式）。本任务仅 mutation，无 query。
 
 **产出（Produces）：**
 - Hook：`useClearData()`（mutation，接收 `ClearDataInput`）
