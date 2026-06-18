@@ -73,9 +73,9 @@
 - 修改：`src/shared/types.ts`
 
 **验收标准：**
-- [ ] `PricingEntity` 含 providerId: number / model: string / priceInCached: number / priceInUncached: number / priceOut: number
-- [ ] `RangeSummary` 含 totalTokens/inputTokens/cacheTokens/uncachedTokens/outputTokens/totalCost/cacheCost/uncachedCost/outputCost/totalRequests 全部 number
-- [ ] `npx tsc --noEmit` 通过
+- [x] `PricingEntity` 含 providerId: number / model: string / priceInCached: number / priceInUncached: number / priceOut: number
+- [x] `RangeSummary` 含 totalTokens/inputTokens/cacheTokens/uncachedTokens/outputTokens/totalCost/cacheCost/uncachedCost/outputCost/totalRequests 全部 number
+- [x] `npx tsc --noEmit` 通过
 
 **步骤：**
 1. 编写类型定义
@@ -141,12 +141,12 @@
 - 测试：`src/main/db/__tests__/provider-pricing.test.ts`
 
 **验收标准：**
-- [ ] `upsert` 对同一 (provider_id, model) 重复调用更新而非插入（幂等）
-- [ ] `findByProvider` 返回指定供应商的全部单价，按 model 排序
-- [ ] `remove` 删单条；(providerId, model) 不存在时不报错
-- [ ] `removeByProvider` 删除该供应商下全部单价行
-- [ ] 测试用内存数据库，不 mock 数据库操作
-- [ ] 所有测试通过：`npx vitest run src/main/db/__tests__/provider-pricing.test.ts`
+- [x] `upsert` 对同一 (provider_id, model) 重复调用更新而非插入（幂等）
+- [x] `findByProvider` 返回指定供应商的全部单价，按 model 排序
+- [x] `remove` 删单条；(providerId, model) 不存在时不报错
+- [x] `removeByProvider` 删除该供应商下全部单价行
+- [x] 测试用内存数据库，不 mock 数据库操作
+- [x] 所有测试通过：`npx vitest run src/main/db/__tests__/provider-pricing.test.ts`
 
 **步骤：**
 1. 编写 Repository 测试（Red）
@@ -219,13 +219,13 @@
 - 测试：扩展 `src/main/proxy/__tests__/` 下 logger 相关测试
 
 **验收标准：**
-- [ ] OpenAI SSE 含 `prompt_tokens_details.cached_tokens` 时 cacheTokens 正确提取
-- [ ] Anthropic SSE message_start 含 `cache_read_input_tokens` 时 cacheTokens 正确提取
-- [ ] Anthropic `cache_creation_input_tokens` 不计入 cacheTokens
-- [ ] 无缓存字段的 SSE，cacheTokens = 0
-- [ ] NDJSON 写入行含 `cache_tokens` 字段
-- [ ] `npx tsc --noEmit` 通过
-- [ ] 所有相关测试通过
+- [x] OpenAI SSE 含 `prompt_tokens_details.cached_tokens` 时 cacheTokens 正确提取
+- [x] Anthropic SSE message_start 含 `cache_read_input_tokens` 时 cacheTokens 正确提取
+- [x] Anthropic `cache_creation_input_tokens` 不计入 cacheTokens
+- [x] 无缓存字段的 SSE，cacheTokens = 0
+- [x] NDJSON 写入行含 `cache_tokens` 字段
+- [x] `npx tsc --noEmit` 通过
+- [x] 所有相关测试通过
 
 **步骤：**
 1. 编写 extractUsageFromSSE 缓存提取测试（OpenAI/Anthropic/无缓存三场景）
@@ -260,15 +260,15 @@
 - 测试：扩展 `src/main/db/__tests__/logs-stats.test.ts` 或 `logs.test.ts`
 
 **验收标准：**
-- [ ] updateRequestStats/updateProviderStats 写入后 total_cache_tokens 正确累加
-- [ ] getStats 返回含 cacheTokens 与 totalCost（7d 也算费用）
-- [ ] getRangeSummary('24h')/('30d') 返回 totalTokens/inputTokens/cacheTokens/uncachedTokens/outputTokens/totalCost/cacheCost/uncachedCost/outputCost/totalRequests
-- [ ] 配置单价的模型费用正确（cacheTokens×priceInCached + ...）
-- [ ] 缺单价的模型费用为 0，但 token 正常统计
-- [ ] cacheTokens > tokensIn 时 uncachedTokens clamp 到 0
-- [ ] getDetailedStats 每行含 cacheTokens 与 cost
-- [ ] 测试用内存数据库 + 插入 pricing 数据，不 mock
-- [ ] 所有测试通过
+- [x] updateRequestStats/updateProviderStats 写入后 total_cache_tokens 正确累加
+- [x] getStats 返回含 cacheTokens 与 totalCost（7d 也算费用）
+- [x] getRangeSummary('24h')/('30d') 返回 totalTokens/inputTokens/cacheTokens/uncachedTokens/outputTokens/totalCost/cacheCost/uncachedCost/outputCost/totalRequests
+- [x] 配置单价的模型费用正确（cacheTokens×priceInCached + ...）
+- [x] 缺单价的模型费用为 0，但 token 正常统计
+- [x] cacheTokens > tokensIn 时 uncachedTokens clamp 到 0
+- [x] getDetailedStats 每行含 cacheTokens 与 cost
+- [x] 测试用内存数据库 + 插入 pricing 数据，不 mock
+- [x] 所有测试通过
 
 **步骤：**
 1. 编写 updateRequestStats/updateProviderStats 写入 cache_tokens 测试
