@@ -72,10 +72,10 @@
 - 测试：`src/main/domains/datamanagement/__tests__/datamanagement.types.test-d.ts`（类型断言测试，验证类型结构）
 
 **验收标准：**
-- [ ] `ClearDataInput` 接口含且仅含 `business: boolean` 与 `operational: boolean` 两个字段
-- [ ] `ClearDataResult` 接口的 `business` 和 `operational` 均为 `{ cleared: boolean }` 结构
-- [ ] 类型断言测试通过：`npx vitest run src/main/domains/datamanagement/__tests__/datamanagement.types.test-d.ts`（用 vitest `expectTypeOf`；若 `.test-d.ts` 在当前 vitest 配置不被识别，退化为编译期静态断言 `const _input: ClearDataInput = { business: true, operational: false }` + `satisfies` 验证字段集合，由 `npx tsc --noEmit` 保证）
-- [ ] `npx tsc --noEmit` 全量类型检查通过（修改 shared/types.ts 后强制要求）
+- [x] `ClearDataInput` 接口含且仅含 `business: boolean` 与 `operational: boolean` 两个字段
+- [x] `ClearDataResult` 接口的 `business` 和 `operational` 均为 `{ cleared: boolean }` 结构
+- [x] 类型断言测试通过：`npx vitest run src/main/domains/datamanagement/__tests__/datamanagement.types.test-d.ts`（用 vitest `expectTypeOf`；若 `.test-d.ts` 在当前 vitest 配置不被识别，退化为编译期静态断言 `const _input: ClearDataInput = { business: true, operational: false }` + `satisfies` 验证字段集合，由 `npx tsc --noEmit` 保证）
+- [x] `npx tsc --noEmit` 全量类型检查通过（修改 shared/types.ts 后强制要求）
 
 **步骤：**
 1. 编写类型断言测试（`.test-d.ts`），用 `expectTypeOf` 验证 `ClearDataInput` 和 `ClearDataResult` 的字段结构
@@ -113,13 +113,13 @@
 - 测试：`src/main/db/__tests__/clear-all.business.test.ts`
 
 **验收标准：**
-- [ ] `providerRepo.clearAll()` 后 `SELECT COUNT(*) FROM providers` 为 0
-- [ ] `modelMappingRepo.clearAll()` 后 `SELECT COUNT(*) FROM model_mappings` 为 0
-- [ ] `apiKeyRepo.clearAll()` 后 `SELECT COUNT(*) FROM api_keys` 为 0
-- [ ] `conversationRepo.clearAll()` 后 `SELECT COUNT(*) FROM conversations` 为 0，且关联的 `messages` 表也被清空（级联验证）
-- [ ] 四个方法均为 `async` 返回 `Promise<void>`，配 JSDoc
-- [ ] 测试使用内存数据库（sql.js WASM），不 mock 数据库操作
-- [ ] 所有测试通过：`npx vitest run src/main/db/__tests__/clear-all.business.test.ts`
+- [x] `providerRepo.clearAll()` 后 `SELECT COUNT(*) FROM providers` 为 0
+- [x] `modelMappingRepo.clearAll()` 后 `SELECT COUNT(*) FROM model_mappings` 为 0
+- [x] `apiKeyRepo.clearAll()` 后 `SELECT COUNT(*) FROM api_keys` 为 0
+- [x] `conversationRepo.clearAll()` 后 `SELECT COUNT(*) FROM conversations` 为 0，且关联的 `messages` 表也被清空（级联验证）
+- [x] 四个方法均为 `async` 返回 `Promise<void>`，配 JSDoc
+- [x] 测试使用内存数据库（sql.js WASM），不 mock 数据库操作
+- [x] 所有测试通过：`npx vitest run src/main/db/__tests__/clear-all.business.test.ts`
 
 **步骤：**
 1. 编写测试：用内存 db 插入若干 provider/mapping/apikey/conversation+message 记录，调用各 `clearAll()`，断言计数归零、messages 级联清空
@@ -154,13 +154,13 @@
 - 测试：`src/main/db/__tests__/clear-all.operational.test.ts`
 
 **验收标准：**
-- [ ] `logStatsRepo.clearAll()` 后 `SELECT COUNT(*) FROM request_stats` 和 `request_stats_provider` 均为 0
-- [ ] `resetLogs()` 调用后，日志目录下所有 `logs-XXXX.ndjson` 文件被删除，`logs-meta.json` 被删除
-- [ ] `resetLogs()` 后模块计数器归零：`getEntryCounter()` 返回 0、`getCurrentFileLines()` 返回 0
-- [ ] `resetLogs()` 后再调用 `createLogEntry()` 能正常写入，自动创建 `logs-0001.ndjson`，计数器从 1 开始
-- [ ] `resetLogs()` 在 `logsDir` 未初始化时抛 `new Error('Logs directory not initialized')`（与 `createLogEntry` 严格一致，不静默跳过）
-- [ ] 测试用临时目录隔离（不污染真实日志目录），用 `initLogsDir(tmpDir)` 初始化
-- [ ] 所有测试通过：`npx vitest run src/main/db/__tests__/clear-all.operational.test.ts`
+- [x] `logStatsRepo.clearAll()` 后 `SELECT COUNT(*) FROM request_stats` 和 `request_stats_provider` 均为 0
+- [x] `resetLogs()` 调用后，日志目录下所有 `logs-XXXX.ndjson` 文件被删除，`logs-meta.json` 被删除
+- [x] `resetLogs()` 后模块计数器归零：`getEntryCounter()` 返回 0、`getCurrentFileLines()` 返回 0
+- [x] `resetLogs()` 后再调用 `createLogEntry()` 能正常写入，自动创建 `logs-0001.ndjson`，计数器从 1 开始
+- [x] `resetLogs()` 在 `logsDir` 未初始化时抛 `new Error('Logs directory not initialized')`（与 `createLogEntry` 严格一致，不静默跳过）
+- [x] 测试用临时目录隔离（不污染真实日志目录），用 `initLogsDir(tmpDir)` 初始化
+- [x] 所有测试通过：`npx vitest run src/main/db/__tests__/clear-all.operational.test.ts`
 
 **步骤：**
 1. 编写测试：用临时目录 `initLogsDir`，写入几条日志产生 `logs-0001.ndjson` + meta，调用 `resetLogs()`，断言文件删除 + 计数器归零；再调 `createLogEntry()` 验证能重建并从 1 计数；统计表插入数据后 `clearAll()` 验证清空
@@ -195,14 +195,14 @@
 - 测试：`src/main/domains/datamanagement/__tests__/datamanagement.schema.test.ts`
 
 **验收标准：**
-- [ ] `clearDataSchema.parse({ business: true, operational: false })` 成功
-- [ ] `clearDataSchema.parse({ business: false, operational: true })` 成功
-- [ ] `clearDataSchema.parse({ business: true, operational: true })` 成功
-- [ ] `clearDataSchema.parse({ business: false, operational: false })` 抛 ZodError，错误消息涉及"至少一个"
-- [ ] `clearDataSchema.parse({ business: 'yes', operational: true })` 抛 ZodError（非 boolean 拒绝）
-- [ ] `clearDataSchema.parse({})` 抛 ZodError（缺字段拒绝）
-- [ ] `datamanagement.types.ts` 仅 type alias 派生，无重复 interface 定义
-- [ ] 所有测试通过：`npx vitest run src/main/domains/datamanagement/__tests__/datamanagement.schema.test.ts`
+- [x] `clearDataSchema.parse({ business: true, operational: false })` 成功
+- [x] `clearDataSchema.parse({ business: false, operational: true })` 成功
+- [x] `clearDataSchema.parse({ business: true, operational: true })` 成功
+- [x] `clearDataSchema.parse({ business: false, operational: false })` 抛 ZodError，错误消息涉及"至少一个"
+- [x] `clearDataSchema.parse({ business: 'yes', operational: true })` 抛 ZodError（非 boolean 拒绝）
+- [x] `clearDataSchema.parse({})` 抛 ZodError（缺字段拒绝）
+- [x] `datamanagement.types.ts` 仅 type alias 派生，无重复 interface 定义
+- [x] 所有测试通过：`npx vitest run src/main/domains/datamanagement/__tests__/datamanagement.schema.test.ts`
 
 **步骤：**
 1. 编写 schema 测试覆盖合法/非法/边界输入，验证具体错误字段
@@ -244,15 +244,15 @@
 - 测试：`src/main/domains/datamanagement/__tests__/datamanagement.service.test.ts`
 
 **验收标准：**
-- [ ] `clear({business:true})` 清空 providers/model_mappings/api_keys/conversations 4 表，返回 `business.cleared === true`
-- [ ] `clear({business:true})` 后 `agents` 和 `agent_configs` 表行数**不变**（Agent 保护验证，用 Repository 或直接 `db.prepare('SELECT COUNT(*)')` 只读查询断言，不经 service）
-- [ ] `clear({operational:true})` 清空两张统计表 + 删除日志文件 + 重置计数器，返回 `operational.cleared === true`
-- [ ] `clear({business:true, operational:true})` 先业务后运行，两者均 cleared:true
-- [ ] 业务数据在事务中：若模拟中途失败（如 mock 某个 Repository.clearAll 抛错），`ROLLBACK` 后 4 表均未清空（原子性验证），抛 `Failed to clear business data: ...`
-- [ ] 组合输入下运行数据失败时：业务已清空（不可回滚），抛 `Failed to clear operational data: {reason} (business data already cleared)`（消息含"business data already cleared"提示），且业务表确认为空
-- [ ] 测试用内存数据库 + 临时日志目录，不 mock 内部 Repository（mock 外部文件系统或用真实临时目录）
-- [ ] `messages` 表随 conversations 级联清空
-- [ ] 所有测试通过：`npx vitest run src/main/domains/datamanagement/__tests__/datamanagement.service.test.ts`
+- [x] `clear({business:true})` 清空 providers/model_mappings/api_keys/conversations 4 表，返回 `business.cleared === true`
+- [x] `clear({business:true})` 后 `agents` 和 `agent_configs` 表行数**不变**（Agent 保护验证，用 Repository 或直接 `db.prepare('SELECT COUNT(*)')` 只读查询断言，不经 service）
+- [x] `clear({operational:true})` 清空两张统计表 + 删除日志文件 + 重置计数器，返回 `operational.cleared === true`
+- [x] `clear({business:true, operational:true})` 先业务后运行，两者均 cleared:true
+- [x] 业务数据在事务中：若模拟中途失败（如 mock 某个 Repository.clearAll 抛错），`ROLLBACK` 后 4 表均未清空（原子性验证），抛 `Failed to clear business data: ...`
+- [x] 组合输入下运行数据失败时：业务已清空（不可回滚），抛 `Failed to clear operational data: {reason} (business data already cleared)`（消息含"business data already cleared"提示），且业务表确认为空
+- [x] 测试用内存数据库 + 临时日志目录，不 mock 内部 Repository（mock 外部文件系统或用真实临时目录）
+- [x] `messages` 表随 conversations 级联清空
+- [x] 所有测试通过：`npx vitest run src/main/domains/datamanagement/__tests__/datamanagement.service.test.ts`
 
 **步骤：**
 1. 编写 service 测试覆盖：单业务、单运行、组合、业务事务失败 ROLLBACK、运行失败部分成功、Agent 保护
