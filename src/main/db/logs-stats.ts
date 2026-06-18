@@ -99,6 +99,16 @@ export function createLogStatsRepository(db: Database) {
       return row ?? { total_requests: 0, total_tokens_in: 0, total_tokens_out: 0, avg_duration_ms: 0, total_errors: 0 }
     },
 
+    /**
+     * 清空两张预聚合统计表（运行数据清空）。
+     * 依次执行 DELETE FROM request_stats 和 DELETE FROM request_stats_provider，
+     * 使仪表盘统计回到"从未请求"的初始态。供 DataManagementService 在运行数据清空时调用。
+     */
+    async clearAll(): Promise<void> {
+      db.prepare('DELETE FROM request_stats').run()
+      db.prepare('DELETE FROM request_stats_provider').run()
+    },
+
     /** 获取按供应商/模型维度的详细统计 */
     async getDetailedStats(range: '24h' | '30d'): Promise<Record<string, unknown>[]> {
       let dateCondition: string

@@ -88,6 +88,18 @@ export function createConversationRepository(db: Database) {
       db.prepare('DELETE FROM conversations WHERE id = ?').run(id)
     },
 
+    /**
+     * 清空 conversations 表全部记录
+     *
+     * 供「按模块清空业务数据」功能调用，删除所有会话历史。
+     * messages 表通过 FOREIGN KEY ... ON DELETE CASCADE 自动级联清空，
+     * 无需单独 DELETE FROM messages（外键约束已在 Database.create 中启用）。
+     * 风格与 remove(id) 一致：直接 prepare().run()，无返回值。
+     */
+    async clearAll(): Promise<void> {
+      db.prepare('DELETE FROM conversations').run()
+    },
+
     /** 获取某会话的所有消息，按 id ASC 升序 */
     async listMessages(conversationId: number): Promise<MessageRow[]> {
       return db

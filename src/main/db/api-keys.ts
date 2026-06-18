@@ -118,6 +118,17 @@ export function createApiKeyRepository(db: Database) {
     async remove(id: number): Promise<void> {
       db.prepare('DELETE FROM api_keys WHERE id = ?').run(id)
     },
+
+    /**
+     * 清空 api_keys 表全部记录
+     *
+     * 供「按模块清空业务数据」功能调用，删除所有本地网关认证密钥。
+     * 注意：明文密钥仅在 create 时返回过，clearAll 后无法恢复，调用方需确认意图。
+     * 风格与 remove(id) 一致：直接 prepare().run()，无返回值。
+     */
+    async clearAll(): Promise<void> {
+      db.prepare('DELETE FROM api_keys').run()
+    },
   }
 }
 
