@@ -280,4 +280,76 @@ describe('logs.service → detailedStats', () => {
     const result = await service.detailedStats('24h')
     expect(result).toEqual([])
   })
+
+  it('每时间点含费用三分 cacheCost/uncachedCost/outputCost；model 层透传累加', async () => {
+    // gpt-4: pic=100, piu=300, po=600；tokens_in=1000, tokens_out=500, cache=400
+    // uncached_tokens = 1000-400 = 600
+    // cache_cost = 400*100/1e6 = 0.04
+    // uncached_cost = 600*300/1e6 = 0.18
+    // output_cost = 500*600/1e6 = 0.30
+    insertPricing(1, 'gpt-4', 100, 300, 600)
+    await statsRepo.updateProviderStats({
+      providerId: 1, model: 'gpt-4',
+      tokensIn: 1000, tokensOut: 500, cacheTokens: 400,
+      durationMs: 100, statusCode: 200
+    })
+
+    const result = await service.detailedStats('24h')
+    const m = result[0].models[0]
+    expect(m.cacheCost).toBeCloseTo(0.04, 10)
+    expect(m.uncachedCost).toBeCloseTo(0.18, 10)
+    expect(m.outputCost).toBeCloseTo(0.30, 10)
+
+    expect(m.dataPoints).toHaveLength(1)
+    const dp = m.dataPoints[0]
+    expect(dp.cacheCost).toBeCloseTo(0.04, 10)
+    expect(dp.uncachedCost).toBeCloseTo(0.18, 10)
+    expect(dp.outputCost).toBeCloseTo(0.30, 10)
+  })
+
+  it('缺单价模型三费用都为 0', async () => {
+    insertProvider(1, 'p1')
+    await statsRepo.updateProviderStats({
+      providerId: 1, model: 'claude-3-opus',
+      tokensIn: 1000, tokensOut: 500, cacheTokens: 200,
+      durationMs: 100, statusCode: 200
+    })
+
+    const result = await service.detailedStats('24h')
+    const m = result[0].models[0]
+    expect(m.cacheCost).toBe(0)
+    expect(m.uncachedCost).toBe(0)
+    expect(m.outputCost).toBe(0)
+    expect(m.dataPoints[0].cacheCost).toBe(0)
+    expect(m.dataPoints[0].uncachedCost).toBe(0)
+    expect(m.dataPoints[0].outputCost).toBe(0)
+  })
+
+  it('30d 跨多模型：model 层累加 cacheCost/uncachedCost/outputCost', async () => {
+    insertPricing(1, 'gpt-4', 100, 300, 600)
+    insertPricing(2, 'claude-3-opus', 200, 800, 2000)
+    await statsRepo.updateProviderStats({
+      providerId: 1, model: 'gpt-4',
+      tokensIn: 1000, tokensOut: 500, cacheTokens: 400,
+      durationMs: 100, statusCode: 200
+    })
+    await statsRepo.updateProviderStats({
+      providerId: 2, model: 'claude-3-opus',
+      tokensIn: 2000, tokensOut: 1000, cacheTokens: 500,
+      durationMs: 200, statusCode: 200
+    })
+
+    const result = await service.detailedStats('30d')
+    const byName = new Map(result.map((p) => [p.providerName, p]))
+    const gpt = byName.get('p1')!.models[0]
+    const claude = byName.get('p2')!.models[0]
+    // gpt-4: cache=0.04, uncached=0.18, output=0.30
+    expect(gpt.cacheCost).toBeCloseTo(0.04, 10)
+    expect(gpt.uncachedCost).toBeCloseTo(0.18, 10)
+    expect(gpt.outputCost).toBeCloseTo(0.30, 10)
+    // claude: cache=500*200/1e6=0.10, uncached=1500*800/1e6=1.20, output=1000*2000/1e6=2.00
+    expect(claude.cacheCost).toBeCloseTo(0.10, 10)
+    expect(claude.uncachedCost).toBeCloseTo(1.20, 10)
+    expect(claude.outputCost).toBeCloseTo(2.00, 10)
+  })
 })

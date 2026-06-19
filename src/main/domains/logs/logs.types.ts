@@ -51,8 +51,14 @@ export interface DetailedStatsDataPoint {
   tokensOut: number
   /** 缓存命中输入 Token 数（透传自 request_stats_provider.total_cache_tokens） */
   cacheTokens: number
-  /** 该时间点费用（元，JOIN provider_pricing 逐模型算好） */
+  /** 该时间点费用（元，JOIN provider_pricing 逐模型算好；= cacheCost + uncachedCost + outputCost） */
   cost: number
+  /** 缓存命中输入 Token 费用（元，透传自 request_stats_provider.cache_cost） */
+  cacheCost: number
+  /** 非缓存输入 Token 费用（元，透传自 request_stats_provider.uncached_cost） */
+  uncachedCost: number
+  /** 输出 Token 费用（元，透传自 request_stats_provider.output_cost） */
+  outputCost: number
 }
 
 /** 详细统计数据中的模型维度 */
@@ -64,8 +70,14 @@ export interface DetailedStatsModel {
   /** 缓存命中输入 Token 数（跨时间点累加） */
   cacheTokens: number
   totalErrors: number
-  /** 该模型总费用（跨时间点累加，元） */
+  /** 该模型总费用（跨时间点累加，元；= cacheCost + uncachedCost + outputCost） */
   cost: number
+  /** 缓存命中输入 Token 费用（跨时间点累加，元） */
+  cacheCost: number
+  /** 非缓存输入 Token 费用（跨时间点累加，元） */
+  uncachedCost: number
+  /** 输出 Token 费用（跨时间点累加，元） */
+  outputCost: number
   dataPoints: DetailedStatsDataPoint[]
 }
 
