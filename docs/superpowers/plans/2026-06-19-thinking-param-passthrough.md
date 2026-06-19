@@ -505,11 +505,11 @@ Zod schema 已在 Task 3 的 domain 层定义，ipc/conversations.ts 仅 import 
 - 无（仅运行验证命令）
 
 **验收标准：**
-- [ ] `npm test`（前端+后端全量）通过
-- [ ] `npx tsc -b --noEmit` 通过
-- [ ] `npm run lint` 通过
-- [ ] 无遗留旧测试断言（reasoning_effort→thinking budget_tokens 已清除）
-- [ ] 真实样本链路验证：chat 页面设 enabled+high → 请求体含 thinking+reasoning_effort → 代理转换后上游收到 thinking+output_config.effort
+- [x] `npm test`（前端+后端全量）通过
+- [x] `npx tsc -b --noEmit` 通过
+- [x] `npm run lint` 通过
+- [x] 无遗留旧测试断言（reasoning_effort→thinking budget_tokens 已清除）
+- [x] 真实样本链路验证：chat 页面设 enabled+high → 请求体含 thinking+reasoning_effort → 代理转换后上游收到 thinking+output_config.effort
 
 **步骤：**
 1. 运行 `npm test`，修复任何回归
