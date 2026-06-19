@@ -94,7 +94,11 @@ const oldProviders = readAll(oldDb, 'providers')
 const oldApiKeys = readAll(oldDb, 'api_keys')
 const oldStats = readAll(oldDb, 'request_stats')
 const oldStatsProvider = readAll(oldDb, 'request_stats_provider')
-const oldConversations = readAll(oldDb, 'conversations')
+// conversations — 显式列读取（非 readAll 的 SELECT *），避免旧库已被 createTables 的幂等 ALTER
+// 补成 9 列后返回 9 个值，传给 7 占位符的 INSERT 语句导致 sql.js 抛 "column index out of range"
+const oldConversations = tableExists(oldDb, 'conversations')
+  ? oldDb.exec('SELECT id, title, provider_id, model, api_key_id, created_at, updated_at FROM conversations')[0]?.values ?? []
+  : []
 const oldMessages = readAll(oldDb, 'messages')
 const oldMappings = readAll(oldDb, 'model_mappings')
 
