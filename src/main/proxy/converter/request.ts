@@ -350,10 +350,10 @@ function openaiToAnthropicRequest(
 
   // Web search / Reasoning / Response format
   if (openaiBody.web_search_options) applyWebSearch(result, openaiBody.web_search_options)
-  if (openaiBody.reasoning_effort) {
-    const budgetMap: Record<string, number> = { low: 1280, medium: 2048, high: 4096 }
-    result.thinking = { type: 'enabled', budget_tokens: budgetMap[openaiBody.reasoning_effort] ?? 2048 }
-  }
+  // 思考参数：thinking 同结构透传，reasoning_effort → output_config.effort 字段名转换。
+  // 两维度正交独立处理，代理是纯透传服务，不再生成 budget_tokens。
+  if (openaiBody.thinking) result.thinking = openaiBody.thinking
+  if (openaiBody.reasoning_effort) result.output_config = { effort: openaiBody.reasoning_effort }
   if (openaiBody.response_format) applyResponseFormat(result, openaiBody.response_format)
 
   // Remove incompatible fields
@@ -576,13 +576,10 @@ function anthropicToOpenAIRequest(
     if (webSearchOptions) result.web_search_options = webSearchOptions
   }
 
-  // Thinking → reasoning_effort
-  if (anthropicBody.thinking?.type === 'enabled') {
-    const bt = anthropicBody.thinking.budget_tokens ?? 2048
-    if (bt <= 1280) result.reasoning_effort = 'low'
-    else if (bt <= 2048) result.reasoning_effort = 'medium'
-    else result.reasoning_effort = 'high'
-  }
+  // 思考参数：thinking 同结构透传，output_config.effort → reasoning_effort 字段名转换。
+  // 两维度正交独立处理，不再按 budget_tokens 反推 reasoning_effort（语义错误）。
+  if (anthropicBody.thinking) result.thinking = anthropicBody.thinking
+  if (anthropicBody.output_config?.effort) result.reasoning_effort = anthropicBody.output_config.effort
 
   // Tool choice reverse mapping
   if (anthropicBody.tool_choice) {
