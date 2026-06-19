@@ -25,6 +25,23 @@ describe('extractUsageFromSSE - cacheTokens', () => {
     expect(result.cacheTokens).toBe(30)
   })
 
+  it('OpenAI: extracts usage from choices[0].usage (kimi/moonshot 非标准位置)', () => {
+    // kimi/moonshot 流式响应把 usage 嵌在 choices[0].usage 而非顶层 data.usage，
+    // 且无需 stream_options.include_usage 即在最后一个 chunk 返回
+    const sse = [
+      'data: {"id":"x","choices":[{"index":0,"delta":{"content":"你好"},"finish_reason":null}]}',
+      '',
+      'data: {"id":"x","choices":[{"index":0,"delta":{},"finish_reason":"stop","usage":{"prompt_tokens":51,"completion_tokens":89,"total_tokens":140}}]}',
+      '',
+      'data: [DONE]',
+      ''
+    ].join('\n')
+    const result = createService().extractUsageFromSSE(sse, 'openai')
+    expect(result.tokensIn).toBe(51)
+    expect(result.tokensOut).toBe(89)
+    expect(result.cacheTokens).toBe(0)
+  })
+
   it('OpenAI: handles data: without space for cached_tokens', () => {
     const sse = [
       'data:{"usage":{"prompt_tokens":100,"completion_tokens":50,"prompt_tokens_details":{"cached_tokens":25}}}',

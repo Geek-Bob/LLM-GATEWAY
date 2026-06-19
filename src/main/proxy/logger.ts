@@ -196,11 +196,15 @@ export function createProxyLogService(deps: {
         if (!jsonStr || jsonStr === '[DONE]') continue
         try {
           const data = JSON.parse(jsonStr)
-          if (data.usage) {
-            tokensIn = data.usage.prompt_tokens ?? tokensIn
-            tokensOut = data.usage.completion_tokens ?? tokensOut
+          // usage 位置兼容：
+          //   标准 OpenAI（stream_options.include_usage）→ 顶层 data.usage
+          //   kimi/moonshot 等非标准上游 → data.choices[0].usage
+          const usage = data.usage ?? data.choices?.[0]?.usage
+          if (usage) {
+            tokensIn = usage.prompt_tokens ?? tokensIn
+            tokensOut = usage.completion_tokens ?? tokensOut
             // 缓存命中 token：OpenAI 在 prompt_tokens_details.cached_tokens
-            cacheTokens = data.usage.prompt_tokens_details?.cached_tokens ?? cacheTokens
+            cacheTokens = usage.prompt_tokens_details?.cached_tokens ?? cacheTokens
           }
         } catch { /* 跳过格式错误的 JSON */ }
       }
