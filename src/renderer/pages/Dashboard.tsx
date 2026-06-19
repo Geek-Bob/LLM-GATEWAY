@@ -24,7 +24,7 @@ import { RangeSummaryCard } from '@/features/dashboard/components/RangeSummaryCa
 /** 仪表盘页面，展示系统概览、代理状态、统计卡片和趋势图表。 @returns 仪表盘页面 JSX。 */
 export function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useDashboardStats()
-  const { data: hourlyStats } = useHourlyStats()
+  const { data: hourlyStats, isLoading: hourlyLoading } = useHourlyStats()
   const { data: dailyStats, isLoading: dailyLoading } = useDailyStats()
 
   if (statsLoading) {
@@ -69,7 +69,7 @@ export function Dashboard() {
       </motion.div>
 
       <motion.div variants={childVariants}>
-        <TimeTrendAccordion dailyStats={dailyStats} hourlyStats={hourlyStats} isLoading={dailyLoading} />
+        <TimeTrendAccordion dailyStats={dailyStats} hourlyStats={hourlyStats} isLoading={hourlyLoading || dailyLoading} />
       </motion.div>
     </motion.div>
   )

@@ -153,13 +153,15 @@ describe('TimeTrendAccordion', () => {
   })
 
   it('加载态显示 Skeleton，不渲染 Tab 与手风琴', () => {
-    const { container } = render(
+    render(
       <TimeTrendAccordion dailyStats={undefined} hourlyStats={undefined} isLoading />,
     )
 
-    expect(container.querySelector('.animate-pulse')).toBeInTheDocument()
+    // 加载态只渲染 Skeleton，不渲染任何业务内容（标题/Tab/空态文案）
     expect(screen.queryByRole('tab', { name: '24h' })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: '30d' })).not.toBeInTheDocument()
+    expect(screen.queryByText('时间趋势')).not.toBeInTheDocument()
+    expect(screen.queryByText('暂无统计数据')).not.toBeInTheDocument()
   })
 
   it('顶部渲染 24h 与 30d 两个 Tab，24h 默认激活', () => {

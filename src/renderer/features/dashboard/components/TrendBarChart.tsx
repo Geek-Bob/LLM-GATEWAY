@@ -2,7 +2,7 @@
  * TrendBarChart — 次数趋势柱状图
  *
  * 在仪表板趋势区按模型展示 requests 时序柱状图（24h 或 30d 通用）。
- * 复用 recharts BarChart，风格对齐 StatsCharts.HourlyBarChart：
+ * 复用 recharts BarChart：
  *   - XAxis=period（小时数或 MM-DD 日期串）
  *   - Bar.dataKey=requests，主题色填充
  *   - 主题色通过 CSS 变量 hsl(var(--primary)) 引用，非硬编码色值

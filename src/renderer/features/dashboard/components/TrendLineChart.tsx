@@ -7,7 +7,7 @@
  *
  * 颜色策略：由调用方通过 lines[].color 传入 hsl(var(--chart-x)) 主题变量，
  * 组件本身不硬编码色值（符合 frontend/37-visual-style.md 主题变量规则）。
- * recharts 的 tick/contentStyle 沿用 StatsCharts.tsx 既有风格（recharts 不接受 className）。
+ * recharts 的 tick/contentStyle 沿用项目既有图表风格（recharts 不接受 className）。
  */
 import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import { EmptyState } from '@/components/shared/empty-state'
@@ -30,19 +30,19 @@ export interface TrendLineChartProps {
   xKey: string
   /** 折线定义数组，每项渲染一条 Line */
   lines: TrendLine[]
-  /** 图表高度（px），默认 100，与现有 StatsCharts 一致 */
+  /** 图表高度（px），默认 100 */
   height?: number
   /** Y 轴数值格式化函数（可选，同时应用于 YAxis 刻度与 Tooltip） */
   yFormatter?: (value: number) => string
 }
 
-/** 默认图表高度（px），与现有 StatsCharts 保持一致 */
+/** 默认图表高度（px） */
 const DEFAULT_HEIGHT = 100
 
-/** recharts XAxis/YAxis 刻度样式（复用 StatsCharts 风格） */
+/** recharts XAxis/YAxis 刻度样式 */
 const axisTickStyle = { fontSize: 9, fill: 'hsl(var(--muted-foreground))' }
 
-/** recharts Tooltip 容器样式（复用 StatsCharts 风格，recharts 不接受 className） */
+/** recharts Tooltip 容器样式（recharts 不接受 className） */
 const tooltipContentStyle = {
   background: 'hsl(var(--card))',
   border: '1px solid hsl(var(--border))',
