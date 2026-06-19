@@ -203,6 +203,12 @@ export interface StatsDataPoint {
   cacheTokens: number
   /** 该时段费用（元）（费用核算扩展字段，detailedStats 100% 返回） */
   cost: number
+  /** 缓存命中部分的费用（元） */
+  cacheCost: number
+  /** 缓存未命中部分的费用（元） */
+  uncachedCost: number
+  /** 输出 Token 费用（元） */
+  outputCost: number
 }
 
 /** 单个模型维度的统计数据（含时序数据点） */
