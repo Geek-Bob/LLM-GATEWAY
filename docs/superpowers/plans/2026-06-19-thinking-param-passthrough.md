@@ -58,10 +58,10 @@
 - 测试：`src/shared/types.test-d.ts`（新建，类型断言测试）
 
 **验收标准：**
-- [ ] `ThinkingType` 联合类型含且仅含 `'disabled' | 'enabled' | 'adaptive'` 三个字面量
-- [ ] `ReasoningEffort` 联合类型含且仅含 `'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'` 六个字面量
-- [ ] `ConversationEntity` 含 `thinkingType?: ThinkingType` 与 `reasoningEffort?: ReasoningEffort` 两个可选字段（不破坏现有字段）
-- [ ] `npx tsc -b --noEmit` 通过（前后端类型都检查）
+- [x] `ThinkingType` 联合类型含且仅含 `'disabled' | 'enabled' | 'adaptive'` 三个字面量
+- [x] `ReasoningEffort` 联合类型含且仅含 `'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'` 六个字面量
+- [x] `ConversationEntity` 含 `thinkingType?: ThinkingType` 与 `reasoningEffort?: ReasoningEffort` 两个可选字段（不破坏现有字段）
+- [x] `npx tsc -b --noEmit` 通过（前后端类型都检查）
 
 **步骤：**
 1. 编写类型断言测试（test-d.ts 验证枚举字面量与 ConversationEntity 字段类型）
@@ -96,12 +96,12 @@ conversations 表新增 `thinking_type TEXT`（值为 'disabled'|'enabled'|'adap
 - 测试：`src/main/db/__tests__/schema.test.ts`（若不存在则新建）
 
 **验收标准：**
-- [ ] 新建空库运行 createTables 后，conversations 表含 thinking_type、reasoning_effort 两列
-- [ ] 模拟旧库（conversations 表无两列）运行 createTables 后，两列被 ALTER 补上且已有数据不丢失
-- [ ] createTables 重复执行幂等（列已存在时不报错）
-- [ ] migrate-db.mjs 的 conversations 建表语句含两新列
-- [ ] schema.ts 文件头注释已修订为「含幂等列迁移」，与新逻辑一致（消除矛盾）
-- [ ] 测试通过：`npx vitest run src/main/db/__tests__/schema.test.ts --config vitest.backend.config.ts`
+- [x] 新建空库运行 createTables 后，conversations 表含 thinking_type、reasoning_effort 两列
+- [x] 模拟旧库（conversations 表无两列）运行 createTables 后，两列被 ALTER 补上且已有数据不丢失
+- [x] createTables 重复执行幂等（列已存在时不报错）
+- [x] migrate-db.mjs 的 conversations 建表语句含两新列
+- [x] schema.ts 文件头注释已修订为「含幂等列迁移」，与新逻辑一致（消除矛盾）
+- [x] 测试通过：`npx vitest run src/main/db/__tests__/schema.test.ts --config vitest.backend.config.ts`
 
 **步骤：**
 1. 编写测试（新建库含两列 / 旧库 ALTER 补列 / 重复执行幂等）
@@ -247,15 +247,15 @@ Zod schema 已在 Task 3 的 domain 层定义，ipc/conversations.ts 仅 import 
 - 测试：`src/main/proxy/__tests__/converter.test.ts`
 
 **验收标准：**
-- [ ] OpenAI→Anthropic：`reasoning_effort:'high'` → `output_config.effort:'high'`（不再生成 thinking/budget_tokens）
-- [ ] OpenAI→Anthropic：`thinking:{type:'adaptive'}` → 透传 `thinking:{type:'adaptive'}`
-- [ ] OpenAI→Anthropic：同时传 thinking + reasoning_effort → 两字段各自正确转换
-- [ ] OpenAI→Anthropic：都不传 → 转换后无 thinking 无 output_config
-- [ ] Anthropic→OpenAI：`output_config.effort:'max'` → `reasoning_effort:'max'`
-- [ ] Anthropic→OpenAI：`thinking:{type:'enabled'}` → 透传（不再反推 reasoning_effort）
-- [ ] 删除/改写 O→A 方向旧测试 `should map reasoning_effort to thinking budget_tokens`（converter.test.ts:212）为新行为
-- [ ] 删除/改写 A→O 方向旧测试 `should convert thinking enabled to reasoning_effort`（converter.test.ts:369）为新行为（thinking 透传，不再反推 reasoning_effort）
-- [ ] 测试通过：`npx vitest run src/main/proxy/__tests__/converter.test.ts --config vitest.backend.config.ts`
+- [x] OpenAI→Anthropic：`reasoning_effort:'high'` → `output_config.effort:'high'`（不再生成 thinking/budget_tokens）
+- [x] OpenAI→Anthropic：`thinking:{type:'adaptive'}` → 透传 `thinking:{type:'adaptive'}`
+- [x] OpenAI→Anthropic：同时传 thinking + reasoning_effort → 两字段各自正确转换
+- [x] OpenAI→Anthropic：都不传 → 转换后无 thinking 无 output_config
+- [x] Anthropic→OpenAI：`output_config.effort:'max'` → `reasoning_effort:'max'`
+- [x] Anthropic→OpenAI：`thinking:{type:'enabled'}` → 透传（不再反推 reasoning_effort）
+- [x] 删除/改写 O→A 方向旧测试 `should map reasoning_effort to thinking budget_tokens`（converter.test.ts:212）为新行为
+- [x] 删除/改写 A→O 方向旧测试 `should convert thinking enabled to reasoning_effort`（converter.test.ts:369）为新行为（thinking 透传，不再反推 reasoning_effort）
+- [x] 测试通过：`npx vitest run src/main/proxy/__tests__/converter.test.ts --config vitest.backend.config.ts`
 
 **步骤：**
 1. 编写测试（两方向各维度转换 / 双维度同时 / 都不传）
