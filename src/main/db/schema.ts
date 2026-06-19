@@ -5,8 +5,9 @@
  * 请求统计、对话历史等核心数据模型。
  * 在应用启动时由 startServer() 调用。
  *
- * 注意：此文件只定义当前版本的表结构，不包含增量迁移逻辑。
- * 旧版本数据库迁移请使用 scripts/migrate-db.mjs 独立脚本。
+ * 注意：此文件定义当前版本的表结构，并对旧版本数据库执行幂等列迁移
+ * （通过 PRAGMA table_info 检测目标列不存在时 ADD COLUMN）。
+ * 全量重建迁移另见 scripts/migrate-db.mjs 独立脚本。
  */
 
 import { getDb } from './connection'
@@ -15,7 +16,7 @@ import { getDb } from './connection'
  * 创建所有数据库表并初始化内置 Agent 预设（幂等）
  * 使用 CREATE TABLE IF NOT EXISTS 确保多次调用安全。
  * 内置 Agent 使用 INSERT OR IGNORE 避免重复插入。
- * 仅适用于新安装或已迁移后的数据库。
+ * 对已存在的旧表，通过 PRAGMA table_info 检测后幂等 ALTER 补齐新增列。
  */
 export function createTables(): void {
   const db = getDb()
@@ -106,12 +107,17 @@ export function createTables(): void {
     );
 
     -- 对话表：存储聊天会话元信息（主题、使用的模型和供应商）
+    -- thinking_type: 思考执行方式 'disabled'|'enabled'|'adaptive'，NULL 视为 disabled
+    -- reasoning_effort: 思考强度 'minimal'|'low'|'medium'|'high'|'xhigh'|'max'，NULL 视为不传
+    -- 两列 nullable 无默认值，向后兼容旧对话
     CREATE TABLE IF NOT EXISTS conversations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       title TEXT NOT NULL DEFAULT '新对话',
       provider_id INTEGER,
       model TEXT NOT NULL,
       api_key_id INTEGER,
+      thinking_type TEXT,
+      reasoning_effort TEXT,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -158,6 +164,19 @@ export function createTables(): void {
       UNIQUE(agent_id, name)
     );
   `)
+
+  // 幂等列迁移：旧库 conversations 表补 thinking_type / reasoning_effort 列
+  // sql.js 的 ALTER TABLE ADD COLUMN 无 IF NOT EXISTS 语法，重复执行会报错，
+  // 故先用 PRAGMA table_info 检测列是否存在（每行 index 1 为列名）
+  const conversationColumns = db
+    .pragma("table_info('conversations')")
+    .map((row) => row[1] as string)
+  if (!conversationColumns.includes('thinking_type')) {
+    db.exec('ALTER TABLE conversations ADD COLUMN thinking_type TEXT')
+  }
+  if (!conversationColumns.includes('reasoning_effort')) {
+    db.exec('ALTER TABLE conversations ADD COLUMN reasoning_effort TEXT')
+  }
 
   // 插入内置 Agent 预设（INSERT OR IGNORE 确保幂等）
   const builtinAgents = [

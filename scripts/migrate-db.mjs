@@ -163,6 +163,8 @@ newDb.run(`
     provider_id INTEGER,
     model TEXT NOT NULL,
     api_key_id INTEGER,
+    thinking_type TEXT,
+    reasoning_effort TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
