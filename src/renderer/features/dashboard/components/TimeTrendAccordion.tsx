@@ -60,22 +60,70 @@ function formatPeriod(period: number | string, tab: TrendTab): number | string {
   return typeof period === 'string' ? period.slice(5) : String(period)
 }
 
-/** 由单模型的 dataPoints 构建 3 张趋势图所需的数据数组。 */
+/** 24h 的空数据点（缺数据的时段填 0，保证 X 轴 0-23 完整）。 */
+const ZERO_POINT: Omit<StatsDataPoint, 'period'> = {
+  requests: 0,
+  tokensIn: 0,
+  tokensOut: 0,
+  cacheTokens: 0,
+  cost: 0,
+  cacheCost: 0,
+  uncachedCost: 0,
+  outputCost: 0,
+}
+
+/**
+ * 生成完整 period 序列（24h=0-23 全部小时，30d=近 31 天全部日期），
+ * 与现有 dataPoints 合并，缺失时段填 0。避免图表只画有数据的零星几个点。
+ */
+function fillMissingPeriods(dataPoints: StatsDataPoint[], tab: TrendTab): StatsDataPoint[] {
+  // 以 period 为键建索引（24h period 为 number、30d 为 'YYYY-MM-DD' 字符串）
+  const byPeriod = new Map<string, StatsDataPoint>()
+  for (const p of dataPoints) {
+    byPeriod.set(String(p.period), p)
+  }
+
+  const fullPeriods: (number | string)[] = []
+  if (tab === '24h') {
+    for (let h = 0; h < 24; h++) fullPeriods.push(h)
+  } else {
+    // 30d：从今天往前推 30 天共 31 天（对齐后端 stat_date >= date('now','-30 days')）
+    const today = new Date()
+    for (let i = 30; i >= 0; i--) {
+      const d = new Date(today)
+      d.setDate(d.getDate() - i)
+      // YYYY-MM-DD（本地时区，与统计写入的 ISO 日期近似一致；补 0 点不影响趋势形态）
+      const y = d.getFullYear()
+      const m = String(d.getMonth() + 1).padStart(2, '0')
+      const day = String(d.getDate()).padStart(2, '0')
+      fullPeriods.push(`${y}-${m}-${day}`)
+    }
+  }
+
+  return fullPeriods.map((period) => {
+    const existing = byPeriod.get(String(period))
+    if (existing) return existing
+    return { period, ...ZERO_POINT } as StatsDataPoint
+  })
+}
+
+/** 由单模型的 dataPoints 构建 3 张趋势图所需的数据数组（补全缺失时段为 0）。 */
 function buildChartData(dataPoints: StatsDataPoint[], tab: TrendTab) {
-  const tokenData = dataPoints.map((p) => ({
+  const filled = fillMissingPeriods(dataPoints, tab)
+  const tokenData = filled.map((p) => ({
     period: formatPeriod(p.period, tab),
     tokensIn: p.tokensIn,
     cacheTokens: p.cacheTokens,
     // 非缓存 token = 总输入 - 缓存，clamp≥0（防御 cacheTokens > tokensIn 的脏数据）
     uncachedTokens: Math.max(0, p.tokensIn - p.cacheTokens),
   }))
-  const costData = dataPoints.map((p) => ({
+  const costData = filled.map((p) => ({
     period: formatPeriod(p.period, tab),
     cacheCost: p.cacheCost,
     uncachedCost: p.uncachedCost,
     outputCost: p.outputCost,
   }))
-  const barData = dataPoints.map((p) => ({
+  const barData = filled.map((p) => ({
     period: formatPeriod(p.period, tab),
     requests: p.requests,
   }))

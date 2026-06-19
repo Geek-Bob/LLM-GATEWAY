@@ -275,10 +275,13 @@ describe('TimeTrendAccordion', () => {
       period: number | string
       requests: number
     }>
-    expect(barData).toHaveLength(2)
+    // 补全缺失时段：24h 始终 24 个点（0-23），无数据的时段 requests=0
+    expect(barData).toHaveLength(24)
     expect(barData[0].period).toBe(0)
     expect(barData[0].requests).toBe(5)
     expect(barData[1].period).toBe(1)
+    // 缺数据时段填 0
+    expect(barData[2].requests).toBe(0)
   })
 
   it('点击 30d Tab 切换数据源：次数柱状图使用 dailyStats 数据，period 为 MM-DD', async () => {
@@ -296,9 +299,11 @@ describe('TimeTrendAccordion', () => {
       period: number | string
       requests: number
     }>
-    expect(barData).toHaveLength(1)
-    expect(barData[0].period).toBe('06-18')
-    expect(barData[0].requests).toBe(50)
+    // 补全缺失日期：30d 始终 31 个点（近 31 天），无数据的日期 requests=0
+    expect(barData).toHaveLength(31)
+    // 有数据的日期仍保留原值
+    const dataPoint = barData.find((p) => p.period === '06-18')
+    expect(dataPoint?.requests).toBe(50)
   })
 
   it('Tab 切换保留手风琴展开态', async () => {
