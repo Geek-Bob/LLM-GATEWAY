@@ -212,11 +212,11 @@ Zod schema 已在 Task 3 的 domain 层定义，ipc/conversations.ts 仅 import 
 - 测试：`src/main/ipc/__tests__/integration.test.ts` 或 conversations handler 专属测试
 
 **验收标准：**
-- [ ] create handler 接受含 thinkingType/reasoningEffort 的对象，校验通过后透传 service 返回值
-- [ ] update handler 两参数形态（id + data 对象），校验通过后透传
-- [ ] 非法枚举值（如 thinkingType:'foo'）经 schema.parse 抛错，wrapIpcHandler 返回 Invalid input 格式错误
-- [ ] handler 经 wrapIpcHandler 包装（不手写 try/catch）
-- [ ] 测试通过：`npx vitest run --config vitest.backend.config.ts`（相关测试文件）
+- [x] create handler 接受含 thinkingType/reasoningEffort 的对象，校验通过后透传 service 返回值
+- [x] update handler 两参数形态（id + data 对象），校验通过后透传
+- [x] 非法枚举值（如 thinkingType:'foo'）经 schema.parse 抛错，wrapIpcHandler 返回 Invalid input 格式错误
+- [x] handler 经 wrapIpcHandler 包装（不手写 try/catch）
+- [x] 测试通过：`npx vitest run --config vitest.backend.config.ts`（相关测试文件）
 
 **步骤：**
 1. 编写测试（合法枚举透传 / 非法枚举拒绝 / 两参数形态）
@@ -430,11 +430,11 @@ Zod schema 已在 Task 3 的 domain 层定义，ipc/conversations.ts 仅 import 
 - 测试：`src/renderer/features/chat/hooks/__tests__/useConversationManager.test.ts`（若不存在新建）
 
 **验收标准：**
-- [ ] selectConversation 返回对话的 thinkingType/reasoningEffort（旧对话无值时返回默认 disabled/medium）
-- [ ] saveUserMessage 新建对话时携带当前思考设置
-- [ ] saveUserMessage 已有对话且思考设置变化时调 update 更新
-- [ ] saveUserMessage 已有对话且思考设置未变时不调 update
-- [ ] 测试通过：`npx vitest run src/renderer/features/chat/hooks/__tests__/useConversationManager.test.ts`
+- [x] selectConversation 返回对话的 thinkingType/reasoningEffort（旧对话无值时返回默认 disabled/medium）
+- [x] saveUserMessage 新建对话时携带当前思考设置
+- [x] saveUserMessage 已有对话且思考设置变化时调 update 更新
+- [x] saveUserMessage 已有对话且思考设置未变时不调 update
+- [x] 测试通过：`npx vitest run src/renderer/features/chat/hooks/__tests__/useConversationManager.test.ts`
 
 **步骤：**
 1. 编写测试（selectConversation 返回 / saveUserMessage 新建携带 / update 触发条件）
