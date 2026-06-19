@@ -15,7 +15,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { createElement, type ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { renderHook, act } from '@testing-library/react'
-import { useConversationManager } from '../useConversationManager'
+import { useConversationManager, DEFAULT_THINKING_CONFIG } from '../useConversationManager'
 import type { ThinkingConfig } from '../useChatStream'
 
 // ======================
@@ -246,6 +246,42 @@ describe('useConversationManager - 思考设置携带', () => {
         thinkingType: 'enabled',
         reasoningEffort: 'high',
       }))
+    })
+  })
+
+  describe('getThinkingConfig 未提供时回退 DEFAULT_THINKING_CONFIG', () => {
+    it('不传 getThinkingConfig 时 saveUserMessage 新建对话携带默认 disabled/medium', async () => {
+      // 直接 inline renderHook，绕过 renderManager 的默认 getThinkingConfig，
+      // 验证 hook 内部 getThinkingConfig?.() ?? DEFAULT_THINKING_CONFIG 回退逻辑。
+      mocks.create.mockResolvedValue({
+        id: 7, title: 'fallback', providerId: 1, model: 'gpt-4', apiKeyId: 1,
+        thinkingType: 'disabled', reasoningEffort: 'medium',
+        createdAt: '', updatedAt: '',
+      })
+      const queryClient = createQueryClient()
+      const setActiveConversationId = vi.fn()
+      const wrapper = ({ children }: { children: ReactNode }) =>
+        createElement(QueryClientProvider, { client: queryClient }, children)
+      const { result } = renderHook(
+        () => useConversationManager({
+          activeConversationId: null,
+          setActiveConversationId,
+          // 故意不传 getThinkingConfig，验证回退
+        }),
+        { wrapper },
+      )
+
+      await act(async () => {
+        await result.current.saveUserMessage('hi', 1, 'gpt-4', 1)
+      })
+
+      expect(mocks.create).toHaveBeenCalledTimes(1)
+      expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
+        thinkingType: DEFAULT_THINKING_CONFIG.thinkingType,
+        reasoningEffort: DEFAULT_THINKING_CONFIG.reasoningEffort,
+      }))
+      expect(DEFAULT_THINKING_CONFIG.thinkingType).toBe('disabled')
+      expect(DEFAULT_THINKING_CONFIG.reasoningEffort).toBe('medium')
     })
   })
 })

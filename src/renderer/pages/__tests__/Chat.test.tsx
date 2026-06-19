@@ -785,6 +785,36 @@ describe('ChatPage', () => {
     })
   })
 
+  it('persists reasoningEffort change via conversations.update after conversation exists', async () => {
+    // 验证强度偏好修改的端到端持久化：已有对话时改强度 → update 携带 reasoningEffort
+    _conversationsCreate.mockResolvedValue({
+      id: 1, title: 'Hi', providerId: 1, model: 'gpt-4', apiKeyId: 1,
+      thinkingType: 'disabled', reasoningEffort: 'medium',
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    await renderChat()
+    await selectAll()
+    mockOpenAISSEStream(['ok', '__DONE__'])
+    typeAndSend('Hi')
+    await waitFor(() => { expect(_conversationsAddMessage).toHaveBeenCalled() })
+
+    // 先切到 enabled 启用强度下拉（触发一次 thinkingType update）
+    fireEvent.click(screen.getByRole('button', { name: 'enabled' }))
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: '强度偏好' })).not.toBeDisabled()
+    })
+    _conversationsUpdate.mockClear()
+
+    // 改强度为 high → 应触发持久化（update 仅携带 reasoningEffort）
+    await selectByIndex(3, 'high')
+    await waitFor(() => {
+      expect(_conversationsUpdate).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ reasoningEffort: 'high' })
+      )
+    })
+  })
+
   it('syncs thinking settings from target conversation on switch', async () => {
     const existingConv = {
       id: 5, title: '思考对话', providerId: 1, model: 'gpt-4', apiKeyId: 1,
