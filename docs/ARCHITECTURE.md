@@ -1,4 +1,13 @@
-# LLM Gateway 架构技术手册
+# LLM Gateway 架构技术手册 (Project Map)
+
+> **AI 架构路由提示**：本文件是项目的宏观地图。接到任务后，先按下表定位模块，再用 CodeGraph/LSP 做符号级检索，严禁全量盲搜。
+> - 涉及界面 / 交互 / 前端状态 → `renderer/`，数据走 TanStack Query（`lib/queries/`），组件内禁直接 `useQuery`/IPC。
+> - 涉及跨进程通信 / 数据 CRUD → `ipc/` + `preload/`，走 `ipcMain.handle` + `wrapIpcHandler`。
+> - 涉及 LLM 代理 / 流式 SSE / 协议转换 → `proxy/`（Hono 8080）。
+> - 涉及业务规则 / 输入校验 → `domains/`（service 三件套 + Zod schema）。
+> - 涉及数据库 / 持久化 → `db/`，注意 sql.js（Repository 工厂）与 NDJSON（日志裸函数）的边界。
+> - 涉及 token 用量 / 请求统计落库 → `proxy/logger.ts`（提取 + `tryLogEntry`）+ `db/logs-stats.ts`（预聚合），详见 8.5。
+> - 涉及配置字段迁移 / 自动更新 → `core/config-migration.ts` / `update/`。
 
 > 面向新成员的项目入门文档。图表为主、文字为辅，配合 `.claude/rules/` 规则文件与源码阅读。
 > 技术栈：Electron 42.x + TypeScript 6.0 + React 19.2
@@ -278,7 +287,7 @@ Hono 监听 `127.0.0.1:8080`。模块职责：
 
 | 页面 | 路由 | 功能 |
 |------|------|------|
-| Dashboard | `/` | 代理开关/端口、4 张统计卡（含近 7 天花费）、24h/30d 汇总卡（RangeSummaryCard）、趋势图 |
+| Dashboard | `/` | 代理开关/端口、4 张统计卡（含近 7 天花费）、24h/30d 汇总卡（RangeSummaryCard）、趋势图（Tab 切换 24h/30d + 按供应商/模型手风琴 TimeTrendAccordion + 每模型 3 趋势图：Token 趋势/花费趋势 TrendLineChart、次数趋势 TrendBarChart） |
 | Providers | `/providers` | 供应商 CRUD、API Key 查看/复制、模型管理 |
 | ApiKeys | `/api-keys` | 两步创建（表单→展示明文）、删除确认 |
 | Logs | `/logs` | 分页表格、Debug 切换、详情面板 |
