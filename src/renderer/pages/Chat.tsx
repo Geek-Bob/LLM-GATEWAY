@@ -12,6 +12,8 @@ import { ConversationSidebar } from '@/features/chat/components/ConversationSide
 import { ChatToolbar } from '@/features/chat/components/ChatToolbar'
 import { MessageList } from '@/features/chat/components/MessageList'
 import { ChatInputArea } from '@/features/chat/components/ChatInputArea'
+import { ThinkingSettings } from '@/features/chat/components/ThinkingSettings'
+import { Card } from '@/components/ui/card'
 
 /** Chat 页面，多 LLM 供应商对话界面的纯 JSX 组装层。 @returns Chat 页面 JSX。 */
 export function ChatPage() {
@@ -29,6 +31,10 @@ export function ChatPage() {
     providerOptions,
     availableModels,
     keyOptions,
+    thinkingType,
+    reasoningEffort,
+    onThinkingTypeChange,
+    onReasoningEffortChange,
     sidebarCollapsed,
     toggleSidebar,
     inputKey,
@@ -72,6 +78,15 @@ export function ChatPage() {
           selectedApiKeyId={selectedApiKeyId}
           onSelectApiKey={setSelectedApiKeyId}
         />
+
+        <Card className="p-3 mb-4">
+          <ThinkingSettings
+            thinkingType={thinkingType}
+            reasoningEffort={reasoningEffort}
+            onThinkingTypeChange={onThinkingTypeChange}
+            onReasoningEffortChange={onReasoningEffortChange}
+          />
+        </Card>
 
         <MessageList messages={messages} onRegenerate={handleRegenerate} messagesEndRef={messagesEndRef} />
 

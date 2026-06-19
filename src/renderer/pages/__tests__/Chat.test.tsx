@@ -5,7 +5,7 @@
  * uuid.v4 is also mocked so requestId is predictable.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Provider, ApiKey } from '@/lib/types'
 import { ChatMessage } from '@/features/chat/components/ChatMessage'
@@ -250,10 +250,10 @@ describe('ChatPage', () => {
     expect(_apiKeyList).toHaveBeenCalled()
   })
 
-  it('renders 3 select triggers', async () => {
+  it('renders 4 select triggers (3 toolbar + 1 强度偏好)', async () => {
     await renderChat()
     const triggers = screen.getAllByRole('combobox')
-    expect(triggers).toHaveLength(3)
+    expect(triggers).toHaveLength(4)
   })
 
   it('shows provider options after opening select', async () => {
@@ -705,6 +705,136 @@ describe('ChatPage', () => {
     await waitFor(() => {
       expect(_toastError).toHaveBeenCalledWith('对话标题更新失败')
     }, { timeout: 3000 })
+  })
+
+  // ─── Thinking Settings (Task 11) ──────────────
+
+  it('renders ThinkingSettings with 执行方式 group and 强度偏好 combobox', async () => {
+    await renderChat()
+    expect(screen.getByRole('group', { name: '执行方式' })).toBeInTheDocument()
+    expect(screen.getByRole('combobox', { name: '强度偏好' })).toBeInTheDocument()
+  })
+
+  it('defaults to disabled execution type with effort dropdown disabled', async () => {
+    await renderChat()
+    const group = screen.getByRole('group', { name: '执行方式' })
+    const buttons = within(group).getAllByRole('button')
+    // 顺序：disabled / enabled / adaptive
+    expect(buttons[0]).toHaveAttribute('aria-pressed', 'true')
+    expect(buttons[1]).toHaveAttribute('aria-pressed', 'false')
+    expect(buttons[2]).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('combobox', { name: '强度偏好' })).toBeDisabled()
+  })
+
+  it('switches execution type to enabled and enables effort dropdown', async () => {
+    await renderChat()
+    fireEvent.click(screen.getByRole('button', { name: 'enabled' }))
+    const group = screen.getByRole('group', { name: '执行方式' })
+    const buttons = within(group).getAllByRole('button')
+    expect(buttons[0]).toHaveAttribute('aria-pressed', 'false')
+    expect(buttons[1]).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('combobox', { name: '强度偏好' })).not.toBeDisabled()
+  })
+
+  it('does NOT inject thinking fields when disabled on send', async () => {
+    await renderChat()
+    await selectAll()
+    const mockFetch = mockOpenAISSEStream(['ok', '__DONE__'])
+    typeAndSend('Hi')
+    await waitFor(() => { expect(mockFetch).toHaveBeenCalled() })
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.thinking).toBeUndefined()
+    expect(body.reasoning_effort).toBeUndefined()
+  })
+
+  it('injects thinking + reasoning_effort when enabled on send', async () => {
+    await renderChat()
+    await selectAll()
+    // 默认 effort=medium，切到 enabled 后发送应注入 thinking + reasoning_effort
+    fireEvent.click(screen.getByRole('button', { name: 'enabled' }))
+    const mockFetch = mockOpenAISSEStream(['ok', '__DONE__'])
+    typeAndSend('Hi')
+    await waitFor(() => { expect(mockFetch).toHaveBeenCalled() })
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.thinking).toEqual({ type: 'enabled' })
+    expect(body.reasoning_effort).toBe('medium')
+  })
+
+  it('persists thinking type change via conversations.update after conversation exists', async () => {
+    // conversations.create 契约返回 ConversationEntity 对象（非数字 id），saveUserMessage 依赖 conv.id
+    _conversationsCreate.mockResolvedValue({
+      id: 1, title: 'Hi', providerId: 1, model: 'gpt-4', apiKeyId: 1,
+      thinkingType: 'disabled', reasoningEffort: 'medium',
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    await renderChat()
+    await selectAll()
+    // 发送消息触发 saveUserMessage 创建对话（携带默认 disabled/medium）
+    mockOpenAISSEStream(['ok', '__DONE__'])
+    typeAndSend('Hi')
+    // 等待对话已创建（create + addMessage 完成，convIdRef 同步）
+    await waitFor(() => { expect(_conversationsAddMessage).toHaveBeenCalled() })
+    _conversationsUpdate.mockClear()
+    // 切换执行方式 → 应触发持久化（update 携带 thinkingType）
+    fireEvent.click(screen.getByRole('button', { name: 'enabled' }))
+    await waitFor(() => {
+      expect(_conversationsUpdate).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ thinkingType: 'enabled' })
+      )
+    })
+  })
+
+  it('syncs thinking settings from target conversation on switch', async () => {
+    const existingConv = {
+      id: 5, title: '思考对话', providerId: 1, model: 'gpt-4', apiKeyId: 1,
+      thinkingType: 'enabled', reasoningEffort: 'high',
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    _conversationsList.mockResolvedValue([existingConv])
+    _conversationsGet.mockResolvedValue(existingConv)
+    _conversationsMessages.mockResolvedValue([])
+
+    await renderChat()
+    const item = await screen.findByText('思考对话')
+    fireEvent.click(item)
+    // 切换后执行方式应为 enabled（同步目标对话设置）
+    await waitFor(() => {
+      const group = screen.getByRole('group', { name: '执行方式' })
+      const buttons = within(group).getAllByRole('button')
+      expect(buttons[1]).toHaveAttribute('aria-pressed', 'true')
+    })
+    // 强度下拉可用且显示 high
+    const effortTrigger = screen.getByRole('combobox', { name: '强度偏好' })
+    expect(effortTrigger).not.toBeDisabled()
+    expect(effortTrigger).toHaveTextContent('high')
+  })
+
+  it('resets thinking settings to disabled/medium on new conversation', async () => {
+    const existingConv = {
+      id: 5, title: '思考对话', providerId: 1, model: 'gpt-4', apiKeyId: 1,
+      thinkingType: 'enabled', reasoningEffort: 'high',
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    _conversationsList.mockResolvedValue([existingConv])
+    _conversationsGet.mockResolvedValue(existingConv)
+    _conversationsMessages.mockResolvedValue([])
+
+    await renderChat()
+    fireEvent.click(await screen.findByText('思考对话'))
+    // 等待同步为 enabled
+    await waitFor(() => {
+      expect(within(screen.getByRole('group', { name: '执行方式' })).getAllByRole('button')[1])
+        .toHaveAttribute('aria-pressed', 'true')
+    })
+    // 点击"新建"按钮
+    fireEvent.click(screen.getByText('新建'))
+    // 新建后应重置为 disabled
+    await waitFor(() => {
+      const buttons = within(screen.getByRole('group', { name: '执行方式' })).getAllByRole('button')
+      expect(buttons[0]).toHaveAttribute('aria-pressed', 'true') // disabled
+    })
+    expect(screen.getByRole('combobox', { name: '强度偏好' })).toBeDisabled()
   })
 })
 

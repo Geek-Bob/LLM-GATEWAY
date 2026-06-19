@@ -18,7 +18,8 @@ import {
   useConversationManager,
   DEFAULT_CONVERSATION_TITLE,
 } from '@/features/chat/hooks/useConversationManager'
-import type { StreamMessage } from '@/features/chat/hooks/useChatStream'
+import type { StreamMessage, ThinkingConfig } from '@/features/chat/hooks/useChatStream'
+import type { ThinkingType, ReasoningEffort } from '../../../../shared/types'
 
 import { useProviders } from '@/lib/queries/providers'
 import { useApiKeys } from '@/lib/queries/apiKeys'
@@ -38,6 +39,15 @@ export function useChatPage() {
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [selectedApiKeyId, setSelectedApiKeyId] = useState<number | null>(null)
 
+  // ─── 思考设置状态（与对话绑定：切对话同步、修改持久化、发送传参）───
+  const [thinkingType, setThinkingType] = useState<ThinkingType>('disabled')
+  const [reasoningEffort, setReasoningEffort] = useState<ReasoningEffort>('medium')
+  // 供 useConversationManager.saveUserMessage 在新建/更新对话时携带当前思考设置
+  const getThinkingConfig = useCallback((): ThinkingConfig => ({
+    thinkingType,
+    reasoningEffort,
+  }), [thinkingType, reasoningEffort])
+
   // ─── 会话 + 消息状态 ───
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const convIdRef = useRef(activeConversationId)
@@ -55,7 +65,7 @@ export function useChatPage() {
     deleteConversation,
     saveUserMessage,
     invalidate: invalidateConversations,
-  } = useConversationManager({ activeConversationId, setActiveConversationId })
+  } = useConversationManager({ activeConversationId, setActiveConversationId, getThinkingConfig })
 
   // ─── 派生数据 ───
   const selectedProvider = providers.find((p) => p.id === selectedProviderId)
@@ -138,8 +148,8 @@ export function useChatPage() {
     send(modelFull, [
       ...messages.map(m => ({ role: m.role, content: m.content })),
       { role: 'user' as const, content },
-    ])
-  }, [selectedModel, selectedApiKeyId, selectedProvider, ensureApiKey, saveUserMessage, send, messages])
+    ], { thinkingType, reasoningEffort })
+  }, [selectedModel, selectedApiKeyId, selectedProvider, ensureApiKey, saveUserMessage, send, messages, thinkingType, reasoningEffort])
 
   // ─── 其他操作 ───
   const handleStop = useCallback(() => { abort() }, [abort])
@@ -153,9 +163,9 @@ export function useChatPage() {
     ensureApiKey()
 
     const apiMessages = messages.slice(0, -1).map(m => ({ role: m.role, content: m.content }))
-    send(`${selectedProvider.name}/${selectedModel}`, apiMessages)
+    send(`${selectedProvider.name}/${selectedModel}`, apiMessages, { thinkingType, reasoningEffort })
     setMessages((prev) => prev.slice(0, -1))
-  }, [selectedModel, selectedApiKeyId, selectedProvider, messages, ensureApiKey, send])
+  }, [selectedModel, selectedApiKeyId, selectedProvider, messages, ensureApiKey, send, thinkingType, reasoningEffort])
 
   const handleSelectConversation = useCallback(async (id: number) => {
     const result = await selectConversation(id)
@@ -163,6 +173,9 @@ export function useChatPage() {
     setSelectedProviderId(result.providerId)
     setSelectedModel(result.model)
     setSelectedApiKeyId(result.apiKeyId)
+    // 同步目标对话的思考设置（旧对话无值时 selectConversation 已回退 disabled/medium）
+    setThinkingType(result.thinkingType)
+    setReasoningEffort(result.reasoningEffort)
   }, [selectConversation])
 
   const handleNewConversation = useCallback(() => {
@@ -172,6 +185,9 @@ export function useChatPage() {
     setSelectedProviderId(null)
     setSelectedModel(null)
     setSelectedApiKeyId(null)
+    // 新建对话思考设置重置为默认 disabled/medium
+    setThinkingType('disabled')
+    setReasoningEffort('medium')
     setInputKey(k => k + 1)
   }, [abort, newConversation])
 
@@ -187,6 +203,31 @@ export function useChatPage() {
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => !prev)
   }, [])
+
+  // ─── 思考设置修改：更新本地状态 + 持久化（已有活跃对话时）───
+  // 用 convIdRef 读取最新对话 ID，避免闭包捕获过期的 activeConversationId（与 handleStreamUpdate 同模式）
+  const persistThinkingSetting = useCallback((
+    patch: Partial<{ thinkingType: ThinkingType; reasoningEffort: ReasoningEffort }>,
+  ) => {
+    const convId = convIdRef.current
+    if (!convId) return
+    api.conversations.update(convId, patch)
+      .then(() => invalidateConversations())
+      .catch((e) => {
+        console.error('[ChatPage] Thinking setting persist failed', e)
+        toast.error('思考设置保存失败')
+      })
+  }, [invalidateConversations])
+
+  const onThinkingTypeChange = useCallback((type: ThinkingType) => {
+    setThinkingType(type)
+    persistThinkingSetting({ thinkingType: type })
+  }, [persistThinkingSetting])
+
+  const onReasoningEffortChange = useCallback((effort: ReasoningEffort) => {
+    setReasoningEffort(effort)
+    persistThinkingSetting({ reasoningEffort: effort })
+  }, [persistThinkingSetting])
 
   return {
     // 数据
@@ -205,6 +246,11 @@ export function useChatPage() {
     providerOptions,
     availableModels,
     keyOptions,
+    // 思考设置
+    thinkingType,
+    reasoningEffort,
+    onThinkingTypeChange,
+    onReasoningEffortChange,
     // UI 状态
     sidebarCollapsed,
     toggleSidebar,
