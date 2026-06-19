@@ -173,13 +173,13 @@ conversations 表新增 `thinking_type TEXT`（值为 'disabled'|'enabled'|'adap
 - 测试：`src/main/domains/conversation/__tests__/conversation.service.test.ts`、`src/main/domains/conversation/__tests__/conversation.schema.test.ts`
 
 **验收标准：**
-- [ ] create 传 thinkingType/reasoningEffort 时透传到 repo 并返回含字段的 Response
-- [ ] update 传两字段时透传到 repo（snake_case 映射）
-- [ ] update 不传两字段时不改动
-- [ ] rowToResponse 把 row 的 null 映射为 Response 的 undefined
-- [ ] createConversationSchema/updateConversationSchema 接受合法枚举值
-- [ ] 非法枚举值（如 thinkingType:'foo'）被 Zod schema 拒绝
-- [ ] 测试通过：`npx vitest run src/main/domains/conversation/__tests__/ --config vitest.backend.config.ts`
+- [x] create 传 thinkingType/reasoningEffort 时透传到 repo 并返回含字段的 Response
+- [x] update 传两字段时透传到 repo（snake_case 映射）
+- [x] update 不传两字段时不改动
+- [x] rowToResponse 把 row 的 null 映射为 Response 的 undefined
+- [x] createConversationSchema/updateConversationSchema 接受合法枚举值
+- [x] 非法枚举值（如 thinkingType:'foo'）被 Zod schema 拒绝
+- [x] 测试通过：`npx vitest run src/main/domains/conversation/__tests__/ --config vitest.backend.config.ts`
 
 **步骤：**
 1. 编写测试（service create/update 透传 / null→undefined 映射 + schema 合法接受 / 非法拒绝）
@@ -323,9 +323,9 @@ Zod schema 已在 Task 3 的 domain 层定义，ipc/conversations.ts 仅 import 
 - 测试：无（类型层）
 
 **验收标准：**
-- [ ] Conversation 接口含 thinkingType?、reasoningEffort? 两可选字段
-- [ ] 类型从 shared/types 派生（type alias / import），未重新定义枚举
-- [ ] `npx tsc -b --noEmit` 通过
+- [x] Conversation 接口含 thinkingType?、reasoningEffort? 两可选字段
+- [x] 类型从 shared/types 派生（type alias / import），未重新定义枚举
+- [x] `npx tsc -b --noEmit` 通过
 
 **步骤：**
 1. 扩展 Conversation 接口
