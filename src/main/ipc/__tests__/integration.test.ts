@@ -275,7 +275,8 @@ describe('IPC Integration (Renderer → Main process)', () => {
 
     it('pricing:getByProvider 应返回该供应商的记录', async () => {
       const getByProvider = handlerRegistry.get('pricing:getByProvider')!
-      const result = (await getByProvider({}, { providerId })) as PricingItem[]
+      // getByProvider 传裸 providerId 数字（非对象），与 preload ipcRenderer.invoke 一致
+      const result = (await getByProvider({}, providerId)) as PricingItem[]
       expect(result.length).toBeGreaterThanOrEqual(1)
       expect(result.every(p => p.providerId === providerId)).toBe(true)
     })
@@ -325,7 +326,7 @@ describe('IPC Integration (Renderer → Main process)', () => {
       const del = handlerRegistry.get('pricing:delete')!
       const getByProvider = handlerRegistry.get('pricing:getByProvider')!
       await del({}, { providerId, model: 'gpt-4' })
-      const result = (await getByProvider({}, { providerId })) as PricingItem[]
+      const result = (await getByProvider({}, providerId)) as PricingItem[]
       expect(result.some(p => p.model === 'gpt-4')).toBe(false)
     })
 

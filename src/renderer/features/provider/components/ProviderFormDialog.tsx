@@ -121,7 +121,9 @@ export function ProviderFormDialog({
   useEffect(() => {
     if (editingId === null) return
     const data = pricingQuery.data
-    if (!data || data.length === 0) return
+    // Array.isArray 防御：IPC 错误时 data 可能是 { error } 对象而非数组，
+    // 用 .length 守卫对非数组对象无效会导致 for...of 抛 "not iterable"
+    if (!Array.isArray(data) || data.length === 0) return
     setForm((prev) => {
       const pricing: Record<string, PricingRowInput> = { ...prev.pricing }
       for (const p of data) {

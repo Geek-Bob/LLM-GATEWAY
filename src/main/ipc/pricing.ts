@@ -19,13 +19,6 @@ import { createPricingSchema } from '../domains/pricing/pricing.schema'
 import { wrapIpcHandler } from './ipc-utils'
 
 /**
- * pricing:getByProvider 入参校验：providerId 必须为正整数
- */
-const getByProviderSchema = z.object({
-  providerId: z.number().int()
-})
-
-/**
  * pricing:delete 入参校验：(providerId, model) 联合主键
  */
 const deletePricingSchema = z.object({
@@ -44,8 +37,10 @@ export function registerPricingHandlers(db: Database): void {
     return pricingService.list()
   }, 'pricing:list'))
 
+  // getByProvider 传裸 providerId 数字（preload 侧 ipcRenderer.invoke('...', providerId)），
+  // 故直接校验裸数字而非对象，与 logs:stats 传裸 range 的模式一致
   ipcMain.handle('pricing:getByProvider', wrapIpcHandler(async (_event, data: unknown) => {
-    const { providerId } = getByProviderSchema.parse(data)
+    const providerId = z.number().int().parse(data)
     return pricingService.getByProvider(providerId)
   }, 'pricing:getByProvider'))
 
