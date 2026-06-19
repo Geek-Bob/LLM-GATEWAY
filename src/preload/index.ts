@@ -14,6 +14,7 @@
  *   返回 removeListener 清理函数，由调用方在组件卸载时取消订阅。
  */
 import { contextBridge, ipcRenderer } from 'electron'
+import type { ThinkingType, ReasoningEffort, ConversationEntity } from '../shared/types'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // 调试日志通道：渲染进程通过此通道将日志发送到主进程统一处理
@@ -72,10 +73,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   conversations: {
     list: () => ipcRenderer.invoke('conversation:list'),
-    create: (data: { title: string; model: string; providerId?: number | null; apiKeyId?: number | null }) =>
-      ipcRenderer.invoke('conversation:create', data),
-    update: (id: number, data: Record<string, unknown>) =>
-      ipcRenderer.invoke('conversation:update', id, data),
+    create: (data: {
+      title: string
+      model: string
+      providerId?: number | null
+      apiKeyId?: number | null
+      /** 思考执行方式（disabled/enabled/adaptive），可选，向后兼容 */
+      thinkingType?: ThinkingType
+      /** 思考强度偏好（minimal…max），可选，向后兼容 */
+      reasoningEffort?: ReasoningEffort
+    }): Promise<ConversationEntity> => ipcRenderer.invoke('conversation:create', data),
+    update: (
+      id: number,
+      data: {
+        title?: string
+        model?: string
+        providerId?: number | null
+        apiKeyId?: number | null
+        /** 思考执行方式（disabled/enabled/adaptive），可选 */
+        thinkingType?: ThinkingType
+        /** 思考强度偏好（minimal…max），可选 */
+        reasoningEffort?: ReasoningEffort
+      }
+    ): Promise<void> => ipcRenderer.invoke('conversation:update', id, data),
     delete: (id: number) => ipcRenderer.invoke('conversation:delete', id),
     get: (id: number) => ipcRenderer.invoke('conversation:getById', id),
     messages: (conversationId: number) => ipcRenderer.invoke('conversation:listMessages', conversationId),
