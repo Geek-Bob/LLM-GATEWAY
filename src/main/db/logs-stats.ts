@@ -255,7 +255,8 @@ export function createLogStatsRepository(db: Database) {
 
     /**
      * 获取按供应商/模型维度的详细统计。
-     * 每行含 cacheTokens 与 cost（LEFT JOIN provider_pricing 逐模型算费用）。
+     * 每行含 cacheTokens 与费用三分时序（cache_cost/uncached_cost/output_cost），
+     * cost = 三者之和（LEFT JOIN provider_pricing 逐模型算费用，缺单价 COALESCE 为 0）。
      * @param range - '24h' 按小时分组 | '30d' 按日期分组
      */
     async getDetailedStats(range: '24h' | '30d'): Promise<Record<string, unknown>[]> {
@@ -273,6 +274,10 @@ export function createLogStatsRepository(db: Database) {
           SUM(rsp.total_tokens_out) as total_tokens_out,
           SUM(rsp.total_cache_tokens) as total_cache_tokens,
           SUM(rsp.total_errors) as total_errors,
+          -- 费用三分时序：单价单位元/百万tokens，除以 1e6 得元；缺单价 COALESCE 为 0
+          COALESCE(SUM(rsp.total_cache_tokens) * pp.price_in_cached / ${COST_DIVISOR}, 0) as cache_cost,
+          COALESCE(MAX(0, SUM(rsp.total_tokens_in) - SUM(rsp.total_cache_tokens)) * pp.price_in_uncached / ${COST_DIVISOR}, 0) as uncached_cost,
+          COALESCE(SUM(rsp.total_tokens_out) * pp.price_out / ${COST_DIVISOR}, 0) as output_cost,
           COALESCE(
             SUM(rsp.total_cache_tokens) * pp.price_in_cached / ${COST_DIVISOR}
             + MAX(0, SUM(rsp.total_tokens_in) - SUM(rsp.total_cache_tokens)) * pp.price_in_uncached / ${COST_DIVISOR}

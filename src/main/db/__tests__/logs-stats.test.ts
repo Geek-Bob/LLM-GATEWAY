@@ -324,4 +324,94 @@ describe('LogStats Repository (Pre-computed Stats)', () => {
     expect(detailed[0].total_cache_tokens).toBe(200)
     expect(Number(detailed[0].cost)).toBe(0)
   })
+
+  // ── Task 1: getDetailedStats 费用三分时序 ──
+
+  it('getDetailedStats 每行含 cache_cost/uncached_cost/output_cost（配置单价正确）', async () => {
+    insertPricing(1, 'gpt-4', 100, 300, 600)
+
+    await statsRepo.updateProviderStats({
+      providerId: 1,
+      model: 'gpt-4',
+      tokensIn: 1000,
+      tokensOut: 500,
+      cacheTokens: 400,
+      durationMs: 100,
+      statusCode: 200
+    })
+
+    const detailed = await statsRepo.getDetailedStats('24h')
+    expect(detailed).toHaveLength(1)
+    // uncached = 1000 - 400 = 600
+    // cache_cost = 400 * 100 / 1e6 = 0.04
+    // uncached_cost = 600 * 300 / 1e6 = 0.18
+    // output_cost = 500 * 600 / 1e6 = 0.30
+    expect(Number(detailed[0].cache_cost)).toBeCloseTo(0.04, 10)
+    expect(Number(detailed[0].uncached_cost)).toBeCloseTo(0.18, 10)
+    expect(Number(detailed[0].output_cost)).toBeCloseTo(0.30, 10)
+  })
+
+  it('getDetailedStats cost = cache_cost + uncached_cost + output_cost', async () => {
+    insertPricing(1, 'gpt-4', 100, 300, 600)
+
+    await statsRepo.updateProviderStats({
+      providerId: 1,
+      model: 'gpt-4',
+      tokensIn: 1000,
+      tokensOut: 500,
+      cacheTokens: 400,
+      durationMs: 100,
+      statusCode: 200
+    })
+
+    const detailed = await statsRepo.getDetailedStats('24h')
+    const cacheCost = Number(detailed[0].cache_cost)
+    const uncachedCost = Number(detailed[0].uncached_cost)
+    const outputCost = Number(detailed[0].output_cost)
+    const cost = Number(detailed[0].cost)
+    expect(cost).toBeCloseTo(cacheCost + uncachedCost + outputCost, 10)
+  })
+
+  it('getDetailedStats 缺单价模型三费用列为 0', async () => {
+    await statsRepo.updateProviderStats({
+      providerId: 1,
+      model: 'claude-3-opus',
+      tokensIn: 1000,
+      tokensOut: 500,
+      cacheTokens: 200,
+      durationMs: 100,
+      statusCode: 200
+    })
+
+    const detailed = await statsRepo.getDetailedStats('24h')
+    expect(detailed).toHaveLength(1)
+    expect(Number(detailed[0].cache_cost)).toBe(0)
+    expect(Number(detailed[0].uncached_cost)).toBe(0)
+    expect(Number(detailed[0].output_cost)).toBe(0)
+    expect(Number(detailed[0].cost)).toBe(0)
+  })
+
+  it('getDetailedStats cacheTokens > tokensIn 时 uncached_cost clamp 到 0', async () => {
+    insertPricing(1, 'gpt-4', 100, 300, 600)
+
+    await statsRepo.updateProviderStats({
+      providerId: 1,
+      model: 'gpt-4',
+      tokensIn: 500,
+      tokensOut: 200,
+      cacheTokens: 800,
+      durationMs: 100,
+      statusCode: 200
+    })
+
+    const detailed = await statsRepo.getDetailedStats('24h')
+    expect(detailed).toHaveLength(1)
+    // cache_cost = 800 * 100 / 1e6 = 0.08
+    // uncached_cost = 0 * 300 / 1e6 = 0
+    // output_cost = 200 * 600 / 1e6 = 0.12
+    expect(Number(detailed[0].cache_cost)).toBeCloseTo(0.08, 10)
+    expect(Number(detailed[0].uncached_cost)).toBe(0)
+    expect(Number(detailed[0].output_cost)).toBeCloseTo(0.12, 10)
+    expect(Number(detailed[0].cost)).toBeCloseTo(0.20, 10)
+  })
 })
