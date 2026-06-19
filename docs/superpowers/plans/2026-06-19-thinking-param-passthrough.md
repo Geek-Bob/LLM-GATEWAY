@@ -469,13 +469,13 @@ Zod schema 已在 Task 3 的 domain 层定义，ipc/conversations.ts 仅 import 
 - 测试：`src/renderer/pages/__tests__/Chat.test.tsx`（已有，扩展）
 
 **验收标准：**
-- [ ] useChatPage 暴露 thinkingType/reasoningEffort 及 setter
-- [ ] 切对话时思考状态同步为目标对话的设置
-- [ ] 新建对话时思考状态默认 disabled/medium
-- [ ] 修改思考设置触发 conversations.update 持久化
-- [ ] handleSend/handleRegenerate 传 thinkingConfig 给 send
-- [ ] Chat 页面渲染 ThinkingSettings 并双向绑定
-- [ ] 测试通过：`npx vitest run src/renderer/pages/__tests__/Chat.test.tsx`
+- [x] useChatPage 暴露 thinkingType/reasoningEffort 及 setter
+- [x] 切对话时思考状态同步为目标对话的设置
+- [x] 新建对话时思考状态默认 disabled/medium
+- [x] 修改思考设置触发 conversations.update 持久化
+- [x] handleSend/handleRegenerate 传 thinkingConfig 给 send
+- [x] Chat 页面渲染 ThinkingSettings 并双向绑定
+- [x] 测试通过：`npx vitest run src/renderer/pages/__tests__/Chat.test.tsx`
 
 **步骤：**
 1. 编写测试（状态同步 / 持久化 / 发送传参 / 渲染集成）
