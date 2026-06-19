@@ -9,6 +9,7 @@ import type {
   ProviderEntity, ApiKeyEntity, LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress,
   AgentEntity, AgentConfigEntity, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput,
   ModelMapping, ModelInfo, ClearDataInput, ClearDataResult, PricingEntity, RangeSummary,
+  ThinkingType, ReasoningEffort,
 } from '../../shared/types'
 
 export type { AgentEntity, AgentConfigEntity }
@@ -63,6 +64,10 @@ export interface Conversation {
   providerId: number | null
   model: string
   apiKeyId: number | null
+  /** 思考执行方式（disabled/enabled/adaptive），可选（旧对话为 undefined，视为 disabled，向后兼容） */
+  thinkingType?: ThinkingType
+  /** 思考强度偏好（minimal…max），可选（旧对话为 undefined，表示不传 effort） */
+  reasoningEffort?: ReasoningEffort
   createdAt: string
   updatedAt: string
 }
@@ -119,8 +124,29 @@ declare global {
       }
       conversations: {
         list: () => Promise<Conversation[]>
-        create: (data: { title: string; model: string; providerId?: number | null; apiKeyId?: number | null }) => Promise<Conversation>
-        update: (id: number, data: Record<string, unknown>) => Promise<void>
+        create: (data: {
+          title: string
+          model: string
+          providerId?: number | null
+          apiKeyId?: number | null
+          /** 思考执行方式（disabled/enabled/adaptive），可选，向后兼容 */
+          thinkingType?: ThinkingType
+          /** 思考强度偏好（minimal…max），可选，向后兼容 */
+          reasoningEffort?: ReasoningEffort
+        }) => Promise<Conversation>
+        update: (
+          id: number,
+          data: {
+            title?: string
+            model?: string
+            providerId?: number | null
+            apiKeyId?: number | null
+            /** 思考执行方式（disabled/enabled/adaptive），可选 */
+            thinkingType?: ThinkingType
+            /** 思考强度偏好（minimal…max），可选 */
+            reasoningEffort?: ReasoningEffort
+          }
+        ) => Promise<void>
         delete: (id: number) => Promise<void>
         get: (id: number) => Promise<Conversation | null>
         messages: (conversationId: number) => Promise<ConversationMessage[]>
