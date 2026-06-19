@@ -53,12 +53,12 @@
 - 测试：`src/main/db/__tests__/logs-stats.test.ts`（getDetailedStats 测试块）
 
 **验收标准：**
-- [ ] getDetailedStats 返回每行含 cache_cost/uncached_cost/output_cost
-- [ ] 配置单价的模型三费用列正确（cache_cost = cacheTokens×priceInCached/1e6 等）
-- [ ] 缺单价模型三费用列为 0
-- [ ] cost 列 = cache_cost + uncached_cost + output_cost
-- [ ] 测试用内存数据库 + 插入 pricing，不 mock
-- [ ] 所有测试通过
+- [x] getDetailedStats 返回每行含 cache_cost/uncached_cost/output_cost
+- [x] 配置单价的模型三费用列正确（cache_cost = cacheTokens×priceInCached/1e6 等）
+- [x] 缺单价模型三费用列为 0
+- [x] cost 列 = cache_cost + uncached_cost + output_cost
+- [x] 测试用内存数据库 + 插入 pricing，不 mock
+- [x] 所有测试通过
 
 **步骤：**
 1. 编写测试：getDetailedStats 返回含三费用列、配置单价正确、缺单价归 0、cost=三者之和
@@ -90,11 +90,11 @@
 - 测试：`src/main/domains/logs/__tests__/logs.service.test.ts`
 
 **验收标准：**
-- [ ] DetailedStatsDataPoint 含 cacheCost/uncachedCost/outputCost
-- [ ] detailedStats 每个时间点 dataPoint 含三费用字段
-- [ ] model 维度累计 cacheCost/uncachedCost/outputCost 正确
-- [ ] service 测试用内存数据库，不 mock statsRepo
-- [ ] 所有测试通过
+- [x] DetailedStatsDataPoint 含 cacheCost/uncachedCost/outputCost
+- [x] detailedStats 每个时间点 dataPoint 含三费用字段
+- [x] model 维度累计 cacheCost/uncachedCost/outputCost 正确
+- [x] service 测试用内存数据库，不 mock statsRepo
+- [x] 所有测试通过
 
 **步骤：**
 1. 编写测试：detailedStats dataPoint 含三费用字段、model 累加正确
@@ -125,8 +125,8 @@
 - 修改：`src/renderer/lib/types.ts`
 
 **验收标准：**
-- [ ] StatsDataPoint 含 cacheCost/uncachedCost/outputCost（number）
-- [ ] `npx tsc -b --noEmit` 通过
+- [x] StatsDataPoint 含 cacheCost/uncachedCost/outputCost（number）
+- [x] `npx tsc -b --noEmit` 通过
 
 **步骤：**
 1. 扩展 StatsDataPoint +3 字段
@@ -156,12 +156,12 @@
 - 测试：`src/renderer/features/dashboard/components/__tests__/TrendLineChart.test.tsx`
 
 **验收标准：**
-- [ ] 渲染传入的每条 line（按 lines 数组）
-- [ ] XAxis 用 xKey、YAxis 用数值
-- [ ] 空数据显示空态/提示
-- [ ] yFormatter 应用到 tooltip/axis
-- [ ] 复用 recharts，无原生 SVG 手写
-- [ ] 组件测试通过
+- [x] 渲染传入的每条 line（按 lines 数组）
+- [x] XAxis 用 xKey、YAxis 用数值
+- [x] 空数据显示空态/提示
+- [x] yFormatter 应用到 tooltip/axis
+- [x] 复用 recharts，无原生 SVG 手写
+- [x] 组件测试通过
 
 **步骤：**
 1. 编写测试：多系列线渲染、空数据、yFormatter
@@ -193,10 +193,10 @@
 - 测试：`src/renderer/features/dashboard/components/__tests__/TrendBarChart.test.tsx`
 
 **验收标准：**
-- [ ] 渲染 requests 柱状，XAxis=period
-- [ ] 空数据显示空态
-- [ ] 复用 recharts
-- [ ] 组件测试通过
+- [x] 渲染 requests 柱状，XAxis=period
+- [x] 空数据显示空态
+- [x] 复用 recharts
+- [x] 组件测试通过
 
 **步骤：**
 1. 编写测试：柱状渲染、空数据
@@ -243,16 +243,16 @@
 - 测试：`src/renderer/features/dashboard/components/__tests__/TimeTrendAccordion.test.tsx`
 
 **验收标准：**
-- [ ] 顶部渲染 24h/30d Tab，点击切换数据源
-- [ ] 手风琴按供应商展开，展开后每个模型显示 3 张趋势图
-- [ ] Token 趋势 3 线（总输入/缓存/非缓存）
-- [ ] 花费趋势 3 线（缓存/非缓存/输出）
-- [ ] 次数趋势柱状
-- [ ] Tab 切换保留手风琴展开态
-- [ ] 空数据显示提示
-- [ ] StatsCharts.tsx 已删除，无残留引用
-- [ ] 复用共享组件，无原生 SVG
-- [ ] 组件测试通过 + `npx tsc -b --noEmit` 通过
+- [x] 顶部渲染 24h/30d Tab，点击切换数据源
+- [x] 手风琴按供应商展开，展开后每个模型显示 3 张趋势图
+- [x] Token 趋势 3 线（总输入/缓存/非缓存）
+- [x] 花费趋势 3 线（缓存/非缓存/输出）
+- [x] 次数趋势柱状
+- [x] Tab 切换保留手风琴展开态
+- [x] 空数据显示提示
+- [x] StatsCharts.tsx 已删除，无残留引用
+- [x] 复用共享组件，无原生 SVG
+- [x] 组件测试通过 + `npx tsc -b --noEmit` 通过
 
 **步骤：**
 1. 编写测试：Tab 切换、手风琴展开 3 图渲染、空数据
@@ -283,12 +283,12 @@
 - 修改：`docs/ARCHITECTURE.md`
 
 **验收标准：**
-- [ ] `npx tsc -b --noEmit` 通过（零错误）
-- [ ] 后端测试全通过
-- [ ] 前端测试全通过
-- [ ] `npm run lint` 通过（0 error）
-- [ ] ARCHITECTURE.md 趋势区描述更新
-- [ ] 提交
+- [x] `npx tsc -b --noEmit` 通过（零错误）
+- [x] 后端测试全通过
+- [x] 前端测试全通过
+- [x] `npm run lint` 通过（0 error）
+- [x] ARCHITECTURE.md 趋势区描述更新
+- [x] 提交
 
 **步骤：**
 1. 运行全量测试（输出重定向 /tmp，grep 关键结果）
