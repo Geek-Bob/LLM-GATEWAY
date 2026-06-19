@@ -133,12 +133,12 @@ conversations 表新增 `thinking_type TEXT`（值为 'disabled'|'enabled'|'adap
 - 测试：`src/main/db/__tests__/conversations.test.ts`
 
 **验收标准：**
-- [ ] create 传入 thinkingType/reasoningEffort 时正确写入对应列
-- [ ] create 不传时两列为 NULL
-- [ ] update 传入 thinking_type/reasoning_effort 时正确更新对应列
-- [ ] update 不传两字段时不改动它们（部分更新语义）
-- [ ] list/findById 返回的行含两字段
-- [ ] 测试通过：`npx vitest run src/main/db/__tests__/conversations.test.ts --config vitest.backend.config.ts`
+- [x] create 传入 thinkingType/reasoningEffort 时正确写入对应列
+- [x] create 不传时两列为 NULL
+- [x] update 传入 thinking_type/reasoning_effort 时正确更新对应列
+- [x] update 不传两字段时不改动它们（部分更新语义）
+- [x] list/findById 返回的行含两字段
+- [x] 测试通过：`npx vitest run src/main/db/__tests__/conversations.test.ts --config vitest.backend.config.ts`
 
 **步骤：**
 1. 编写测试（create 带新字段 / create 不带 / update 部分更新 / 查询返回新字段）
@@ -288,10 +288,10 @@ Zod schema 已在 Task 3 的 domain 层定义，ipc/conversations.ts 仅 import 
 - 测试：无（类型层变更，由 tsc 保证）
 
 **验收标准：**
-- [ ] preload conversations.create 入参类型含两可选字段
-- [ ] preload conversations.update 入参类型含两可选字段
-- [ ] ElectronAPI 接口同步扩展
-- [ ] `npx tsc -b --noEmit` 通过
+- [x] preload conversations.create 入参类型含两可选字段
+- [x] preload conversations.update 入参类型含两可选字段
+- [x] ElectronAPI 接口同步扩展
+- [x] `npx tsc -b --noEmit` 通过
 
 **步骤：**
 1. 扩展 preload/index.ts conversations 签名
@@ -355,12 +355,12 @@ Zod schema 已在 Task 3 的 domain 层定义，ipc/conversations.ts 仅 import 
 - 测试：`src/renderer/features/chat/components/__tests__/ThinkingSettings.test.tsx`
 
 **验收标准：**
-- [ ] 渲染三个执行方式选项（disabled/enabled/adaptive）
-- [ ] 渲染强度下拉，含六个枚举选项
-- [ ] 切换执行方式触发 onThinkingTypeChange
-- [ ] 切换强度触发 onReasoningEffortChange
-- [ ] thinkingType=disabled 时强度下拉灰显（disabled 属性）
-- [ ] 测试通过：`npx vitest run src/renderer/features/chat/components/__tests__/ThinkingSettings.test.tsx`
+- [x] 渲染三个执行方式选项（disabled/enabled/adaptive）
+- [x] 渲染强度下拉，含六个枚举选项
+- [x] 切换执行方式触发 onThinkingTypeChange
+- [x] 切换强度触发 onReasoningEffortChange
+- [x] thinkingType=disabled 时强度下拉灰显（disabled 属性）
+- [x] 测试通过：`npx vitest run src/renderer/features/chat/components/__tests__/ThinkingSettings.test.tsx`
 
 **步骤：**
 1. 编写测试（渲染选项 / 切换回调 / disabled 灰显）
@@ -392,11 +392,11 @@ Zod schema 已在 Task 3 的 domain 层定义，ipc/conversations.ts 仅 import 
 - 测试：`src/renderer/features/chat/hooks/__tests__/useChatStream.test.ts`（若不存在新建）
 
 **验收标准：**
-- [ ] thinkingType=disabled 时请求体不含 thinking、不含 reasoning_effort
-- [ ] thinkingType=enabled 时请求体含 `thinking:{type:'enabled'}` + `reasoning_effort:<值>`
-- [ ] thinkingType=adaptive 时请求体含 `thinking:{type:'adaptive'}` + `reasoning_effort:<值>`
-- [ ] 原 model/messages/stream 组装不受影响
-- [ ] 测试通过：`npx vitest run src/renderer/features/chat/hooks/__tests__/useChatStream.test.ts`
+- [x] thinkingType=disabled 时请求体不含 thinking、不含 reasoning_effort
+- [x] thinkingType=enabled 时请求体含 `thinking:{type:'enabled'}` + `reasoning_effort:<值>`
+- [x] thinkingType=adaptive 时请求体含 `thinking:{type:'adaptive'}` + `reasoning_effort:<值>`
+- [x] 原 model/messages/stream 组装不受影响
+- [x] 测试通过：`npx vitest run src/renderer/features/chat/hooks/__tests__/useChatStream.test.ts`
 
 **步骤：**
 1. 编写测试（三种模式请求体注入）
