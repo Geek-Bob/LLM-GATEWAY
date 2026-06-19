@@ -92,6 +92,12 @@ export interface ApiKeyEntity {
   createdAt: string
 }
 
+/** 思考执行方式（与上游 thinking.type 对应）：disabled=关闭 / enabled=显式启用 / adaptive=自适应 */
+export type ThinkingType = 'disabled' | 'enabled' | 'adaptive'
+
+/** 思考强度偏好（与 reasoning_effort / output_config.effort 对应）：由弱到强六档 */
+export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
 /** 对话实体 */
 export interface ConversationEntity {
   id: number
@@ -99,6 +105,10 @@ export interface ConversationEntity {
   providerId: number | null
   model: string
   apiKeyId: number | null
+  /** 思考执行方式，可选（旧对话为 undefined，视为 disabled，向后兼容） */
+  thinkingType?: ThinkingType
+  /** 思考强度偏好，可选（旧对话为 undefined，表示不传 effort） */
+  reasoningEffort?: ReasoningEffort
   createdAt: string
   updatedAt: string
 }
