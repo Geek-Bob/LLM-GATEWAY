@@ -4,6 +4,7 @@ import type {
   CreateConversationInput, UpdateConversationInput, AddMessageInput
 } from './conversation.types'
 import { createConversationRepository, type ConversationRow, type MessageRow } from '../../db/conversations'
+import type { ThinkingType, ReasoningEffort } from '../../../shared/types'
 
 /**
  * 创建会话业务服务
@@ -31,7 +32,9 @@ export function createConversationService(db: Database) {
         input.title,
         input.model,
         input.providerId ?? null,
-        input.apiKeyId ?? null
+        input.apiKeyId ?? null,
+        input.thinkingType,
+        input.reasoningEffort
       )
       return conversationRowToResponse(created)
     },
@@ -43,11 +46,15 @@ export function createConversationService(db: Database) {
         provider_id?: number | null
         model?: string
         api_key_id?: number | null
+        thinking_type?: string | null
+        reasoning_effort?: string | null
       } = {}
       if (input.title !== undefined) data.title = input.title
       if (input.model !== undefined) data.model = input.model
       if (input.providerId !== undefined) data.provider_id = input.providerId
       if (input.apiKeyId !== undefined) data.api_key_id = input.apiKeyId
+      if (input.thinkingType !== undefined) data.thinking_type = input.thinkingType
+      if (input.reasoningEffort !== undefined) data.reasoning_effort = input.reasoningEffort
 
       await repo.update(id, data)
     },
@@ -83,6 +90,10 @@ function conversationRowToResponse(row: ConversationRow): ConversationResponse {
     providerId: row.provider_id,
     model: row.model,
     apiKeyId: row.api_key_id,
+    // row.thinking_type 为 string|null：null 映射为 undefined（向后兼容旧对话）。
+    // 落库值已由 service 层（经 schema Zod enum 校验）保证为合法枚举，断言安全。
+    thinkingType: (row.thinking_type ?? undefined) as ThinkingType | undefined,
+    reasoningEffort: (row.reasoning_effort ?? undefined) as ReasoningEffort | undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
