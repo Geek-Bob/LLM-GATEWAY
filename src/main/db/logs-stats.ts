@@ -11,6 +11,17 @@
 
 import type { Database } from './database'
 
+/**
+ * 把 Date 格式化为本地时区 'YYYY-MM-DD' 日期串。
+ * 与 stat_hour（getHours，本地）统一时区，避免之前 toISOString(UTC) 与本地小时混用导致跨天错位。
+ */
+function localDateStr(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 /** 费用换算分母：单价单位为元/百万tokens，结果为元 */
 const COST_DIVISOR = 1_000_000
 
@@ -19,11 +30,12 @@ const COST_DIVISOR = 1_000_000
  * @param range - '24h' | '7d' | '30d'（其他值降级为 7d）
  */
 function resolveDateCondition(range: string): string {
+  // stat_date 为本地时区日期（localDateStr），故用 date('now','localtime') 对齐本地时区
   switch (range) {
-    case '24h': return "stat_date = date('now')"
-    case '7d': return "stat_date >= date('now', '-7 days')"
-    case '30d': return "stat_date >= date('now', '-30 days')"
-    default: return "stat_date >= date('now', '-7 days')"
+    case '24h': return "stat_date = date('now', 'localtime')"
+    case '7d': return "stat_date >= date('now', 'localtime', '-7 days')"
+    case '30d': return "stat_date >= date('now', 'localtime', '-30 days')"
+    default: return "stat_date >= date('now', 'localtime', '-7 days')"
   }
 }
 
@@ -90,7 +102,7 @@ export function createLogStatsRepository(db: Database) {
       statusCode?: number
     }): Promise<void> {
       const now = new Date()
-      const dateStr = now.toISOString().slice(0, 10)
+      const dateStr = localDateStr(now)
       const hour = now.getHours()
       const tokensIn = entry.tokensIn ?? 0
       const tokensOut = entry.tokensOut ?? 0
@@ -123,7 +135,7 @@ export function createLogStatsRepository(db: Database) {
     }): Promise<void> {
       if (entry.providerId === undefined) return
       const now = new Date()
-      const dateStr = now.toISOString().slice(0, 10)
+      const dateStr = localDateStr(now)
       const hour = now.getHours()
       const tokensIn = entry.tokensIn ?? 0
       const tokensOut = entry.tokensOut ?? 0
@@ -262,11 +274,16 @@ export function createLogStatsRepository(db: Database) {
     async getDetailedStats(range: '24h' | '30d'): Promise<Record<string, unknown>[]> {
       // 24h = 近24个整点小时（滚动窗口，period 为 'YYYY-MM-DD HH'）；30d = 近31天（period 为 'YYYY-MM-DD'）
       if (range === '24h') {
+        // 窗口起点 = 当前整点小时往前推 23 小时（含当前小时共 24 个桶）。
+        // stat_date/stat_hour 均为本地时区，windowStart 也用本地时区串，字典序比较一致。
+        const winStart = new Date()
+        winStart.setHours(winStart.getHours() - 23, 0, 0, 0)
+        const windowStart = `${localDateStr(winStart)} ${String(winStart.getHours()).padStart(2, '0')}:00:00`
         return db.prepare(
           `SELECT
             rsp.provider_id as provider_id,
             rsp.model as model,
-            strftime('%Y-%m-%d %H', datetime(rsp.stat_date || ' ' || printf('%02d', rsp.stat_hour) || ':00:00')) as period,
+            rsp.stat_date || ' ' || printf('%02d', rsp.stat_hour) as period,
             SUM(rsp.total_requests) as total_requests,
             SUM(rsp.total_tokens_in) as total_tokens_in,
             SUM(rsp.total_tokens_out) as total_tokens_out,
@@ -283,10 +300,10 @@ export function createLogStatsRepository(db: Database) {
             ) as cost
           FROM request_stats_provider rsp
           LEFT JOIN provider_pricing pp ON pp.provider_id = rsp.provider_id AND pp.model = rsp.model
-          WHERE datetime(rsp.stat_date || ' ' || printf('%02d', rsp.stat_hour) || ':00:00') >= datetime('now', '-24 hours')
+          WHERE rsp.stat_date || ' ' || printf('%02d', rsp.stat_hour) || ':00:00' >= @windowStart
           GROUP BY rsp.provider_id, rsp.model, period
           ORDER BY rsp.provider_id, rsp.model, period`
-        ).all() as Record<string, unknown>[]
+        ).all({ windowStart }) as Record<string, unknown>[]
       }
 
       const dateCondition = resolveDateCondition(range)
