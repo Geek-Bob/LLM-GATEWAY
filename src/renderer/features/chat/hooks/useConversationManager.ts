@@ -9,18 +9,31 @@ import { useQueryClient } from '@tanstack/react-query'
 import { v4 as uuidv4 } from 'uuid'
 import { api } from '@/lib/ipc'
 import { useConversations } from '@/lib/queries/conversations'
+import type { ThinkingType, ReasoningEffort } from '../../../../shared/types'
+import type { ThinkingConfig } from '@/features/chat/hooks/useChatStream'
 
 export const DEFAULT_CONVERSATION_TITLE = '新对话'
+
+/** UI 默认思考设置：执行方式 disabled、强度 medium（仅 thinkingType≠disabled 时才外发 effort）。 */
+export const DEFAULT_THINKING_CONFIG: ThinkingConfig = {
+  thinkingType: 'disabled',
+  reasoningEffort: 'medium',
+}
 
 export interface UseConversationManagerParams {
   /** 当前活跃会话 ID（由调用方 useState 持有） */
   activeConversationId: number | null
   /** 更新活跃会话 ID */
   setActiveConversationId: (id: number | null) => void
+  /**
+   * 读取当前思考设置（由调用方 useChatPage 持有的 thinkingType/reasoningEffort 状态派生）。
+   * saveUserMessage 在新建/更新对话时携带此设置；未提供时回退默认 disabled/medium（向后兼容）。
+   */
+  getThinkingConfig?: () => ThinkingConfig
 }
 
 /** 会话 CRUD 逻辑封装 Hook，管理切换/新建/删除会话及用户消息保存。 @param params - 包含 activeConversationId 及其 setter。 @returns 会话列表和操作方法。 */
-export function useConversationManager({ activeConversationId, setActiveConversationId }: UseConversationManagerParams) {
+export function useConversationManager({ activeConversationId, setActiveConversationId, getThinkingConfig }: UseConversationManagerParams) {
   const { data: conversations = [] } = useConversations()
   const queryClient = useQueryClient()
 
@@ -28,7 +41,8 @@ export function useConversationManager({ activeConversationId, setActiveConversa
 
   /**
    * 切换会话 — 加载历史消息，恢复 provider/model/apiKey 选择。
-   * 返回构造好的消息数组和会话关联的 providerId/model/apiKeyId，
+   * 返回构造好的消息数组、会话关联的 providerId/model/apiKeyId，
+   * 以及对话的思考设置（旧对话无值时回退默认 disabled/medium，供调用方同步 UI）。
    * 调用方用返回值更新自己的 state。
    */
   async function selectConversation(id: number): Promise<{
@@ -36,6 +50,8 @@ export function useConversationManager({ activeConversationId, setActiveConversa
     providerId: number | null
     model: string | null
     apiKeyId: number | null
+    thinkingType: ThinkingType
+    reasoningEffort: ReasoningEffort
   }> {
     setActiveConversationId(id)
 
@@ -58,6 +74,9 @@ export function useConversationManager({ activeConversationId, setActiveConversa
       providerId: conv?.providerId ?? null,
       model: conv?.model ?? null,
       apiKeyId: conv?.apiKeyId ?? null,
+      // 旧对话无值（NULL/undefined）视为默认 disabled/medium
+      thinkingType: conv?.thinkingType ?? 'disabled',
+      reasoningEffort: conv?.reasoningEffort ?? 'medium',
     }
   }
 
@@ -79,7 +98,8 @@ export function useConversationManager({ activeConversationId, setActiveConversa
 
   /**
    * 保存用户消息（fire-and-forget 风格）
-   * 如果还没有活跃会话，自动创建；更新 providerId/model/apiKeyId 仅在变化时执行
+   * 如果还没有活跃会话，自动创建（携带当前思考设置）；已有会话时，
+   * 仅当 providerId/model/apiKeyId 或思考设置变化时才执行 update。
    */
   async function saveUserMessage(
     content: string,
@@ -87,6 +107,8 @@ export function useConversationManager({ activeConversationId, setActiveConversa
     model: string,
     apiKeyId: number
   ): Promise<number | null> {
+    // 在调用时读取最新思考设置（getThinkingConfig 由调用方每次渲染传入，闭包捕获最新 state）
+    const { thinkingType, reasoningEffort } = getThinkingConfig?.() ?? DEFAULT_THINKING_CONFIG
     let convId = activeConversationId
 
     if (!convId) {
@@ -95,20 +117,25 @@ export function useConversationManager({ activeConversationId, setActiveConversa
         model,
         providerId,
         apiKeyId,
+        thinkingType,
+        reasoningEffort,
       })
       convId = conv.id
       setActiveConversationId(convId)
       invalidate()
     } else {
-      // 仅当关联信息变化时才更新
+      // 仅当关联信息或思考设置变化时才更新
       const existing = await api.conversations.get(convId)
       if (existing) {
+        // 思考设置比较采用直接相等（旧对话 NULL→undefined 与当前默认值不等，触发一次惰性归一化写入）
         const needsUpdate =
           existing.providerId !== providerId ||
           existing.model !== model ||
-          existing.apiKeyId !== apiKeyId
+          existing.apiKeyId !== apiKeyId ||
+          existing.thinkingType !== thinkingType ||
+          existing.reasoningEffort !== reasoningEffort
         if (needsUpdate) {
-          await api.conversations.update(convId, { model, providerId, apiKeyId })
+          await api.conversations.update(convId, { model, providerId, apiKeyId, thinkingType, reasoningEffort })
         }
       }
     }
