@@ -73,6 +73,20 @@ vi.mock('@/features/dashboard/components/TrendBarChart', () => ({
 import { TimeTrendAccordion } from '@/features/dashboard/components/TimeTrendAccordion'
 
 /** 24h 样本：1 供应商 1 模型，2 个小时数据点，数值唯一便于断言。 */
+/** 把 Date 格式化为 'YYYY-MM-DD HH' 整点小时键（与后端 24h period 格式一致）。 */
+function hourKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  return `${y}-${m}-${day} ${h}`
+}
+
+// 24h 数据点的 period 用当前时刻往前推的整点小时键，确保落在"近24小时"补全窗口内
+const now = new Date()
+const hourKeyPrev = hourKey(new Date(new Date(now).setHours(now.getHours() - 1)))
+const hourKeyCurr = hourKey(now)
+
 const hourlyStats: ProviderStatsGroup[] = [
   {
     providerId: 1,
@@ -88,7 +102,7 @@ const hourlyStats: ProviderStatsGroup[] = [
         cost: 0.15,
         dataPoints: [
           {
-            period: 0,
+            period: hourKeyPrev,
             requests: 5,
             tokensIn: 100,
             tokensOut: 50,
@@ -99,7 +113,7 @@ const hourlyStats: ProviderStatsGroup[] = [
             outputCost: 0.02,
           },
           {
-            period: 1,
+            period: hourKeyCurr,
             requests: 10,
             tokensIn: 200,
             tokensOut: 100,
@@ -256,13 +270,16 @@ describe('TimeTrendAccordion', () => {
     const tokenData = JSON.parse(tokenChart.getAttribute('data-data')!) as Array<
       Record<string, number | string>
     >
-    // 第二个数据点 tokensIn=200, cacheTokens=40 → 非缓存=160
-    expect(tokenData[1].uncachedTokens).toBe(160)
-    // 第一个数据点 tokensIn=100, cacheTokens=20 → 非缓存=80
-    expect(tokenData[0].uncachedTokens).toBe(80)
+    // 补全后有 24 个点；按 tokensIn 值查找原始数据点（补全点 tokensIn=0）
+    const point200 = tokenData.find((p) => p.tokensIn === 200) as Record<string, number> | undefined
+    const point100 = tokenData.find((p) => p.tokensIn === 100) as Record<string, number> | undefined
+    // tokensIn=200, cacheTokens=40 → 非缓存=160
+    expect(point200?.uncachedTokens).toBe(160)
+    // tokensIn=100, cacheTokens=20 → 非缓存=80
+    expect(point100?.uncachedTokens).toBe(80)
   })
 
-  it('24h Tab 下次数柱状图使用 hourlyStats 数据，period 为小时数字', async () => {
+  it('24h Tab 下次数柱状图使用 hourlyStats 数据，period 为 HH:00', async () => {
     const user = userEvent.setup()
     render(
       <TimeTrendAccordion dailyStats={dailyStats} hourlyStats={hourlyStats} isLoading={false} />,
@@ -275,13 +292,17 @@ describe('TimeTrendAccordion', () => {
       period: number | string
       requests: number
     }>
-    // 补全缺失时段：24h 始终 24 个点（0-23），无数据的时段 requests=0
+    // 补全缺失时段：24h 始终 24 个点（近24个整点小时），period 标签为 'HH:00'
     expect(barData).toHaveLength(24)
-    expect(barData[0].period).toBe(0)
-    expect(barData[0].requests).toBe(5)
-    expect(barData[1].period).toBe(1)
+    expect(typeof barData[0].period).toBe('string')
+    expect(barData[0].period).toMatch(/^\d{2}:00$/)
+    // 有数据的小时点（当前小时）保留原值
+    const currLabel = `${String(now.getHours()).padStart(2, '0')}:00`
+    const currPoint = barData.find((p) => p.period === currLabel)
+    expect(currPoint?.requests).toBe(10)
     // 缺数据时段填 0
-    expect(barData[2].requests).toBe(0)
+    const zeroPoints = barData.filter((p) => p.requests === 0)
+    expect(zeroPoints.length).toBeGreaterThan(0)
   })
 
   it('点击 30d Tab 切换数据源：次数柱状图使用 dailyStats 数据，period 为 MM-DD', async () => {

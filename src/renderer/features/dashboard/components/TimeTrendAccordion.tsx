@@ -53,14 +53,21 @@ const COST_LINES = [
   { key: 'outputCost', name: '输出', color: COLOR_GREEN },
 ]
 
-/** 把 StatsDataPoint.period 格式化为图表 X 轴标签：24h 保持小时数字(0-23)，30d 截取为 MM-DD 日期串。 */
+/** 把 StatsDataPoint.period 格式化为图表 X 轴标签：
+ * 24h period 为 'YYYY-MM-DD HH'，显示 'HH:00'（近24个整点小时）；
+ * 30d period 为 'YYYY-MM-DD'，显示 'MM-DD'。 */
 function formatPeriod(period: number | string, tab: TrendTab): number | string {
-  if (tab === '24h') return period
+  if (tab === '24h') {
+    // 'YYYY-MM-DD HH' → 'HH:00'
+    const s = String(period)
+    const hh = s.slice(11, 13)
+    return `${hh}:00`
+  }
   // 30d：period 为 'YYYY-MM-DD'，截取后 5 位得 'MM-DD'
   return typeof period === 'string' ? period.slice(5) : String(period)
 }
 
-/** 24h 的空数据点（缺数据的时段填 0，保证 X 轴 0-23 完整）。 */
+/** 空数据点（缺数据的时段填 0，保证 X 轴完整）。 */
 const ZERO_POINT: Omit<StatsDataPoint, 'period'> = {
   requests: 0,
   tokensIn: 0,
@@ -72,36 +79,55 @@ const ZERO_POINT: Omit<StatsDataPoint, 'period'> = {
   outputCost: 0,
 }
 
+/** 把 Date 格式化为 'YYYY-MM-DD HH' 整点小时键（24h period 格式，本地时区）。 */
+function toHourKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  return `${y}-${m}-${day} ${h}`
+}
+
+/** 把 Date 格式化为 'YYYY-MM-DD' 日期键（30d period 格式，本地时区）。 */
+function toDateKey(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 /**
- * 生成完整 period 序列（24h=0-23 全部小时，30d=近 31 天全部日期），
- * 与现有 dataPoints 合并，缺失时段填 0。避免图表只画有数据的零星几个点。
+ * 生成完整 period 序列与现有 dataPoints 合并，缺失时段填 0：
+ * 24h = 近24个整点小时（从当前小时往前推24个，period 'YYYY-MM-DD HH'）；
+ * 30d = 近31天（period 'YYYY-MM-DD'，对齐后端 stat_date >= date('now','-30 days')）。
+ * 避免图表只画有数据的零星几个点，X 轴完整展示时间跨度。
  */
 function fillMissingPeriods(dataPoints: StatsDataPoint[], tab: TrendTab): StatsDataPoint[] {
-  // 以 period 为键建索引（24h period 为 number、30d 为 'YYYY-MM-DD' 字符串）
   const byPeriod = new Map<string, StatsDataPoint>()
   for (const p of dataPoints) {
     byPeriod.set(String(p.period), p)
   }
 
-  const fullPeriods: (number | string)[] = []
+  const fullPeriods: string[] = []
+  const now = new Date()
   if (tab === '24h') {
-    for (let h = 0; h < 24; h++) fullPeriods.push(h)
+    // 从当前整点小时往前推 23 个小时，共 24 个桶（含当前小时）
+    for (let i = 23; i >= 0; i--) {
+      const d = new Date(now)
+      d.setHours(d.getHours() - i)
+      fullPeriods.push(toHourKey(d))
+    }
   } else {
-    // 30d：从今天往前推 30 天共 31 天（对齐后端 stat_date >= date('now','-30 days')）
-    const today = new Date()
+    // 近31天
     for (let i = 30; i >= 0; i--) {
-      const d = new Date(today)
+      const d = new Date(now)
       d.setDate(d.getDate() - i)
-      // YYYY-MM-DD（本地时区，与统计写入的 ISO 日期近似一致；补 0 点不影响趋势形态）
-      const y = d.getFullYear()
-      const m = String(d.getMonth() + 1).padStart(2, '0')
-      const day = String(d.getDate()).padStart(2, '0')
-      fullPeriods.push(`${y}-${m}-${day}`)
+      fullPeriods.push(toDateKey(d))
     }
   }
 
   return fullPeriods.map((period) => {
-    const existing = byPeriod.get(String(period))
+    const existing = byPeriod.get(period)
     if (existing) return existing
     return { period, ...ZERO_POINT } as StatsDataPoint
   })

@@ -260,9 +260,37 @@ export function createLogStatsRepository(db: Database) {
      * @param range - '24h' 按小时分组 | '30d' 按日期分组
      */
     async getDetailedStats(range: '24h' | '30d'): Promise<Record<string, unknown>[]> {
+      // 24h = 近24个整点小时（滚动窗口，period 为 'YYYY-MM-DD HH'）；30d = 近31天（period 为 'YYYY-MM-DD'）
+      if (range === '24h') {
+        return db.prepare(
+          `SELECT
+            rsp.provider_id as provider_id,
+            rsp.model as model,
+            strftime('%Y-%m-%d %H', datetime(rsp.stat_date || ' ' || printf('%02d', rsp.stat_hour) || ':00:00')) as period,
+            SUM(rsp.total_requests) as total_requests,
+            SUM(rsp.total_tokens_in) as total_tokens_in,
+            SUM(rsp.total_tokens_out) as total_tokens_out,
+            SUM(rsp.total_cache_tokens) as total_cache_tokens,
+            SUM(rsp.total_errors) as total_errors,
+            COALESCE(SUM(rsp.total_cache_tokens) * pp.price_in_cached / ${COST_DIVISOR}, 0) as cache_cost,
+            COALESCE(MAX(0, SUM(rsp.total_tokens_in) - SUM(rsp.total_cache_tokens)) * pp.price_in_uncached / ${COST_DIVISOR}, 0) as uncached_cost,
+            COALESCE(SUM(rsp.total_tokens_out) * pp.price_out / ${COST_DIVISOR}, 0) as output_cost,
+            COALESCE(
+              SUM(rsp.total_cache_tokens) * pp.price_in_cached / ${COST_DIVISOR}
+              + MAX(0, SUM(rsp.total_tokens_in) - SUM(rsp.total_cache_tokens)) * pp.price_in_uncached / ${COST_DIVISOR}
+              + SUM(rsp.total_tokens_out) * pp.price_out / ${COST_DIVISOR},
+              0
+            ) as cost
+          FROM request_stats_provider rsp
+          LEFT JOIN provider_pricing pp ON pp.provider_id = rsp.provider_id AND pp.model = rsp.model
+          WHERE datetime(rsp.stat_date || ' ' || printf('%02d', rsp.stat_hour) || ':00:00') >= datetime('now', '-24 hours')
+          GROUP BY rsp.provider_id, rsp.model, period
+          ORDER BY rsp.provider_id, rsp.model, period`
+        ).all() as Record<string, unknown>[]
+      }
+
       const dateCondition = resolveDateCondition(range)
-      // 24h 按小时分组、30d 按日期分组；period 列与分组列一致
-      const periodCol = range === '24h' ? 'stat_hour' : 'stat_date'
+      const periodCol = 'stat_date'
 
       return db.prepare(
         `SELECT
