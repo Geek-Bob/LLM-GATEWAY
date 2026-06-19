@@ -31,7 +31,10 @@ const PAGE_SIZE = 10
 
 function formatTokens(entry: LogEntry) {
   if (entry.tokens_in === 0 && entry.tokens_out === 0) return '-'
-  return `${entry.tokens_in}↑ ${entry.tokens_out}↓`
+  const cache = entry.cache_tokens ?? 0
+  // 缓存命中 > 0 时额外标注（cache_tokens 属于 tokens_in 的一部分，命中输入）
+  const cacheSuffix = cache > 0 ? ` (缓存${cache})` : ''
+  return `${entry.tokens_in}↑ ${entry.tokens_out}↓${cacheSuffix}`
 }
 
 function DebugSection({ title, children }: { title: string; children: React.ReactNode }) {

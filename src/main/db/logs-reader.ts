@@ -31,6 +31,7 @@ function normalizeEntry(raw: Record<string, unknown>): Record<string, unknown> {
     status_code: raw.statusCode ?? raw.status_code ?? 0,
     tokens_in: raw.tokensIn ?? raw.tokens_in ?? 0,
     tokens_out: raw.tokensOut ?? raw.tokens_out ?? 0,
+    cache_tokens: raw.cacheTokens ?? raw.cache_tokens ?? 0,
     duration_ms: raw.durationMs ?? raw.duration_ms ?? 0,
     error: raw.error ?? null,
     created_at: raw.createdAt ?? raw.created_at ?? '',

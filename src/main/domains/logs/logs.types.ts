@@ -7,19 +7,22 @@ export interface LogQuery {
   dateTo?: string
 }
 
-/** 单条日志记录（对外响应格式） */
+/** 单条日志记录（对外响应格式）。
+ *  字段命名采用 snake_case，与 preload/renderer 的 LogEntry 契约一致
+ *  （Logs 页面按 snake_case 读取，service 层不再做 camelCase 转换）。 */
 export interface LogResponse {
   id: number
-  apiKeyId: number | null
-  providerId: number | null
+  api_key_id: number | null
+  provider_id: number | null
   model: string
-  apiFormat: string
-  statusCode: number
-  tokensIn: number
-  tokensOut: number
-  durationMs: number
+  api_format: string
+  status_code: number
+  tokens_in: number
+  tokens_out: number
+  cache_tokens: number
+  duration_ms: number
   error: string | null
-  createdAt: string
+  created_at: string
 }
 
 /** 日志查询结果（含分页信息） */

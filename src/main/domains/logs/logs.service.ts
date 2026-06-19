@@ -22,18 +22,20 @@ import type {
  * 运行时安全：queryLogs 内部已通过 normalizeEntry 归一化字段名，类型断言无运行时风险。
  */
 function logRowToResponse(row: Record<string, unknown>): LogResponse {
+  // 保持 snake_case 直接透传，对齐前端 LogEntry 契约（Logs 页面按 snake_case 读取）
   return {
     id: Number(row.id ?? 0),
-    apiKeyId: (row.api_key_id as number | null | undefined) ?? null,
-    providerId: (row.provider_id as number | null | undefined) ?? null,
+    api_key_id: (row.api_key_id as number | null | undefined) ?? null,
+    provider_id: (row.provider_id as number | null | undefined) ?? null,
     model: (row.model as string | undefined) ?? '',
-    apiFormat: (row.api_format as string | undefined) ?? '',
-    statusCode: Number(row.status_code ?? 0),
-    tokensIn: Number(row.tokens_in ?? 0),
-    tokensOut: Number(row.tokens_out ?? 0),
-    durationMs: Number(row.duration_ms ?? 0),
+    api_format: (row.api_format as string | undefined) ?? '',
+    status_code: Number(row.status_code ?? 0),
+    tokens_in: Number(row.tokens_in ?? 0),
+    tokens_out: Number(row.tokens_out ?? 0),
+    cache_tokens: Number(row.cache_tokens ?? 0),
+    duration_ms: Number(row.duration_ms ?? 0),
     error: (row.error as string | null | undefined) ?? null,
-    createdAt: (row.created_at as string | undefined) ?? '',
+    created_at: (row.created_at as string | undefined) ?? '',
   }
 }
 

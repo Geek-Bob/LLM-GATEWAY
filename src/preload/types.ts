@@ -21,6 +21,7 @@ export interface LogEntry {
   status_code: number
   tokens_in: number
   tokens_out: number
+  cache_tokens?: number
   duration_ms: number
   error: string | null
   created_at: string
