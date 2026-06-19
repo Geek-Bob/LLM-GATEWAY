@@ -9,6 +9,7 @@ import type { Database } from '../../db/database'
 import { queryLogs } from '../../db/logs'
 import { createLogStatsRepository } from '../../db/logs-stats'
 import { createProviderRepository } from '../../db/providers'
+import type { LogDebugInfo } from '../../../shared/types'
 import type {
   LogQuery,
   LogQueryResponse,
@@ -36,6 +37,7 @@ function logRowToResponse(row: Record<string, unknown>): LogResponse {
     duration_ms: Number(row.duration_ms ?? 0),
     error: (row.error as string | null | undefined) ?? null,
     created_at: (row.created_at as string | undefined) ?? '',
+    debug: (row.debug as LogDebugInfo | undefined) ?? undefined,
   }
 }
 

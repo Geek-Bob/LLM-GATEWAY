@@ -1,3 +1,5 @@
+import type { LogDebugInfo } from '../../../shared/types'
+
 /** 日志查询参数 */
 export interface LogQuery {
   page: number
@@ -23,6 +25,7 @@ export interface LogResponse {
   duration_ms: number
   error: string | null
   created_at: string
+  debug?: LogDebugInfo
 }
 
 /** 日志查询结果（含分页信息） */
