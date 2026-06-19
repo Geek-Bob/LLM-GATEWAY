@@ -20,6 +20,10 @@ export interface ConversationRow {
   provider_id: number | null
   model: string
   api_key_id: number | null
+  // 思考执行方式 'disabled'|'enabled'|'adaptive'，NULL 视为 disabled（向后兼容旧对话）
+  thinking_type: string | null
+  // 思考强度 'minimal'|'low'|'medium'|'high'|'xhigh'|'max'，NULL 视为不传
+  reasoning_effort: string | null
   created_at: string
   updated_at: string
 }
@@ -52,26 +56,56 @@ export function createConversationRepository(db: Database) {
       return row ?? null
     },
 
-    /** 创建新会话 */
-    async create(title: string, model: string, providerId?: number | null, apiKeyId?: number | null): Promise<ConversationRow> {
+    /**
+     * 创建新会话
+     *
+     * 位置参数风格：title, model 必填；providerId/apiKeyId/thinkingType/reasoningEffort 可选。
+     * 思考两参数为尾随可选，向后兼容（不传写 NULL）。
+     * 数据层不校验枚举值，业务规则（枚举约束）由 service 层负责。
+     */
+    async create(
+      title: string,
+      model: string,
+      providerId?: number | null,
+      apiKeyId?: number | null,
+      thinkingType?: string | null,
+      reasoningEffort?: string | null
+    ): Promise<ConversationRow> {
       const result = db
         .prepare(
-          `INSERT INTO conversations (title, provider_id, model, api_key_id)
-           VALUES (@title, @provider_id, @model, @api_key_id)`
+          `INSERT INTO conversations (title, provider_id, model, api_key_id, thinking_type, reasoning_effort)
+           VALUES (@title, @provider_id, @model, @api_key_id, @thinking_type, @reasoning_effort)`
         )
         .run({
           title,
           provider_id: providerId ?? null,
           model,
-          api_key_id: apiKeyId ?? null
+          api_key_id: apiKeyId ?? null,
+          thinking_type: thinkingType ?? null,
+          reasoning_effort: reasoningEffort ?? null
         })
       const created = await this.findById(result.lastInsertRowid)
       if (!created) throw new Error('Failed to create conversation: record not found after insert')
       return created
     },
 
-    /** 部分更新会话字段 */
-    async update(id: number, data: { title?: string; provider_id?: number | null; model?: string; api_key_id?: number | null }): Promise<void> {
+    /**
+     * 部分更新会话字段
+     *
+     * 动态拼 SET 子句：仅传入字段被更新，未传字段保持原值（部分更新语义）。
+     * thinking_type/reasoning_effort 支持显式置 null（传 undefined 表示不改动，传 null 表示清空）。
+     */
+    async update(
+      id: number,
+      data: {
+        title?: string
+        provider_id?: number | null
+        model?: string
+        api_key_id?: number | null
+        thinking_type?: string | null
+        reasoning_effort?: string | null
+      }
+    ): Promise<void> {
       const fields: string[] = ["updated_at = datetime('now')"]
       const params: Record<string, unknown> = { id }
 
@@ -79,6 +113,8 @@ export function createConversationRepository(db: Database) {
       if (data.provider_id !== undefined) { fields.push('provider_id = @provider_id'); params.provider_id = data.provider_id }
       if (data.model !== undefined) { fields.push('model = @model'); params.model = data.model }
       if (data.api_key_id !== undefined) { fields.push('api_key_id = @api_key_id'); params.api_key_id = data.api_key_id }
+      if (data.thinking_type !== undefined) { fields.push('thinking_type = @thinking_type'); params.thinking_type = data.thinking_type }
+      if (data.reasoning_effort !== undefined) { fields.push('reasoning_effort = @reasoning_effort'); params.reasoning_effort = data.reasoning_effort }
 
       db.prepare(`UPDATE conversations SET ${fields.join(', ')} WHERE id = @id`).run(params)
     },

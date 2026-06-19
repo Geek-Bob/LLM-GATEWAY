@@ -313,3 +313,100 @@ describe('Conversation Repository Messages', () => {
     }).toThrow()
   })
 })
+
+describe('Conversation Repository thinking/reasoning fields', () => {
+  let repo: ReturnType<typeof createConversationRepository>
+
+  beforeEach(async () => {
+    const db = await initDatabase(':memory:')
+    createTables()
+    repo = createConversationRepository(db)
+  })
+
+  afterEach(() => {
+    closeDatabase()
+  })
+
+  it('should write thinking_type and reasoning_effort when create passes them', async () => {
+    const created = await repo.create('Test', 'gpt-4', null, null, 'enabled', 'high')
+
+    expect(created.thinking_type).toBe('enabled')
+    expect(created.reasoning_effort).toBe('high')
+
+    const conv = (await repo.findById(created.id))!
+    expect(conv.thinking_type).toBe('enabled')
+    expect(conv.reasoning_effort).toBe('high')
+  })
+
+  it('should default thinking_type and reasoning_effort to null when create omits them', async () => {
+    const created = await repo.create('Test', 'gpt-4')
+
+    expect(created.thinking_type).toBeNull()
+    expect(created.reasoning_effort).toBeNull()
+
+    const conv = (await repo.findById(created.id))!
+    expect(conv.thinking_type).toBeNull()
+    expect(conv.reasoning_effort).toBeNull()
+  })
+
+  it('should default thinking_type and reasoning_effort to null when only providerId/apiKeyId passed', async () => {
+    // 位置参数：create(title, model, providerId, apiKeyId, thinkingType, reasoningEffort)
+    // 传 providerId/apiKeyId 但不传思考参数，两列仍应为 NULL
+    const created = await repo.create('Test', 'gpt-4', 1, 2)
+
+    expect(created.thinking_type).toBeNull()
+    expect(created.reasoning_effort).toBeNull()
+  })
+
+  it('should update thinking_type and reasoning_effort when update passes them', async () => {
+    const created = await repo.create('Test', 'gpt-4')
+    await repo.update(created.id, { thinking_type: 'adaptive', reasoning_effort: 'max' })
+
+    const conv = (await repo.findById(created.id))!
+    expect(conv.thinking_type).toBe('adaptive')
+    expect(conv.reasoning_effort).toBe('max')
+  })
+
+  it('should not modify thinking_type/reasoning_effort when update omits them (partial update)', async () => {
+    const created = await repo.create('Test', 'gpt-4', null, null, 'enabled', 'high')
+    await repo.update(created.id, { title: 'New Title' })
+
+    const conv = (await repo.findById(created.id))!
+    expect(conv.title).toBe('New Title')
+    expect(conv.thinking_type).toBe('enabled')
+    expect(conv.reasoning_effort).toBe('high')
+  })
+
+  it('should set thinking_type and reasoning_effort to null via update', async () => {
+    const created = await repo.create('Test', 'gpt-4', null, null, 'enabled', 'high')
+    await repo.update(created.id, { thinking_type: null, reasoning_effort: null })
+
+    const conv = (await repo.findById(created.id))!
+    expect(conv.thinking_type).toBeNull()
+    expect(conv.reasoning_effort).toBeNull()
+  })
+
+  it('should include thinking_type and reasoning_effort in list() results', async () => {
+    await repo.create('With Thinking', 'gpt-4', null, null, 'enabled', 'high')
+    await repo.create('Without Thinking', 'gpt-4')
+
+    const convs = await repo.list()
+    expect(convs).toHaveLength(2)
+
+    const withThinking = convs.find((c) => c.thinking_type === 'enabled')!
+    expect(withThinking).toBeDefined()
+    expect(withThinking.reasoning_effort).toBe('high')
+
+    const withoutThinking = convs.find((c) => c.title === 'Without Thinking')!
+    expect(withoutThinking.thinking_type).toBeNull()
+    expect(withoutThinking.reasoning_effort).toBeNull()
+  })
+
+  it('should include thinking_type and reasoning_effort in findById() result', async () => {
+    const created = await repo.create('Test', 'gpt-4', null, null, 'adaptive', 'medium')
+    const conv = (await repo.findById(created.id))!
+
+    expect(conv.thinking_type).toBe('adaptive')
+    expect(conv.reasoning_effort).toBe('medium')
+  })
+})
