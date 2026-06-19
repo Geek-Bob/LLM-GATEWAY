@@ -111,8 +111,9 @@ function fillMissingPeriods(dataPoints: StatsDataPoint[], tab: TrendTab): StatsD
   const fullPeriods: string[] = []
   const now = new Date()
   if (tab === '24h') {
-    // 从当前整点小时往前推 23 个小时，共 24 个桶（含当前小时）
-    for (let i = 23; i >= 0; i--) {
+    // 从当前整点小时往前推 24 个小时，共 25 个桶（首=昨天同一小时，尾=当前小时）。
+    // 例：当前12:34 → 昨天12:00 ~ 今天12:00，两端都含12点。
+    for (let i = 24; i >= 0; i--) {
       const d = new Date(now)
       d.setHours(d.getHours() - i)
       fullPeriods.push(toHourKey(d))

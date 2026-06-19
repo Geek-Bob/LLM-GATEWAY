@@ -84,7 +84,7 @@ export function TrendLineChart({ data, xKey, lines, height = DEFAULT_HEIGHT, yFo
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -16 }}>
-        <XAxis dataKey={xKey} tick={axisTickStyle} axisLine={false} tickLine={false} />
+        <XAxis dataKey={xKey} tick={axisTickStyle} axisLine={false} tickLine={false} interval="preserveStartEnd" />
         <YAxis tick={axisTickStyle} axisLine={false} tickLine={false} width={24} tickFormatter={yFormatter ? (v: number) => yFormatter(Number(v)) : undefined} />
         <Tooltip contentStyle={tooltipContentStyle} formatter={yFormatter ? (value) => yFormatter(Number(value)) : undefined} />
         <Legend wrapperStyle={legendWrapperStyle} />

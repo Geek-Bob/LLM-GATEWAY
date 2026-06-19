@@ -37,6 +37,7 @@ export function TrendBarChart({ data, height = 100 }: TrendBarChartProps) {
           tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
           axisLine={false}
           tickLine={false}
+          interval="preserveStartEnd"
         />
         <YAxis
           tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}

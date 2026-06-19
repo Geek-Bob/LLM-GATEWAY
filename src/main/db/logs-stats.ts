@@ -274,10 +274,10 @@ export function createLogStatsRepository(db: Database) {
     async getDetailedStats(range: '24h' | '30d'): Promise<Record<string, unknown>[]> {
       // 24h = 近24个整点小时（滚动窗口，period 为 'YYYY-MM-DD HH'）；30d = 近31天（period 为 'YYYY-MM-DD'）
       if (range === '24h') {
-        // 窗口起点 = 当前整点小时往前推 23 小时（含当前小时共 24 个桶）。
-        // stat_date/stat_hour 均为本地时区，windowStart 也用本地时区串，字典序比较一致。
+        // 窗口起点 = 当前整点小时往前推 24 小时（含当前小时共 25 个桶，首=昨天同一小时、尾=当前小时）。
+        // 例：当前12:34 → 昨天12:00 ~ 今天12:00。stat_date/stat_hour 均本地时区，字典序比较一致。
         const winStart = new Date()
-        winStart.setHours(winStart.getHours() - 23, 0, 0, 0)
+        winStart.setHours(winStart.getHours() - 24, 0, 0, 0)
         const windowStart = `${localDateStr(winStart)} ${String(winStart.getHours()).padStart(2, '0')}:00:00`
         return db.prepare(
           `SELECT

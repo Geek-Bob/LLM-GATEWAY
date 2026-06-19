@@ -292,14 +292,16 @@ describe('TimeTrendAccordion', () => {
       period: number | string
       requests: number
     }>
-    // 补全缺失时段：24h 始终 24 个点（近24个整点小时），period 标签为 'HH:00'
-    expect(barData).toHaveLength(24)
+    // 补全缺失时段：24h 始终 25 个点（昨天同一小时 ~ 当前小时），period 标签为 'HH:00'
+    // 注意：首尾都是同一小时标签（如 12:00），因窗口跨整天
+    expect(barData).toHaveLength(25)
     expect(typeof barData[0].period).toBe('string')
     expect(barData[0].period).toMatch(/^\d{2}:00$/)
-    // 有数据的小时点（当前小时）保留原值
-    const currLabel = `${String(now.getHours()).padStart(2, '0')}:00`
-    const currPoint = barData.find((p) => p.period === currLabel)
-    expect(currPoint?.requests).toBe(10)
+    // 有数据的小时点保留原值（按 requests 值查找，避免首尾同标签歧义）
+    const point10 = barData.find((p) => p.requests === 10)
+    expect(point10).toBeDefined()
+    const point5 = barData.find((p) => p.requests === 5)
+    expect(point5).toBeDefined()
     // 缺数据时段填 0
     const zeroPoints = barData.filter((p) => p.requests === 0)
     expect(zeroPoints.length).toBeGreaterThan(0)
