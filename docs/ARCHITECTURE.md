@@ -193,7 +193,7 @@ sql.js（WASM SQLite），与主进程同进程。10 张表：
 | `request_stats` | (stat_date, stat_hour) | 请求统计汇总（token/请求/耗时/错误/cache_tokens 按日时累加，由 tryLogEntry 写入） |
 | `request_stats_provider` | (stat_date, stat_hour, provider_id, model) | 按供应商/模型统计（同上，多 provider_id+model 维度，含 total_cache_tokens） |
 | `provider_pricing` | (provider_id, model) | 供应商×模型单价（缓存命中/未命中/输出，元/百万tokens，FK→providers CASCADE） |
-| `conversations` | id | 对话列表 |
+| `conversations` | id | 对话列表（含 thinking_type/reasoning_effort 思考设置列，nullable，按对话持久化） |
 | `messages` | id | 对话消息（FK→conversations，CASCADE） |
 | `agents` | id | Agent 配置（name UNIQUE、config_path、config_format） |
 | `agent_configs` | id | Agent 配置版本（FK CASCADE、is_current、UNIQUE(agent_id,name)） |
@@ -241,6 +241,14 @@ Hono 监听 `127.0.0.1:8080`。模块职责：
 | `/health` | GET | 健康检查 |
 
 **认证头差异：** Anthropic 用 `x-api-key`，OpenAI 用 `Authorization: Bearer`，`forwarder.ts` 按 providerType 处理。
+
+**思考参数协议转换（纯透传）：** 代理不做配置、不注入、不生成 `budget_tokens`，仅做协议转换。`converter/request.ts` 规则：
+
+- OpenAI → Anthropic：`thinking` 字段跨协议同名同结构透传（type='enabled'|'adaptive'）；`reasoning_effort` ↔ `output_config.effort` 字段名转换（值不变）。两维度正交独立处理。
+- Anthropic → OpenAI：反向。
+- 同协议透传（`from === to`）原样返回。
+
+思考是客户端语义（chat 页面 ThinkingSettings 控制），由用户主动设置后随对话持久化到 `conversations.thinking_type`/`reasoning_effort` 列。代理恢复纯透传语义。
 
 ### 5.3 业务域层 (domains/)
 
@@ -609,6 +617,8 @@ erDiagram
     conversations {
         int id PK
         text title
+        text thinking_type "nullable: disabled|enabled|adaptive"
+        text reasoning_effort "nullable: minimal|low|medium|high|xhigh|max"
     }
     messages {
         int id PK
