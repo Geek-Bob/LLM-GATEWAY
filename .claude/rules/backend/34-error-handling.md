@@ -100,17 +100,8 @@ ipcMain.handle('providers:create', async (_event, data) => {
 ```
 
 ## 代理错误映射
-- 上游返回的 HTTP 错误透传给客户端
-- 网络连接失败返回 502，附带错误描述
-- 超时返回 504，附带超时时长
 
-```typescript
-// 网络连接失败
-return c.json({ error: { type: 'upstream_error', message: `Failed to connect: ${providerName} unreachable` } }, 502)
-
-// 超时
-return c.json({ error: { type: 'timeout', message: `Request timeout after ${timeoutMs}ms` } }, 504)
-```
+代理层错误契约（上游透传 / 502 连接失败 / 504 超时 / `{ error: { type, message } }` 响应格式）统一定义于 `38-proxy.md` 的「错误映射」小节，此处不重复，避免双定义漂移。本节仅约束 IPC 层错误映射（见上文「IPC 错误映射」）。
 
 ## 批量操作原子性
 - 涉及多次 INSERT/UPDATE/DELETE 的批量操作必须在事务中执行，失败时全部回滚（事务边界详见 `backend/33-data-access.md`）

@@ -7,6 +7,10 @@
 - 面向需要在多个 LLM 供应商之间切换的开发者和团队
 - 一次接入 OpenAI / Anthropic / 开源模型，通过本地代理做协议转换
 
+## 代码地图（先看再动）
+
+**`docs/ARCHITECTURE.md` 是本项目的代码地图**。接到任务后先读该文件开头「AI 架构路由提示」按任务类型定位模块，再按图索骥用 CodeGraph/LSP 做符号级检索，禁止全局盲搜。例：改 Provider CRUD → `ipc/providers.ts` → `domains/provider/` → `db/providers.ts`；改代理流式转发 → `proxy/handler.ts` → `proxy/stream.ts`；查 token 落库 → `docs/ARCHITECTURE.md#8.5` → `proxy/logger.ts` + `db/logs-stats.ts`。技术架构变更后必须同步更新该地图（铁律见下文）。
+
 ## 技术栈
 
 ### 共用
@@ -76,6 +80,12 @@ src/
 - `shared/` 禁止导入 `main/`、`renderer/`、`preload/`（纯被动依赖）
 - `preload/` 只导入 `shared/` 的类型定义
 - 核心实体基础接口只在 `shared/types.ts` 定义，各层通过 type alias 派生，禁止重新定义同名 interface
+- **跨进程契约一致性（铁律）**：IPC 通道的参数形态、字段命名、返回类型必须前后端一致，且类型同源派生，禁止各层各写各的。具体：
+  - **参数形态对齐**：preload `ipcRenderer.invoke(channel, arg)` 传什么形态（裸值 vs 对象），handler 的 Zod schema 必须按同形态校验（裸值用 `z.number()`，对象用 `z.object({...})`）。例：`pricing:getByProvider` 传裸 `providerId`，handler 就 `z.number().int().parse(data)`，不能用 `z.object({providerId})`。
+  - **字段命名统一**：同一数据流全程用同一种命名风格。LogEntry/LogResponse 等跨进程类型用 snake_case（历史日志契约），ProviderEntity/PricingEntity 等用 camelCase；service 层做 snake↔camelCase 映射后，前端类型必须与映射后形态一致，不能 service 转 camelCase 而前端按 snake_case 读。
+  - **返回类型真实**：preload 声明的 `Promise<T>` 必须与 service 实际返回一致（service 返回 `PricingEntity` 就声明 `Promise<PricingEntity>`，不能写 `Promise<void>`）。
+  - **类型同源**：跨进程共享的 DTO 优先在 `shared/types.ts` 定义基础 interface，preload/renderer 用 type alias 派生，禁止 preload 和 renderer 各自重复定义同名 interface。新增 IPC 通道时，先在 shared/types.ts 定类型，再写 preload 暴露 + handler 实现，三者对着同一份契约写。
+  - **验证**：改 IPC 契约后必须跑 `npx tsc -b --noEmit`（前后端类型都检查），并用真实样本测一遍完整链路（IPC 调用 → service → 返回 → 前端读取字段），不能只靠理想化单元测试。
 
 ### 调用链路（核心热路径）
 ```
@@ -108,8 +118,8 @@ domains/{name}/{name}.service.ts  ← createXxxService(db) 工厂
 ipc/{domain}.ts  ← wrapIpcHandler 统一 try/catch
   ↓ contextBridge
 preload → renderer
-NDJSON 日志 → 每条请求一行 JSON，500 行/文件，最多 20 文件轮转（10000 条上限）
-元数据 → logs-meta.json 记录 entryCounter / currentFileNumber / currentFileLines
+NDJSON 日志 → 每条请求一行 JSON，按文件轮转（轮转规格见 `36-observability.md` 日志轮转小节，勿在此重复维护）
+元数据 → logs-meta.json 记录轮转计数（entryCounter / currentFileNumber / currentFileLines）
 ```
 
 ### 关键依赖

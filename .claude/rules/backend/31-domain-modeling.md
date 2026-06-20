@@ -24,23 +24,8 @@ description: 领域建模与服务结构（工厂注入模式），始终加载
 - 类型导出：`export type XxxService = ReturnType<typeof createXxxService>`
 
 ### 数据层注入（Repository 模式）
-`db/*.ts` 统一采用 Repository 工厂模式，service 通过注入的 `db` 创建 Repository：
+`db/*.ts` 统一采用 Repository 工厂模式。Repository 工厂的签名规范、注入契约、错误模式（禁 `getDb()`、禁内联 SQL、禁模式 A 残留）统一定义于 `33-data-access.md` 的「查询抽象」「Repository 模式」「禁止」小节，此处不重复，service 侧仅需遵循以下调用约定：
 ```typescript
-// db/providers.ts
-export function createProviderRepository(db: Database) {
-  return {
-    async list(): Promise<ProviderRow[]> {
-      return db.prepare('SELECT * FROM providers ORDER BY created_at DESC').all() as ProviderRow[]
-    },
-    async findById(id: number): Promise<ProviderRow | null> {
-      const row = db.prepare('SELECT * FROM providers WHERE id = ?').get(id) as ProviderRow | undefined
-      return row ?? null
-    },
-    // ...
-  }
-}
-export type ProviderRepository = ReturnType<typeof createProviderRepository>
-
 // domains/provider/provider.service.ts
 import { createProviderRepository } from '../../db/providers'
 export function createProviderService(db: Database) {
