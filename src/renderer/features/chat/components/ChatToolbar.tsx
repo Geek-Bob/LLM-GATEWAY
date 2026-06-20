@@ -38,7 +38,7 @@ export function ChatToolbar({
   onSelectApiKey,
 }: ChatToolbarProps) {
   return (
-    <div className="h-12 flex items-center gap-2 px-3 border-b border-border/50">
+    <div className="flex items-center gap-2">
       <Select
         value={selectedProviderId?.toString() ?? ''}
         onValueChange={(val) => {
