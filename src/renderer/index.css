@@ -44,8 +44,10 @@
     --secondary-foreground: 210 20% 92%;
     --muted: 220 10% 17%;
     --muted-foreground: 220 8% 52%;
-    --accent: 220 10% 17%;
-    --accent-foreground: 210 20% 92%;
+    --accent: 188 95% 55%;
+    --accent-foreground: 220 25% 8%;
+    --chip: 220 18% 14%;
+    --chip-active: 188 95% 55%;
     --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
     --border: 220 10% 20%;
@@ -78,6 +80,8 @@
   --color-ring: hsl(var(--ring));
   --color-accent: hsl(var(--accent));
   --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-chip: hsl(var(--chip));
+  --color-chip-active: hsl(var(--chip-active) / 0.12);
   --color-popover: hsl(var(--popover));
   --color-popover-foreground: hsl(var(--popover-foreground));
   --radius-lg: var(--radius);
