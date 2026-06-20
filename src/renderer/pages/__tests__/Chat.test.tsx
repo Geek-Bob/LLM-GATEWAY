@@ -947,8 +947,8 @@ console.log("hello")
 
     // 错误类应用在 Markdown 容器上，检查 bubble 级别的样式
     expect(screen.getByText('发生错误')).toBeInTheDocument()
-    const bubble = screen.getByText('发生错误').closest('[class*="rounded-2xl"]')
-    expect(bubble).toHaveClass('bg-destructive/10', 'border-destructive/20')
+    const bubble = screen.getByText('发生错误').closest('[class*="rounded-xl"]')
+    expect(bubble).toHaveClass('bg-destructive/5', 'border-destructive/30')
   })
 
   it('应该显示流式输入光标', () => {
