@@ -9,6 +9,7 @@ import type { Database } from '../../db/database'
 import { queryLogs } from '../../db/logs'
 import { createLogStatsRepository } from '../../db/logs-stats'
 import { createProviderRepository } from '../../db/providers'
+import type { LogDebugInfo } from '../../../shared/types'
 import type {
   LogQuery,
   LogQueryResponse,
@@ -22,18 +23,21 @@ import type {
  * 运行时安全：queryLogs 内部已通过 normalizeEntry 归一化字段名，类型断言无运行时风险。
  */
 function logRowToResponse(row: Record<string, unknown>): LogResponse {
+  // 保持 snake_case 直接透传，对齐前端 LogEntry 契约（Logs 页面按 snake_case 读取）
   return {
     id: Number(row.id ?? 0),
-    apiKeyId: (row.api_key_id as number | null | undefined) ?? null,
-    providerId: (row.provider_id as number | null | undefined) ?? null,
+    api_key_id: (row.api_key_id as number | null | undefined) ?? null,
+    provider_id: (row.provider_id as number | null | undefined) ?? null,
     model: (row.model as string | undefined) ?? '',
-    apiFormat: (row.api_format as string | undefined) ?? '',
-    statusCode: Number(row.status_code ?? 0),
-    tokensIn: Number(row.tokens_in ?? 0),
-    tokensOut: Number(row.tokens_out ?? 0),
-    durationMs: Number(row.duration_ms ?? 0),
+    api_format: (row.api_format as string | undefined) ?? '',
+    status_code: Number(row.status_code ?? 0),
+    tokens_in: Number(row.tokens_in ?? 0),
+    tokens_out: Number(row.tokens_out ?? 0),
+    cache_tokens: Number(row.cache_tokens ?? 0),
+    duration_ms: Number(row.duration_ms ?? 0),
     error: (row.error as string | null | undefined) ?? null,
-    createdAt: (row.created_at as string | undefined) ?? '',
+    created_at: (row.created_at as string | undefined) ?? '',
+    debug: (row.debug as LogDebugInfo | undefined) ?? undefined,
   }
 }
 
@@ -69,14 +73,18 @@ export function createLogsService(db: Database) {
 
     /**
      * 获取详细统计，按供应商 -> 模型 -> 时间点分层组织
-     * 将 db 返回的平铺行数据重组为嵌套结构，便于前端渲染 Dashboard 图表
+     * 将 db 返回的平铺行数据重组为嵌套结构，便于前端渲染 Dashboard 图表。
+     * 每行已含 total_cache_tokens 与费用四件套 cost/cache_cost/uncached_cost/output_cost
+     * （db 层 JOIN pricing 算好，cost = 三费用之和），service 层完成 snake→camelCase 映射：
+     * model 维度跨时间点累加，dataPoint 维度单值透传。
      */
     detailedStats: async (range: '24h' | '30d'): Promise<DetailedStatsProvider[]> => {
       const rows = await statsRepo.getDetailedStats(range) as {
         provider_id: number; model: string;
         total_requests: number; total_tokens_in: number;
-        total_tokens_out: number; total_errors: number;
-        period: number | string
+        total_tokens_out: number; total_cache_tokens: number;
+        total_errors: number; period: number | string;
+        cost: number; cache_cost: number; uncached_cost: number; output_cost: number
       }[]
 
       const providers = await providerRepo.listNames()
@@ -87,8 +95,9 @@ export function createLogsService(db: Database) {
         models: Map<string, {
           model: string; totalRequests: number;
           totalTokensIn: number; totalTokensOut: number;
-          totalErrors: number;
-          dataPoints: { period: number | string; requests: number; tokensIn: number; tokensOut: number }[]
+          cacheTokens: number; totalErrors: number; cost: number;
+          cacheCost: number; uncachedCost: number; outputCost: number;
+          dataPoints: { period: number | string; requests: number; tokensIn: number; tokensOut: number; cacheTokens: number; cost: number; cacheCost: number; uncachedCost: number; outputCost: number }[]
         }>
       }>()
 
@@ -107,7 +116,9 @@ export function createLogsService(db: Database) {
         if (!pm.models.has(model)) {
           pm.models.set(model, {
             model,
-            totalRequests: 0, totalTokensIn: 0, totalTokensOut: 0, totalErrors: 0,
+            totalRequests: 0, totalTokensIn: 0, totalTokensOut: 0,
+            cacheTokens: 0, totalErrors: 0, cost: 0,
+            cacheCost: 0, uncachedCost: 0, outputCost: 0,
             dataPoints: []
           })
         }
@@ -115,12 +126,22 @@ export function createLogsService(db: Database) {
         mm.totalRequests += row.total_requests
         mm.totalTokensIn += row.total_tokens_in
         mm.totalTokensOut += row.total_tokens_out
+        mm.cacheTokens += row.total_cache_tokens
         mm.totalErrors += row.total_errors
+        mm.cost += row.cost
+        mm.cacheCost += row.cache_cost
+        mm.uncachedCost += row.uncached_cost
+        mm.outputCost += row.output_cost
         mm.dataPoints.push({
           period: row.period,
           requests: row.total_requests,
           tokensIn: row.total_tokens_in,
-          tokensOut: row.total_tokens_out
+          tokensOut: row.total_tokens_out,
+          cacheTokens: row.total_cache_tokens,
+          cost: row.cost,
+          cacheCost: row.cache_cost,
+          uncachedCost: row.uncached_cost,
+          outputCost: row.output_cost
         })
       }
 
@@ -132,7 +153,12 @@ export function createLogsService(db: Database) {
           totalRequests: m.totalRequests,
           totalTokensIn: m.totalTokensIn,
           totalTokensOut: m.totalTokensOut,
+          cacheTokens: m.cacheTokens,
           totalErrors: m.totalErrors,
+          cost: m.cost,
+          cacheCost: m.cacheCost,
+          uncachedCost: m.uncachedCost,
+          outputCost: m.outputCost,
           dataPoints: m.dataPoints
         }))
       }))

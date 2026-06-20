@@ -92,6 +92,12 @@ export interface ApiKeyEntity {
   createdAt: string
 }
 
+/** 思考执行方式（与上游 thinking.type 对应）：disabled=关闭 / enabled=显式启用 / adaptive=自适应 */
+export type ThinkingType = 'disabled' | 'enabled' | 'adaptive'
+
+/** 思考强度偏好（与 reasoning_effort / output_config.effort 对应）：由弱到强六档 */
+export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+
 /** 对话实体 */
 export interface ConversationEntity {
   id: number
@@ -99,6 +105,10 @@ export interface ConversationEntity {
   providerId: number | null
   model: string
   apiKeyId: number | null
+  /** 思考执行方式，可选（旧对话为 undefined，视为 disabled，向后兼容） */
+  thinkingType?: ThinkingType
+  /** 思考强度偏好，可选（旧对话为 undefined，表示不传 effort） */
+  reasoningEffort?: ReasoningEffort
   createdAt: string
   updatedAt: string
 }
@@ -224,4 +234,46 @@ export interface ClearDataInput {
 export interface ClearDataResult {
   business: { cleared: boolean }
   operational: { cleared: boolean }
+}
+
+/**
+ * 单价记录，存储各模型在各供应商下的 Token 单价（元/百万tokens）。
+ * 用于费用核算和仪表盘统计。
+ */
+export interface PricingEntity {
+  providerId: number
+  model: string
+  /** 缓存命中输入价格（元/百万tokens） */
+  priceInCached: number
+  /** 缓存未命中输入价格（元/百万tokens） */
+  priceInUncached: number
+  /** 输出价格（元/百万tokens） */
+  priceOut: number
+}
+
+/**
+ * 24h / 30d 全局汇总统计。
+ * 包含 Token 维度和费用维度的聚合数据，用于仪表盘展示。
+ */
+export interface RangeSummary {
+  /** 总 Token 数 = inputTokens + outputTokens */
+  totalTokens: number
+  /** 输入 Token 数 */
+  inputTokens: number
+  /** 缓存命中输入 Token 数 */
+  cacheTokens: number
+  /** 缓存未命中输入 Token 数 = MAX(0, inputTokens - cacheTokens) */
+  uncachedTokens: number
+  /** 输出 Token 数 */
+  outputTokens: number
+  /** 总费用（元） */
+  totalCost: number
+  /** 缓存命中输入费用（元） */
+  cacheCost: number
+  /** 缓存未命中输入费用（元） */
+  uncachedCost: number
+  /** 输出费用（元） */
+  outputCost: number
+  /** 总请求数 */
+  totalRequests: number
 }

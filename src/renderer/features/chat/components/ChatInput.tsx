@@ -5,16 +5,19 @@
  * 1. 自动扩展高度的 textarea（最大 200px）
  * 2. Enter 发送，Shift+Enter 换行
  * 3. disabled 状态解除时自动聚焦输入框
+ * 4. 流式传输期间发送按钮切换为停止按钮（icon-only 方形）
  *
  * props:
  * - onSend: 发送回调，传入 trimmed 后的文本
- * - disabled: 流式请求中禁用输入
+ * - disabled: 流式请求中或缺 model/apiKey 时禁用输入
+ * - isStreaming: 是否处于流式传输中（true 时右侧按钮变为停止）
+ * - onStop: 停止流式传输回调（仅 isStreaming=true 时使用）
  */
 
 import { useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Send } from 'lucide-react'
+import { ArrowUp, Square } from 'lucide-react'
 
 /** 输入框最大高度（px），超过此值出现滚动条 */
 const MAX_INPUT_HEIGHT_PX = 200
@@ -22,10 +25,54 @@ const MAX_INPUT_HEIGHT_PX = 200
 interface ChatInputProps {
   onSend: (message: string) => void
   disabled?: boolean
+  /** 是否处于流式传输中；true 时右侧按钮变为停止按钮并触发 onStop */
+  isStreaming?: boolean
+  /** 停止流式传输回调（仅 isStreaming=true 时使用） */
+  onStop?: () => void
+}
+
+interface SendOrStopButtonProps {
+  isStreaming: boolean
+  disabled?: boolean
+  onSend: () => void
+  /** 停止回调；onStop 缺失时停止按钮仅作禁用处理（不会触发未定义） */
+  onStop?: () => void
+}
+
+/**
+ * 发送/停止按钮二合一。
+ * - isStreaming=false：显示 ArrowUp + bg-accent，点击触发 onSend
+ * - isStreaming=true：显示 Square + bg-destructive，点击触发 onStop?.()
+ * @returns 按钮 JSX
+ */
+function SendOrStopButton({ isStreaming, disabled, onSend, onStop }: SendOrStopButtonProps) {
+  const handleClick = () => {
+    if (isStreaming) {
+      onStop?.()
+      return
+    }
+    onSend()
+  }
+  return (
+    <Button
+      type="button"
+      onClick={handleClick}
+      disabled={disabled}
+      size="icon"
+      aria-label={isStreaming ? '停止' : '发送'}
+      className={
+        isStreaming
+          ? 'h-9 w-9 shrink-0 rounded-md bg-destructive text-destructive-foreground hover:opacity-90 active:scale-95 transition-all'
+          : 'h-9 w-9 shrink-0 rounded-md bg-accent text-accent-foreground hover:opacity-90 active:scale-95 transition-all'
+      }
+    >
+      {isStreaming ? <Square className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
+    </Button>
+  )
 }
 
 /** 聊天消息输入框，支持自动扩展高度、Enter 发送、Shift+Enter 换行。 @returns 输入框 JSX。 */
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, disabled, isStreaming = false, onStop }: ChatInputProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   // disabled 解除时自动聚焦输入框，提升交互体验
@@ -73,10 +120,12 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
         disabled={disabled}
         className="flex-1 min-h-9 py-2.5 shadow-sm focus-visible:ring-1 max-h-[200px] resize-none"
       />
-      <Button onClick={handleSend} disabled={disabled} size="default" className="px-4 py-2.5">
-        <Send className="w-4 h-4" />
-        发送
-      </Button>
+      <SendOrStopButton
+        isStreaming={isStreaming}
+        disabled={disabled}
+        onSend={handleSend}
+        onStop={onStop}
+      />
     </div>
   )
 }

@@ -55,3 +55,17 @@ export function formatRelativeDate(iso: string): string {
 export function getErrorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
+
+/**
+ * 格式化美元金额（2-4 位小数）。
+ * @param cost 费用数值（元）
+ * @returns 形如 "$1.2345" 的字符串
+ */
+export function formatCost(cost: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(cost)
+}

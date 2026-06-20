@@ -2,15 +2,12 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import path from 'path'
 import fs from 'fs'
-import { initDatabase, closeDatabase } from '../connection'
-import { createTables } from '../schema'
 import {
   initLogsDir,
   createLogEntry,
   queryLogs,
   cleanupOldLogs
 } from '../logs'
-import { createLogStatsRepository } from '../logs-stats'
 
 function tmpLogDir(): string {
   const dir = path.join(
@@ -153,6 +150,34 @@ describe('NDJSON Log Sharding', () => {
       expect(entry.debug.conversion.from).toBe('openai')
       expect(entry.debug.conversion.to).toBe('anthropic')
       expect(entry.debug.conversion.convertedPath).toBe('/v1/messages')
+    })
+
+    it('should store cache_tokens field when provided', () => {
+      createLogEntry({
+        model: 'gpt-4',
+        apiFormat: 'openai',
+        tokensIn: 100,
+        tokensOut: 50,
+        cacheTokens: 30
+      })
+
+      const files = fs.readdirSync(logDir).filter((f) => f.endsWith('.ndjson'))
+      const content = fs.readFileSync(path.join(logDir, files[0]), 'utf-8')
+      const entry = JSON.parse(content.trim())
+
+      expect(entry.cache_tokens).toBe(30)
+      expect(entry.tokens_in).toBe(100)
+      expect(entry.tokens_out).toBe(50)
+    })
+
+    it('should omit cache_tokens field when not provided', () => {
+      createLogEntry({ model: 'gpt-4', apiFormat: 'openai' })
+
+      const files = fs.readdirSync(logDir).filter((f) => f.endsWith('.ndjson'))
+      const content = fs.readFileSync(path.join(logDir, files[0]), 'utf-8')
+      const entry = JSON.parse(content.trim())
+
+      expect(entry.cache_tokens).toBeUndefined()
     })
   })
 
@@ -401,65 +426,5 @@ describe('NDJSON Log Sharding', () => {
         .sort()
       expect(files).toHaveLength(20)
     })
-  })
-})
-
-describe('LogStats Repository (Pre-computed Stats)', () => {
-  let statsRepo: ReturnType<typeof createLogStatsRepository>
-
-  beforeEach(async () => {
-    const db = await initDatabase(':memory:')
-    createTables()
-    statsRepo = createLogStatsRepository(db)
-  })
-
-  afterEach(() => {
-    closeDatabase()
-  })
-
-  it('should return zero stats for empty stats table', async () => {
-    const stats = await statsRepo.getStats('24h')
-    expect(stats.total_requests).toBe(0)
-    expect(stats.total_tokens_in).toBe(0)
-    expect(stats.total_tokens_out).toBe(0)
-    expect(Number(stats.avg_duration_ms)).toBe(0)
-    expect(stats.total_errors).toBe(0)
-  })
-
-  it('should update and retrieve stats correctly', async () => {
-    await statsRepo.updateRequestStats({
-      tokensIn: 200,
-      tokensOut: 100,
-      durationMs: 1000,
-      statusCode: 200
-    })
-    await statsRepo.updateRequestStats({
-      tokensIn: 400,
-      tokensOut: 200,
-      durationMs: 2000,
-      statusCode: 500
-    })
-
-    const stats = await statsRepo.getStats('24h')
-    expect(stats.total_requests).toBe(2)
-    expect(stats.total_tokens_in).toBe(600)
-    expect(stats.total_tokens_out).toBe(300)
-    expect(Number(stats.avg_duration_ms)).toBe(1500)
-    expect(stats.total_errors).toBe(1)
-  })
-
-  it('should support 7d and 30d range options', async () => {
-    await statsRepo.updateRequestStats({
-      tokensIn: 100,
-      tokensOut: 50,
-      durationMs: 100,
-      statusCode: 200
-    })
-
-    const stats7d = await statsRepo.getStats('7d')
-    expect(stats7d.total_requests).toBe(1)
-
-    const stats30d = await statsRepo.getStats('30d')
-    expect(stats30d.total_requests).toBe(1)
   })
 })

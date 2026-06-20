@@ -15,7 +15,7 @@
 
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { ChevronDown, Copy, RefreshCw } from 'lucide-react'
+import { Brain, ChevronDown, Copy, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { Markdown } from '@/components/shared/markdown'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
@@ -54,10 +54,10 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
   }
 
   const bubbleClass = isUser
-    ? 'bg-primary/10 border-primary/20'
+    ? 'bg-muted/30 border-primary/20'
     : hasError
-      ? 'bg-destructive/10 border-destructive/20 text-destructive'
-      : 'bg-muted/30 border-border/50'
+      ? 'bg-destructive/5 border-destructive/30 text-destructive'
+      : 'bg-card border-border/60'
 
   const showActions = !isUser && !isStreaming && !hasError && content
 
@@ -68,18 +68,22 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.25, ease: 'easeOut' }}
     >
-      <div className={`max-w-[75%] rounded-2xl px-5 py-3.5 border ${bubbleClass}`}>
+      <div className={`max-w-[75%] rounded-xl px-4 py-3 border ${bubbleClass}`}>
         {model && !isUser && (
-          <p className="text-[11px] font-mono mb-1.5 text-muted-foreground">{model}</p>
+          <p className="text-xs font-mono text-muted-foreground">{model}</p>
         )}
 
         {/* Thinking section (collapsible) */}
         {thinking && (
           <div
-            className="mb-2 rounded-lg px-3 py-2 cursor-pointer transition-colors duration-150 bg-muted/50 border border-border/50"
+            className="mb-2 rounded-lg px-3 py-2 cursor-pointer transition-colors duration-150 bg-muted/50 border border-border/50 border-l-2 border-l-accent/40"
             onClick={() => setThinkingExpanded(!thinkingExpanded)}
           >
+            {isThinking && (
+              <div className="h-px bg-accent animate-pulse-cyan mb-1.5" />
+            )}
             <p className="text-[11px] font-medium flex items-center gap-1.5 text-muted-foreground">
+              <Brain className="w-3 h-3" />
               <ChevronDown
                 className="w-3 h-3 transition-transform duration-200"
                 style={{ transform: thinkingExpanded ? 'rotate(0deg)' : 'rotate(-90deg)' }}
@@ -91,7 +95,7 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
             </p>
             {thinkingExpanded && (
               <motion.p
-                className="text-xs leading-relaxed mt-1.5 whitespace-pre-wrap break-words text-muted-foreground"
+                className="font-mono text-xs leading-relaxed mt-1.5 whitespace-pre-wrap break-words text-muted-foreground"
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
                 transition={{ duration: 0.2 }}
@@ -107,7 +111,7 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
           <p className={`text-sm leading-relaxed whitespace-pre-wrap break-words select-text ${hasError ? 'text-destructive' : 'text-foreground'}`}>
             {content}
             {isStreaming && !thinking && (
-              <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-primary" />
+              <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-accent" />
             )}
           </p>
         ) : (
@@ -123,12 +127,12 @@ export function ChatMessage({ role, content, thinking, isThinking, model, isStre
         )}
 
         {isStreaming && !isUser && (
-          <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-primary" />
+          <span className="inline-block w-1.5 h-4 ml-0.5 align-text-bottom bg-accent" />
         )}
 
         {/* Action buttons */}
         {showActions && (
-          <div className="flex items-center gap-0.5 mt-3 pt-2 border-t border-border/30">
+          <div className="flex items-center gap-0.5 mt-2 pt-2 border-t border-border/30">
             <Button
               variant="ghost"
               size="sm"

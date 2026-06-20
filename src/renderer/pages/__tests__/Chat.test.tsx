@@ -5,7 +5,7 @@
  * uuid.v4 is also mocked so requestId is predictable.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { Provider, ApiKey } from '@/lib/types'
 import { ChatMessage } from '@/features/chat/components/ChatMessage'
@@ -78,7 +78,7 @@ window.electronAPI = {
   },
   providers: { list: _providerList, create: vi.fn(), update: vi.fn(), delete: vi.fn() },
   apiKeys: { list: _apiKeyList, create: vi.fn(), delete: vi.fn() },
-  logs: { query: vi.fn(), stats: vi.fn(), statsDetailed: vi.fn() },
+  logs: { query: vi.fn(), stats: vi.fn(), statsDetailed: vi.fn(), rangeSummary: vi.fn() },
   proxy: { status: vi.fn().mockResolvedValue({ isRunning: true, port: 8080, url: 'http://localhost:8080' }), start: vi.fn(), stop: vi.fn(), setPort: vi.fn(), getDebugMode: vi.fn().mockResolvedValue(false), setDebugMode: vi.fn() },
   conversations: {
     list: _conversationsList,
@@ -126,6 +126,12 @@ window.electronAPI = {
     deleteConfig: vi.fn().mockResolvedValue(undefined),
     readConfigFile: vi.fn().mockResolvedValue(''),
     switchConfig: vi.fn().mockResolvedValue(undefined),
+  },
+  pricing: {
+    list: vi.fn().mockResolvedValue([]),
+    getByProvider: vi.fn().mockResolvedValue([]),
+    upsert: vi.fn().mockResolvedValue(undefined),
+    delete: vi.fn().mockResolvedValue(undefined),
   },
   dataManagement: {
     clear: vi.fn().mockResolvedValue({ business: { cleared: false }, operational: { cleared: false } }),
@@ -219,9 +225,40 @@ async function selectAll() {
   await selectByIndex(2, 'My Key')
 }
 
+/**
+ * 打开 ThinkingSettings 的执行方式 chip Popover 并选择指定值。
+ * chip 通过 aria-label=`执行方式: {currentValue}` 定位，Popover 内的选项 role='option'。
+ */
+async function selectThinkingType(value: 'disabled' | 'enabled' | 'adaptive') {
+  // 找到当前 chip（aria-label 含「执行方式:」），点击触发 Popover
+  const chip = screen.getByRole('button', { name: /^执行方式:/ })
+  fireEvent.click(chip)
+  // 在 Popover 仍 open 时，查询并点击 option（同步操作避免 Popover 关闭后元素被卸载）
+  const option = screen.queryByRole('option', { name: value, hidden: true })
+  if (!option) throw new Error(`Option "${value}" not found in open Popover`)
+  fireEvent.click(option)
+  // 等待 chip 文案更新
+  await screen.findByRole('button', { name: new RegExp(`^执行方式: ${value}`) })
+}
+
+/**
+ * 打开 ThinkingSettings 的强度偏好 chip Popover 并选择指定值。
+ * chip 通过 aria-label=`强度偏好: {currentValue}` 定位。
+ */
+async function selectReasoningEffort(value: string) {
+  const chip = screen.getByRole('button', { name: /^强度偏好:/ })
+  fireEvent.click(chip)
+  // 同步查询 Popover 仍 open 时的 option（避免 findByRole 等待期间 Popover 状态切换导致元素被卸载）
+  const option = screen.queryByRole('option', { name: value, hidden: true })
+  if (!option) throw new Error(`Option "${value}" not found in open Popover`)
+  fireEvent.click(option)
+  await screen.findByRole('button', { name: new RegExp(`^强度偏好: ${value}`) })
+}
+
 function typeAndSend(text: string) {
   fireEvent.input(screen.getByPlaceholderText(/输入消息/), { target: { value: text } })
-  fireEvent.click(screen.getByText('发送'))
+  // 发送按钮是 icon-only，通过 aria-label='发送' 查询
+  fireEvent.click(screen.getByRole('button', { name: '发送' }))
 }
 
 // ======================
@@ -235,7 +272,8 @@ describe('ChatPage', () => {
 
   it('shows empty state when no messages', async () => {
     await renderChat()
-    expect(screen.getByText(/选择模型和 API Key/)).toBeInTheDocument()
+    // MessageList 空态文案：选择模型和 API Key，输入消息开始测试
+    expect(screen.getByText(/选择模型和 API Key，输入消息开始测试/)).toBeInTheDocument()
   })
 
   it('loads providers on mount', async () => {
@@ -244,8 +282,10 @@ describe('ChatPage', () => {
     expect(_apiKeyList).toHaveBeenCalled()
   })
 
-  it('renders 3 select triggers', async () => {
+  it('renders 3 select triggers (3 toolbar only — 强度偏好 is now a chip)', async () => {
     await renderChat()
+    // 顶栏：供应商 / 模型 / API Key 三个 Select + ThinkingSettings 两个 chip（执行方式 + 强度偏好）
+    // Select trigger = combobox role；chip 是 button role
     const triggers = screen.getAllByRole('combobox')
     expect(triggers).toHaveLength(3)
   })
@@ -344,7 +384,8 @@ describe('ChatPage', () => {
     // fetch 永不 resolve，保持 loading 状态
     globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
     typeAndSend('X')
-    await screen.findByText('停止')
+    // 流式加载期间显示「停止」按钮（icon-only，通过 aria-label 查询）
+    await screen.findByRole('button', { name: '停止' })
   })
 
   it('does NOT send without model selected', async () => {
@@ -366,13 +407,14 @@ describe('ChatPage', () => {
 
   it('send button is disabled without selections', async () => {
     await renderChat()
-    expect(screen.getByText('发送').closest('button')).toBeDisabled()
+    // 发送按钮 icon-only，按 aria-label='发送' 找到 button
+    expect(screen.getByRole('button', { name: '发送' })).toBeDisabled()
   })
 
   it('send button is enabled with all selections', async () => {
     await renderChat()
     await selectAll()
-    expect(screen.getByText('发送').closest('button')).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: '发送' })).not.toBeDisabled()
   })
 
   it('clears input after sending', async () => {
@@ -380,14 +422,14 @@ describe('ChatPage', () => {
     await selectAll()
     const ta = screen.getByPlaceholderText(/输入消息/)
     fireEvent.input(ta, { target: { value: 'Clear' } })
-    fireEvent.click(screen.getByText('发送'))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     await waitFor(() => { expect(ta).toHaveValue('') })
   })
 
   it('does NOT send empty message', async () => {
     await renderChat()
     await selectAll()
-    fireEvent.click(screen.getByText('发送'))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     expect(globalThis.fetch).toBe(originalFetch)
   })
 
@@ -404,18 +446,23 @@ describe('ChatPage', () => {
   it('ignores stale content after abort re-send', async () => {
     await renderChat()
     await selectAll()
-    // 第一次发送后立即中止
+    // 第一次发送后立即中止：点击「新建」触发 abort（handleNewConversation 内部 abort）
     globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {})) // 永不 resolve
     typeAndSend('X')
-    await screen.findByText('停止')
-    fireEvent.click(screen.getByText('停止'))
-    await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
+    // 停止按钮出现（icon-only，按 aria-label 查询）
+    await screen.findByRole('button', { name: '停止' })
+    // 点击「新建」按钮触发 abort + 重置消息列表（handleNewConversation 会清空 selectedProviderId/Model/ApiKeyId）
+    const newBtn = screen.getByRole('button', { name: /新建/ })
+    fireEvent.click(newBtn)
+    await waitFor(() => { expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument() })
 
+    // 重新选择供应商/模型/API Key（新建对话后选择被重置）
+    await selectAll()
     // 重新发送，确保新流是干净的
     uuidCounter = 1
     mockOpenAISSEStream(['Clean response', '__DONE__'])
     fireEvent.input(screen.getByPlaceholderText(/输入消息/), { target: { value: 'Re-send' } })
-    fireEvent.click(screen.getByText('发送'))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     await screen.findByText('Clean response')
   })
 
@@ -426,7 +473,7 @@ describe('ChatPage', () => {
     mockOpenAISSEStream(['ok', '__DONE__'])
 
     typeAndSend('T')
-    await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
+    await waitFor(() => { expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument() })
   })
 
   it('displays error content on error chunk', async () => {
@@ -455,7 +502,7 @@ describe('ChatPage', () => {
     })
 
     typeAndSend('T')
-    await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
+    await waitFor(() => { expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument() })
   })
 
   it('handles 100 rapid chunks without issues', async () => {
@@ -527,11 +574,13 @@ describe('ChatPage', () => {
     // fetch 永不 resolve（模拟持续流）
     globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
     typeAndSend('T')
-    await screen.findByText('停止')
-
-    fireEvent.click(screen.getByText('停止'))
-    // fetch mock 不应该被 resolve（流已被中止）
-    await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
+    // 验证流式期间显示「停止」按钮（icon-only，aria-label='停止'）
+    await screen.findByRole('button', { name: '停止' })
+    // 通过「新建」按钮触发 abort（handleNewConversation 内部调用 abort）
+    const newBtn = screen.getByRole('button', { name: /新建/ })
+    fireEvent.click(newBtn)
+    // 停止按钮应消失（流已中止，isStreaming=false）
+    await waitFor(() => { expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument() })
   })
 
   it('clears loading after stop', async () => {
@@ -540,10 +589,12 @@ describe('ChatPage', () => {
     // fetch 永不 resolve（模拟持续流）
     globalThis.fetch = vi.fn().mockReturnValue(new Promise(() => {}))
     typeAndSend('T')
-    await screen.findByText('停止')
+    await screen.findByRole('button', { name: '停止' })
 
-    fireEvent.click(screen.getByText('停止'))
-    await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
+    // 通过「新建」按钮触发 abort（handleNewConversation 内部调用 abort）
+    const newBtn = screen.getByRole('button', { name: /新建/ })
+    fireEvent.click(newBtn)
+    await waitFor(() => { expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument() })
   })
 
   // ─── Multiple messages ────────────────────────
@@ -556,13 +607,13 @@ describe('ChatPage', () => {
     typeAndSend('First')
     await screen.findByText('First')
     await screen.findByText('First response')
-    await waitFor(() => { expect(screen.queryByText('停止')).not.toBeInTheDocument() })
+    await waitFor(() => { expect(screen.queryByRole('button', { name: '停止' })).not.toBeInTheDocument() })
 
     // Reset fetch for second send
     mockOpenAISSEStream(['Second response', '__DONE__'])
     uuidCounter = 1
     fireEvent.input(screen.getByPlaceholderText(/输入消息/), { target: { value: 'Second' } })
-    fireEvent.click(screen.getByText('发送'))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     await screen.findByText('Second')
     await screen.findByText('Second response')
 
@@ -584,7 +635,7 @@ describe('ChatPage', () => {
     uuidCounter = 1
     const mockFetch2 = mockOpenAISSEStream(['B response', '__DONE__'])
     fireEvent.input(screen.getByPlaceholderText(/输入消息/), { target: { value: 'B' } })
-    fireEvent.click(screen.getByText('发送'))
+    fireEvent.click(screen.getByRole('button', { name: '发送' }))
     await waitFor(() => expect(mockFetch2).toHaveBeenCalled())
     expect(JSON.parse(mockFetch2.mock.calls[0][1].body).messages).toEqual(
       expect.arrayContaining([
@@ -616,7 +667,7 @@ describe('ChatPage', () => {
   it('handles empty provider list', async () => {
     _providerList.mockResolvedValue([])
     await renderChat()
-    expect(screen.getByText(/选择模型和 API Key/)).toBeInTheDocument()
+    expect(screen.getByText(/选择模型和 API Key，输入消息开始测试/)).toBeInTheDocument()
   })
 
   it('cleans up on unmount', async () => {
@@ -700,6 +751,168 @@ describe('ChatPage', () => {
       expect(_toastError).toHaveBeenCalledWith('对话标题更新失败')
     }, { timeout: 3000 })
   })
+
+  // ─── Thinking Settings (Task 11) ──────────────
+
+  it('renders ThinkingSettings with 执行方式 chip and 强度偏好 chip', async () => {
+    await renderChat()
+    // 新结构：两个 chip 按钮（aria-label 含前缀），不再是 group + combobox
+    const typeChip = screen.getByRole('button', { name: /^执行方式:/ })
+    expect(typeChip).toBeInTheDocument()
+    const effortChip = screen.getByRole('button', { name: /^强度偏好:/ })
+    expect(effortChip).toBeInTheDocument()
+  })
+
+  it('defaults to disabled execution type with effort chip disabled', async () => {
+    await renderChat()
+    // 默认 chip aria-label 应含 "执行方式: disabled"
+    const typeChip = screen.getByRole('button', { name: /^执行方式:/ })
+    expect(typeChip).toHaveTextContent('disabled')
+    // 强度 chip 在 disabled 状态下不可交互（aria-disabled=true）
+    const effortChip = screen.getByRole('button', { name: /^强度偏好:/ })
+    expect(effortChip).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('switches execution type to enabled via chip+Popover and enables effort chip', async () => {
+    await renderChat()
+    // 打开执行方式 chip 的 Popover，选择 enabled
+    await selectThinkingType('enabled')
+    // chip 文案应变更为 enabled
+    const typeChip = screen.getByRole('button', { name: /^执行方式:/ })
+    expect(typeChip).toHaveTextContent('enabled')
+    // 强度 chip 不再 disabled
+    const effortChip = screen.getByRole('button', { name: /^强度偏好:/ })
+    expect(effortChip).toHaveAttribute('aria-disabled', 'false')
+  })
+
+  it('does NOT inject thinking fields when disabled on send', async () => {
+    await renderChat()
+    await selectAll()
+    const mockFetch = mockOpenAISSEStream(['ok', '__DONE__'])
+    typeAndSend('Hi')
+    await waitFor(() => { expect(mockFetch).toHaveBeenCalled() })
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.thinking).toBeUndefined()
+    expect(body.reasoning_effort).toBeUndefined()
+  })
+
+  it('injects thinking + reasoning_effort when enabled on send', async () => {
+    await renderChat()
+    await selectAll()
+    // 默认 effort=medium，切到 enabled 后发送应注入 thinking + reasoning_effort
+    await selectThinkingType('enabled')
+    const mockFetch = mockOpenAISSEStream(['ok', '__DONE__'])
+    typeAndSend('Hi')
+    await waitFor(() => { expect(mockFetch).toHaveBeenCalled() })
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(body.thinking).toEqual({ type: 'enabled' })
+    expect(body.reasoning_effort).toBe('medium')
+  })
+
+  it('persists thinking type change via conversations.update after conversation exists', async () => {
+    // conversations.create 契约返回 ConversationEntity 对象（非数字 id），saveUserMessage 依赖 conv.id
+    _conversationsCreate.mockResolvedValue({
+      id: 1, title: 'Hi', providerId: 1, model: 'gpt-4', apiKeyId: 1,
+      thinkingType: 'disabled', reasoningEffort: 'medium',
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    await renderChat()
+    await selectAll()
+    // 发送消息触发 saveUserMessage 创建对话（携带默认 disabled/medium）
+    mockOpenAISSEStream(['ok', '__DONE__'])
+    typeAndSend('Hi')
+    // 等待对话已创建（create + addMessage 完成，convIdRef 同步）
+    await waitFor(() => { expect(_conversationsAddMessage).toHaveBeenCalled() })
+    _conversationsUpdate.mockClear()
+    // 切换执行方式 → 应触发持久化（update 携带 thinkingType）
+    await selectThinkingType('enabled')
+    await waitFor(() => {
+      expect(_conversationsUpdate).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ thinkingType: 'enabled' })
+      )
+    })
+  })
+
+  it('persists reasoningEffort change via conversations.update after conversation exists', async () => {
+    // 验证强度偏好修改的端到端持久化：已有对话时改强度 → update 携带 reasoningEffort
+    _conversationsCreate.mockResolvedValue({
+      id: 1, title: 'Hi', providerId: 1, model: 'gpt-4', apiKeyId: 1,
+      thinkingType: 'disabled', reasoningEffort: 'medium',
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    })
+    await renderChat()
+    await selectAll()
+    mockOpenAISSEStream(['ok', '__DONE__'])
+    typeAndSend('Hi')
+    await waitFor(() => { expect(_conversationsAddMessage).toHaveBeenCalled() })
+
+    // 先切到 enabled 启用强度 chip（触发一次 thinkingType update）
+    await selectThinkingType('enabled')
+    _conversationsUpdate.mockClear()
+
+    // 改强度为 high → 应触发持久化（update 仅携带 reasoningEffort）
+    await selectReasoningEffort('high')
+    await waitFor(() => {
+      expect(_conversationsUpdate).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({ reasoningEffort: 'high' })
+      )
+    })
+  })
+
+  it('syncs thinking settings from target conversation on switch', async () => {
+    const existingConv = {
+      id: 5, title: '思考对话', providerId: 1, model: 'gpt-4', apiKeyId: 1,
+      thinkingType: 'enabled', reasoningEffort: 'high',
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    _conversationsList.mockResolvedValue([existingConv])
+    _conversationsGet.mockResolvedValue(existingConv)
+    _conversationsMessages.mockResolvedValue([])
+
+    await renderChat()
+    const item = await screen.findByText('思考对话')
+    fireEvent.click(item)
+    // 切换后执行方式 chip 应显示 enabled
+    await waitFor(() => {
+      const typeChip = screen.getByRole('button', { name: /^执行方式:/ })
+      expect(typeChip).toHaveTextContent('enabled')
+    })
+    // 强度 chip 启用且显示 high
+    const effortChip = await screen.findByRole('button', { name: /^强度偏好:/ })
+    expect(effortChip).toHaveAttribute('aria-disabled', 'false')
+    expect(effortChip).toHaveTextContent('high')
+  })
+
+  it('resets thinking settings to disabled/medium on new conversation', async () => {
+    const existingConv = {
+      id: 5, title: '思考对话', providerId: 1, model: 'gpt-4', apiKeyId: 1,
+      thinkingType: 'enabled', reasoningEffort: 'high',
+      createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+    }
+    _conversationsList.mockResolvedValue([existingConv])
+    _conversationsGet.mockResolvedValue(existingConv)
+    _conversationsMessages.mockResolvedValue([])
+
+    await renderChat()
+    fireEvent.click(await screen.findByText('思考对话'))
+    // 等待同步为 enabled
+    await waitFor(() => {
+      const typeChip = screen.getByRole('button', { name: /^执行方式:/ })
+      expect(typeChip).toHaveTextContent('enabled')
+    })
+    // 点击"新建"按钮
+    fireEvent.click(screen.getByText('新建'))
+    // 新建后应重置为 disabled
+    await waitFor(() => {
+      const typeChip = screen.getByRole('button', { name: /^执行方式:/ })
+      expect(typeChip).toHaveTextContent('disabled')
+    })
+    // 强度 chip 重新 disabled
+    const effortChip = screen.getByRole('button', { name: /^强度偏好:/ })
+    expect(effortChip).toHaveAttribute('aria-disabled', 'true')
+  })
 })
 
 // ======================
@@ -781,8 +994,8 @@ console.log("hello")
 
     // 错误类应用在 Markdown 容器上，检查 bubble 级别的样式
     expect(screen.getByText('发生错误')).toBeInTheDocument()
-    const bubble = screen.getByText('发生错误').closest('[class*="rounded-2xl"]')
-    expect(bubble).toHaveClass('bg-destructive/10', 'border-destructive/20')
+    const bubble = screen.getByText('发生错误').closest('[class*="rounded-xl"]')
+    expect(bubble).toHaveClass('bg-destructive/5', 'border-destructive/30')
   })
 
   it('应该显示流式输入光标', () => {

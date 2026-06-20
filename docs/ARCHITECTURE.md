@@ -1,4 +1,13 @@
-# LLM Gateway 架构技术手册
+# LLM Gateway 架构技术手册 (Project Map)
+
+> **AI 架构路由提示**：本文件是项目的宏观地图。接到任务后，先按下表定位模块，再用 CodeGraph/LSP 做符号级检索，严禁全量盲搜。
+> - 涉及界面 / 交互 / 前端状态 → `renderer/`，数据走 TanStack Query（`lib/queries/`），组件内禁直接 `useQuery`/IPC。
+> - 涉及跨进程通信 / 数据 CRUD → `ipc/` + `preload/`，走 `ipcMain.handle` + `wrapIpcHandler`。
+> - 涉及 LLM 代理 / 流式 SSE / 协议转换 → `proxy/`（Hono 8080）。
+> - 涉及业务规则 / 输入校验 → `domains/`（service 三件套 + Zod schema）。
+> - 涉及数据库 / 持久化 → `db/`，注意 sql.js（Repository 工厂）与 NDJSON（日志裸函数）的边界。
+> - 涉及 token 用量 / 请求统计落库 → `proxy/logger.ts`（提取 + `tryLogEntry`）+ `db/logs-stats.ts`（预聚合），详见 8.5。
+> - 涉及配置字段迁移 / 自动更新 → `core/config-migration.ts` / `update/`。
 
 > 面向新成员的项目入门文档。图表为主、文字为辅，配合 `.claude/rules/` 规则文件与源码阅读。
 > 技术栈：Electron 42.x + TypeScript 6.0 + React 19.2
@@ -66,19 +75,19 @@ src/
 │   ├── core/                 # 基础设施层（4 文件）
 │   │   ├── logger.ts / config-migration.ts / debug-log.ts / version.ts
 │   │   └── __tests__/
-│   ├── ipc/                  # 接口层：IPC handler（按域拆分，48 handle + 4 on）
+│   ├── ipc/                  # 接口层：IPC handler（按域拆分，54 handle + 4 on）
 │   │   ├── index.ts          # 注册编排（接收入口层注入的 db）
 │   │   ├── ipc-utils.ts      # wrapIpcHandler 统一 try/catch
 │   │   ├── sse-parser.ts     # SSE 行解析
-│   │   ├── {domain}.ts       # providers/apikeys/conversations/logs/models/agents/proxy/system/update
+│   │   ├── {domain}.ts       # providers/apikeys/conversations/logs/models/agents/proxy/system/update/pricing
 │   │   └── __tests__/
-│   ├── db/                   # 数据层（7 个 Repository 工厂 + NDJSON 裸函数）
-│   │   ├── connection.ts / database.ts / schema.ts(9 表)
-│   │   ├── {entity}.ts       # create{Provider,ApiKey,Conversation,ModelMapping,Agent,AgentConfig,LogStats}Repository(db)
+│   ├── db/                   # 数据层（8 个 Repository 工厂 + NDJSON 裸函数）
+│   │   ├── connection.ts / database.ts / schema.ts(10 表)
+│   │   ├── {entity}.ts       # create{Provider,ApiKey,Conversation,ModelMapping,Agent,AgentConfig,LogStats,Pricing}Repository(db)
 │   │   ├── logs-reader.ts / logs-writer.ts / logs.ts  # NDJSON 裸函数（不适用 Repository 模式）
 │   │   └── __tests__/
-│   ├── domains/              # 业务层（8 domain，三件套：types/schema/service）
-│   │   └── {provider,apikey,conversation,models,agent,logs,stats,datamanagement}/
+│   ├── domains/              # 业务层（9 domain，三件套：types/schema/service）
+│   │   └── {provider,apikey,conversation,models,agent,logs,stats,datamanagement,pricing}/
 │   │       └── __tests__/
 │   ├── proxy/                # 接口层：HTTP 代理（Hono，仅 Chat）
 │   │   ├── server.ts / handler.ts / manager.ts / router.ts / forwarder.ts
@@ -102,7 +111,7 @@ src/
 │       └── queries/          # TanStack Query hooks（按域分文件）
 └── shared/                   # 跨进程共享（types.ts 实体定义 + sse-utils.ts）
 
-scripts/                      # migrate-db / migrate-logs / test-* 调试脚本
+scripts/                      # migrate-db / migrate-logs / migrate-pricing-cache / test-* 调试脚本
 .claude/rules/                # 规则模块 17 个（common 2 + frontend 6 + backend 9）
 docs/                         # standards/ + superpowers/(SDD/TDD 文档)
 ```
@@ -174,16 +183,17 @@ graph TB
 
 ### 5.1 数据库层 (db/)
 
-sql.js（WASM SQLite），与主进程同进程。9 张表：
+sql.js（WASM SQLite），与主进程同进程。10 张表：
 
 | 表 | 主键 | 用途 |
 |----|------|------|
 | `providers` | id | LLM 供应商配置（API Key、模型列表） |
 | `model_mappings` | id | 模型映射（source_model → target_model，UNIQUE） |
 | `api_keys` | id | Gateway 密钥（SHA256 哈希 + 明文） |
-| `request_stats` | (stat_date, stat_hour) | 请求统计汇总 |
-| `request_stats_provider` | (stat_date, stat_hour, provider_id, model) | 按供应商/模型统计 |
-| `conversations` | id | 对话列表 |
+| `request_stats` | (stat_date, stat_hour) | 请求统计汇总（token/请求/耗时/错误/cache_tokens 按日时累加，由 tryLogEntry 写入） |
+| `request_stats_provider` | (stat_date, stat_hour, provider_id, model) | 按供应商/模型统计（同上，多 provider_id+model 维度，含 total_cache_tokens） |
+| `provider_pricing` | (provider_id, model) | 供应商×模型单价（缓存命中/未命中/输出，元/百万tokens，FK→providers CASCADE） |
+| `conversations` | id | 对话列表（含 thinking_type/reasoning_effort 思考设置列，nullable，按对话持久化） |
 | `messages` | id | 对话消息（FK→conversations，CASCADE） |
 | `agents` | id | Agent 配置（name UNIQUE、config_path、config_format） |
 | `agent_configs` | id | Agent 配置版本（FK CASCADE、is_current、UNIQUE(agent_id,name)） |
@@ -199,6 +209,7 @@ sql.js（WASM SQLite），与主进程同进程。9 张表：
 | AgentRepository | `db/agents.ts` | `AgentRow` |
 | AgentConfigRepository | `db/agent-configs.ts` | `AgentConfigRow` |
 | LogStatsRepository | `db/logs-stats.ts` | 统计 DTO |
+| PricingRepository | `db/provider-pricing.ts` | `PricingRow` |
 
 > `logs-writer.ts`/`logs-reader.ts` 为 NDJSON 裸函数（不在 sql.js 范围），不适用 Repository 模式。
 > 业务规则（not-found/启用态/唯一性）在 service 层，Repository 只做纯 CRUD。事务用 `BEGIN/COMMIT/ROLLBACK` 显式控制（sql.js 无声明式 API）。
@@ -215,7 +226,7 @@ Hono 监听 `127.0.0.1:8080`。模块职责：
 | `forwarder.ts` | 上游 URL/Header 构建 |
 | `converter/` | OpenAI ↔ Anthropic 协议转换（request/response/sse） |
 | `stream.ts` | SSE 流转换服务 |
-| `logger.ts` | 代理日志聚合 + SSE token 抽取 |
+| `logger.ts` | extractUsageFromSSE 提取 token（含 cacheTokens 缓存命中）→ tryLogEntry 三步落库（NDJSON + request_stats + request_stats_provider） |
 | `middleware.ts` | Auth 中间件（Bearer token 提取） |
 | `rate-limiter.ts` | 滑动窗口限流器 |
 | `manager.ts` | 代理生命周期管理 |
@@ -231,9 +242,17 @@ Hono 监听 `127.0.0.1:8080`。模块职责：
 
 **认证头差异：** Anthropic 用 `x-api-key`，OpenAI 用 `Authorization: Bearer`，`forwarder.ts` 按 providerType 处理。
 
+**思考参数协议转换（纯透传）：** 代理不做配置、不注入、不生成 `budget_tokens`，仅做协议转换。`converter/request.ts` 规则：
+
+- OpenAI → Anthropic：`thinking` 字段跨协议同名同结构透传（type='enabled'|'adaptive'）；`reasoning_effort` ↔ `output_config.effort` 字段名转换（值不变）。两维度正交独立处理。
+- Anthropic → OpenAI：反向。
+- 同协议透传（`from === to`）原样返回。
+
+思考是客户端语义（chat 页面 ThinkingSettings 控制），由用户主动设置后随对话持久化到 `conversations.thinking_type`/`reasoning_effort` 列。代理恢复纯透传语义。
+
 ### 5.3 业务域层 (domains/)
 
-8 个 domain，每个三件套（types/schema/service）：
+9 个 domain，每个三件套（types/schema/service）：
 
 | Domain | service 关键方法 | 备注 |
 |--------|-----------------|------|
@@ -242,15 +261,16 @@ Hono 监听 `127.0.0.1:8080`。模块职责：
 | conversation | list/getById/create/update/remove/messages/addMessage | 含消息 |
 | models | getAllModels/findModelMapping + 映射 CRUD | 供 proxy 调用 |
 | agent | Agent CRUD + 配置版本 CRUD + switchConfig | 业务规则最复杂 |
-| logs | query/stats/detailedStats | 委托 NDJSON reader |
-| stats | summary | 委托 logs-stats |
+| logs | query/stats/detailedStats | 委托 NDJSON reader；detailedStats 每模型带 cost（JOIN pricing） |
+| stats | summary/summaryDetailed | summary 委托 logs-stats（+cacheTokens+totalCost）；summaryDetailed 24h/30d 全局汇总 JOIN pricing 算费用 |
 | datamanagement | clear | 按模块清空（业务数据事务原子 + 运行数据分步），跨聚合根编排 |
+| pricing | list/getByProvider/upsert/remove | 供应商×模型单价 CRUD（供应商删除时 FK CASCADE + removeByProvider 双保险） |
 
 **注入契约：** `createXxxService(db)` → 内部 `createXxxRepository(db)`。service 做 snake_case→camelCase 映射 + 业务规则判断 + 异常抛出（格式 `Failed to {action} {entity}: {reason}`）。
 
 ### 5.4 IPC 层 (ipc/)
 
-49 个 `ipcMain.handle` + 4 个 `ipcMain.on`，按域拆分文件，全部经 `wrapIpcHandler` 包装（ZodError → `Invalid input: ...`，其他 → 日志 + `{error}`）。
+54 个 `ipcMain.handle` + 4 个 `ipcMain.on`，按域拆分文件，全部经 `wrapIpcHandler` 包装（ZodError → `Invalid input: ...`，其他 → 日志 + `{error}`）。
 
 | 域 | 通道 | handler 文件 |
 |----|------|-------------|
@@ -258,23 +278,24 @@ Hono 监听 `127.0.0.1:8080`。模块职责：
 | provider | list/create/update/delete | providers.ts |
 | apikey | list/create/delete | apikeys.ts |
 | conversation | list/create/update/delete/getById/listMessages/createMessage | conversations.ts |
-| logs | list/stats/statsDetailed | logs.ts |
+| logs | list/stats/statsDetailed/rangeSummary | logs.ts |
 | models | list + mapping:find/list/create/update/delete | models.ts |
 | agent | list/getById/create/update/delete + listConfigs/getConfig/createConfig/updateConfig/deleteConfig/switchConfig/readConfigFile | agents.ts |
 | datamanagement | clear | datamanagement.ts |
+| pricing | list/getByProvider/upsert/delete | pricing.ts |
 | proxy | get/start/stop/updatePort/update | proxy.ts |
 | update | check/download/install/skipVersion/getConfig/setConfig/getCurrentVersion | update/ipc.ts |
 | system | window:minimize/maximize/close（on）+ renderer:log（on） | system.ts |
 
 ### 5.5 预加载层 (preload/)
 
-`contextBridge.exposeInMainWorld` 暴露 `window.electronAPI`，按域聚合（backend/providers/apiKeys/conversations/logs/models/agents/proxy/update/window）。`types.ts` 通过 type alias 派生 `shared/types.ts`，禁止重复定义实体。
+`contextBridge.exposeInMainWorld` 暴露 `window.electronAPI`，按域聚合（backend/providers/apiKeys/conversations/logs/models/agents/proxy/update/window/pricing）。`types.ts` 通过 type alias 派生 `shared/types.ts`，禁止重复定义实体。
 
 ### 5.6 渲染进程 (renderer/)
 
 | 页面 | 路由 | 功能 |
 |------|------|------|
-| Dashboard | `/` | 代理开关/端口、统计卡片、趋势图 |
+| Dashboard | `/` | 代理开关/端口、4 张统计卡（含近 7 天花费）、24h/30d 汇总卡（RangeSummaryCard）、趋势图（Tab 切换 24h/30d + 按供应商/模型手风琴 TimeTrendAccordion + 每模型 3 趋势图：Token 趋势/花费趋势 TrendLineChart、次数趋势 TrendBarChart） |
 | Providers | `/providers` | 供应商 CRUD、API Key 查看/复制、模型管理 |
 | ApiKeys | `/api-keys` | 两步创建（表单→展示明文）、删除确认 |
 | Logs | `/logs` | 分页表格、Debug 切换、详情面板 |
@@ -415,7 +436,7 @@ sequenceDiagram
         Chat->>U: 流式渲染气泡
     end
     Hook->>Hook: 收到 [DONE] 或流结束 → isStreaming=false
-    H->>H: 异步 extractAndLogSSE → 日志 + 统计
+    H->>H: tee() 拆流 → forLogging 异步提取 token 用量并落库（详见 8.5）
 ```
 
 ### 8.3 模型映射路由
@@ -468,6 +489,84 @@ sequenceDiagram
     IPC-->>R: { success: true }
 ```
 
+### 8.5 Token 用量提取与落库
+
+每次代理请求结束时，从上游响应提取 token 用量并写入 NDJSON 日志 + 两张 SQLite 统计表。提取分三种路径，落库统一走 `tryLogEntry` 三步原子操作。
+
+```mermaid
+sequenceDiagram
+    participant H as handler.ts
+    participant Up as 上游 LLM
+    participant Log as proxy/logger.ts
+    participant NDJSON as logs-writer.ts
+    participant Stat as db/logs-stats.ts
+    participant DB as SQLite
+
+    H->>Up: fetch(上游)
+    alt 流式响应
+        Up-->>H: SSE ReadableStream
+        H->>H: tee() 拆流 [forClient, forLogging]
+        H->>Log: extractAndLogSSE(forLogging)
+        Log->>Log: 读完整流文本 → extractUsageFromSSE(text, apiFormat)
+        Note over Log: OpenAI: usage.prompt_tokens/completion_tokens + prompt_tokens_details.cached_tokens<br/>Anthropic: message_start→input_tokens + cache_read_input_tokens + message_delta→output_tokens<br/>(cache_creation_input_tokens 不计入 cacheTokens)
+        Log->>Log: tryLogEntry({…, tokensIn, tokensOut, cacheTokens})
+    else 非流式 JSON
+        Up-->>H: JSON body
+        H->>H: logJsonResponse 读 convertedBody.usage
+        Note over H: OpenAI: prompt_tokens/completion_tokens<br/>Anthropic: input_tokens/output_tokens
+        H->>Log: tryLogEntry({…, tokensIn, tokensOut})
+    else 错误(≥400)
+        Up-->>H: error body
+        H->>Log: tryLogEntry({…, error})（无 token）
+    end
+
+    Note over Log: tryLogEntry 三步原子（fire-and-forget，任一失败静默忽略）
+    Log->>NDJSON: createLogEntry（含 tokensIn/tokensOut/cacheTokens + debug）
+    NDJSON->>NDJSON: 追加 NDJSON 文件（500 行/20 文件轮转）
+    Log->>Stat: updateRequestStats(tokensIn/tokensOut/cacheTokens/durationMs/statusCode)
+    Stat->>DB: INSERT request_stats ON CONFLICT(stat_date,stat_hour) DO UPDATE 累加
+    Log->>Stat: updateProviderStats(providerId/model/...cacheTokens)
+    Stat->>DB: INSERT request_stats_provider ON CONFLICT DO UPDATE 累加
+```
+
+**关键点：**
+- 流式与非流式分支提取 token 的位置不同（SSE 文本 vs JSON body.usage），但产出相同的 `{tokensIn, tokensOut}` 后汇入 `tryLogEntry`。流式分支额外提取 `cacheTokens`（缓存命中输入 token）。
+- 缓存 token 采集口径二分法：OpenAI 取 `usage.prompt_tokens_details.cached_tokens`；Anthropic 取 message_start 的 `usage.cache_read_input_tokens`（`cache_creation_input_tokens` 写缓存不计入）。无缓存字段时 `cacheTokens=0`。
+- 统计采用**预聚合**：每次请求 INSERT 一行增量，`ON CONFLICT(stat_date, stat_hour, ...)` 时累加 total_requests/tokens/errors/duration，避免查询时全量扫描 NDJSON。Dashboard 统计卡片读这两张表。
+- token 用量**只在请求落库时一次性写入** NDJSON（明细）+ 统计表（聚合），全程 fire-and-forget，不阻塞代理响应。
+
+### 8.6 仪表板统计与费用计算（IPC 链路）
+
+Dashboard 三类统计查询统一走 IPC → stats/logs service → `logs-stats` Repository；费用通过 `request_stats_provider LEFT JOIN provider_pricing` 实时计算（单价不持久化费用，单价变更后历史查询自动重算）。
+
+```mermaid
+sequenceDiagram
+    participant R as Renderer
+    participant Q as lib/queries
+    participant IPC as ipcMain
+    participant S as stats/logs service
+    participant Repo as logs-stats
+    participant DB as SQLite
+
+    R->>Q: useDashboardStats('7d') / useRangeSummary('24h'|'30d') / useDetailedStats
+    Q->>IPC: logs:stats / logs:rangeSummary / logs:statsDetailed
+    IPC->>S: statsService.summary / summaryDetailed / logsService.detailedStats
+    S->>Repo: getStats / getRangeSummary / getDetailedStats
+    Repo->>DB: SELECT ... FROM request_stats_provider rsp<br/>LEFT JOIN provider_pricing pp ON rsp.provider_id=pp.provider_id AND rsp.model=pp.model
+    Note over Repo,DB: 费用 = SUM(cache_tokens)*price_in_cached/M<br/>+ MAX(0, SUM(tokens_in)-SUM(cache_tokens))*price_in_uncached/M<br/>+ SUM(tokens_out)*price_out/M<br/>缺单价 COALESCE→0；M=COST_DIVISOR(1_000_000)
+    DB-->>Repo: 聚合行（token 三分 + 费用三分 + 次数）
+    Repo-->>S: snake_case 行
+    S->>S: snake_case → camelCase（DashboardStats / RangeSummary / DetailedStat）
+    S-->>IPC: 汇总对象
+    IPC-->>R: 渲染顶部 4 卡 + RangeSummaryCard(24h/30d) + 趋势手风琴
+```
+
+**关键点：**
+- 费用计算是业务规则（缺单价归 0、非缓存输入 clamp 到 0、实时算不存储），归属 stats service；SQL JOIN 一次聚合完成。
+- `request_stats`（全局表）无 model 维度，费用通过 `request_stats_provider`（provider×model 维度）JOIN pricing 计算后再聚合到全局。
+- token 三分（缓存/非缓存/输出）与费用三分一一对应：`uncachedTokens = MAX(0, inputTokens - cacheTokens)`。
+- 单价经供应商编辑表单 `pricing:upsert` 写入 `provider_pricing`（与 provider 保存同一流程），供应商删除时 FK `ON DELETE CASCADE` + Repository `removeByProvider` 双保险清理。
+
 ---
 
 ## 九、数据模型
@@ -518,6 +617,8 @@ erDiagram
     conversations {
         int id PK
         text title
+        text thinking_type "nullable: disabled|enabled|adaptive"
+        text reasoning_effort "nullable: minimal|low|medium|high|xhigh|max"
     }
     messages {
         int id PK
@@ -528,26 +629,11 @@ erDiagram
 ```
 
 > `request_stats`（按日时汇总）、`request_stats_provider`（按日时+供应商+模型）为统计聚合表，无外键关联。
+> `provider_pricing`（provider_id+model 主键，FK→providers ON DELETE CASCADE）存供应商×模型单价，统计查询 LEFT JOIN 实时算费用（不存储费用）。
 
 ---
 
-## 十、关键约定
-
-| 约定 | 要点 | 详见 |
-|------|------|------|
-| 分层导入 | 上层→下层单向；proxy 禁导入 db/domains（工厂注入）；core 禁反向依赖 | `30-layered-architecture.md` |
-| Repository 模式 | `createXxxRepository(db)` 工厂，禁 `getDb()`，纯 CRUD | `31-domain-modeling.md` |
-| 接口契约 | IPC 入口 Zod `.parse()`，handler 经 `wrapIpcHandler` | `32-interface-contracts.md` |
-| 错误格式 | `Failed to {action} {entity}: {reason}` | `34-error-handling.md` |
-| 安全 | API Key 仅留后 4 位脱敏；代理只监听 127.0.0.1；禁可逆加密 | `35-security.md` |
-| 日志 | 禁 console，用 `core/logger`；生产禁 DEBUG；NDJSON 500 行/20 文件轮转 | `36-observability.md` |
-| TanStack Query | queryKey `['domain','action',...params]`；mutation 后 invalidate | `31-renderer.md` |
-| Markdown XSS | rehype-sanitize 仅作用于可信内容（AI 响应） | `32-component-reuse.md` |
-| 配置迁移 | `applyMigrators<T>(raw, migrators)` 合并前先迁移旧字段 | `core/config-migration.ts` |
-
----
-
-## 十一、关键数据格式
+## 十、关键数据格式
 
 ```typescript
 // 模型映射（snake_case Row → camelCase 实体）
@@ -567,6 +653,12 @@ interface UpdateConfig { isAutoCheckEnabled: boolean; checkInterval: number; isP
 
 // 调试日志（debug 模式记录）
 interface LogDebugInfo { client: { body, apiFormat }; route: { providerName, providerType, baseUrl, modelName }; conversion?: { from, to, originalPath, convertedPath, originalModel, convertedModel }; upstream: { url, body, statusCode, responseBody }; error?: string }
+
+// 供应商×模型单价（跨进程，元/百万tokens）
+interface PricingEntity { providerId: number; model: string; priceInCached: number; priceInUncached: number; priceOut: number }
+
+// 范围汇总（24h / 30d 全局，token 三分 + 费用三分 + 次数）
+interface RangeSummary { totalTokens: number; inputTokens: number; cacheTokens: number; uncachedTokens: number; outputTokens: number; totalCost: number; cacheCost: number; uncachedCost: number; outputCost: number; totalRequests: number }
 ```
 
 **SSE 格式对照：**
@@ -578,21 +670,21 @@ interface LogDebugInfo { client: { body, apiFormat }; route: { providerName, pro
 
 ---
 
-## 十二、测试
+## 十一、测试
 
 vitest（前后端配置分离）+ jsdom。数据库测试用 sql.js 内存库不 mock，测试文件与源 co-located。
 
 | 层级 | 文件数 |
 |------|--------|
-| db/ | 10 |
-| domains/ | 11 |
-| proxy/ | 7 |
-| ipc/ | 5 |
+| db/ | 14 |
+| domains/ | 16 |
+| proxy/ | 8 |
+| ipc/ | 6 |
 | core/ | 4 |
 | update/ | 4 |
-| renderer/ | 7 |
+| renderer/ | 13 |
 
-**合计约 583 用例**（后端 46 文件 + 前端 11 文件）。
+**合计约 798 用例**（后端 52 文件 + 前端 13 文件，前端含 1 类型断言文件由 vitest typecheck 计入）。
 
 ---
 

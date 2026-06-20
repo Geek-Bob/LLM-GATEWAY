@@ -1,16 +1,16 @@
 /**
  * Dashboard 页面 — 系统概览与服务状态
  *
- * 薄层组合页面，组装 4 个子组件：
+ * 薄层组合页面，组装 6 个子组件：
  * - ProxyControlCard: 代理服务状态与控制
  * - DashboardStatsGrid: 核心指标卡片网格
  * - StatsSummaryTable: 调用统计汇总表格
+ * - RangeSummaryCard: 24h/30d 时间窗口汇总卡（2 张）
  * - TimeTrendAccordion: 时间趋势图表手风琴
  *
  * 数据流：通过 TanStack Query hooks 获取数据，以 props 下发给子组件
  */
 
-import { useProviders } from '@/lib/queries/providers'
 import { useDashboardStats, useHourlyStats, useDailyStats } from '@/lib/queries/stats'
 import { motion } from 'framer-motion'
 import { pageVariants, childVariants } from '@/lib/animations'
@@ -19,18 +19,15 @@ import { ProxyControlCard } from '@/features/dashboard/components/ProxyControlCa
 import { DashboardStatsGrid } from '@/features/dashboard/components/DashboardStats'
 import { StatsSummaryTable } from '@/features/dashboard/components/StatsSummaryTable'
 import { TimeTrendAccordion } from '@/features/dashboard/components/TimeTrendAccordion'
+import { RangeSummaryCard } from '@/features/dashboard/components/RangeSummaryCard'
 
 /** 仪表盘页面，展示系统概览、代理状态、统计卡片和趋势图表。 @returns 仪表盘页面 JSX。 */
 export function Dashboard() {
-  const { data: providers, isLoading: providersLoading } = useProviders()
   const { data: stats, isLoading: statsLoading } = useDashboardStats()
-  const { data: hourlyStats } = useHourlyStats()
+  const { data: hourlyStats, isLoading: hourlyLoading } = useHourlyStats()
   const { data: dailyStats, isLoading: dailyLoading } = useDailyStats()
 
-  const activeProviders = providers?.filter((p) => p.isActive).length ?? 0
-  const totalProviders = providers?.length ?? 0
-
-  if (providersLoading || statsLoading) {
+  if (statsLoading) {
     return (
       <div className="space-y-6">
         <div>
@@ -59,15 +56,20 @@ export function Dashboard() {
       </motion.div>
 
       <motion.div variants={childVariants} className="mb-8">
-        <DashboardStatsGrid stats={stats} activeProviders={activeProviders} totalProviders={totalProviders} />
+        <DashboardStatsGrid stats={stats} />
       </motion.div>
 
       <motion.div variants={childVariants} className="mb-6">
         <StatsSummaryTable dailyStats={dailyStats} isLoading={dailyLoading} />
       </motion.div>
 
+      <motion.div variants={childVariants} className="mb-6 grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <RangeSummaryCard range="24h" />
+        <RangeSummaryCard range="30d" />
+      </motion.div>
+
       <motion.div variants={childVariants}>
-        <TimeTrendAccordion dailyStats={dailyStats} hourlyStats={hourlyStats} isLoading={dailyLoading} />
+        <TimeTrendAccordion dailyStats={dailyStats} hourlyStats={hourlyStats} isLoading={hourlyLoading || dailyLoading} />
       </motion.div>
     </motion.div>
   )

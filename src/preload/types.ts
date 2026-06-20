@@ -1,5 +1,5 @@
-import type { ProviderEntity, ApiKeyEntity, AgentEntity, AgentConfigEntity, UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput, ClearDataInput, ClearDataResult } from '../shared/types'
-export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput, ClearDataInput, ClearDataResult }
+import type { ProviderEntity, ApiKeyEntity, AgentEntity, AgentConfigEntity, UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput, ClearDataInput, ClearDataResult, PricingEntity, RangeSummary, ConversationEntity, ThinkingType, ReasoningEffort } from '../shared/types'
+export type { UpdateInfo, UpdateProgress, UpdateCheckResult, UpdateConfig, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput, ClearDataInput, ClearDataResult, PricingEntity, RangeSummary }
 
 /** Agent 响应类型（与 shared/types.ts 的 AgentEntity 同义，向后兼容旧名） */
 export type AgentResponse = AgentEntity
@@ -21,6 +21,7 @@ export interface LogEntry {
   status_code: number
   tokens_in: number
   tokens_out: number
+  cache_tokens?: number
   duration_ms: number
   error: string | null
   created_at: string
@@ -32,6 +33,10 @@ export interface DashboardStats {
   totalTokensOut: number
   avgDurationMs: number
   totalErrors: number
+  /** 缓存命中输入 Token 数（费用核算扩展字段，向后兼容可选） */
+  cacheTokens?: number
+  /** 总费用（元）（费用核算扩展字段，向后兼容可选） */
+  totalCost?: number
 }
 
 export interface ElectronAPI {
@@ -50,6 +55,45 @@ export interface ElectronAPI {
     query: (params: { page: number; limit: number }) => Promise<{ logs: LogEntry[]; total: number }>
     stats: (range: string) => Promise<DashboardStats>
     statsDetailed: (range: '24h' | '30d') => Promise<{ providerId: number; providerName: string; models: { model: string; totalRequests: number; totalTokensIn: number; totalTokensOut: number; totalErrors: number; dataPoints: { period: number | string; requests: number; tokensIn: number; tokensOut: number }[] }[] }[]>
+    /** 24h / 30d 全局汇总统计（Token + 费用维度，对应 logs:rangeSummary 通道） */
+    rangeSummary: (range: '24h' | '30d') => Promise<RangeSummary>
+  }
+  /**
+   * 对话 CRUD + 消息管理
+   * 思考参数 thinkingType/reasoningEffort 随对话持久化（可选，向后兼容）
+   * create 返回 ConversationEntity（含思考字段），update 返回 void
+   */
+  conversations: {
+    list: () => Promise<ConversationEntity[]>
+    create: (data: {
+      title: string
+      model: string
+      providerId?: number | null
+      apiKeyId?: number | null
+      /** 思考执行方式（disabled/enabled/adaptive），可选，向后兼容 */
+      thinkingType?: ThinkingType
+      /** 思考强度偏好（minimal…max），可选，向后兼容 */
+      reasoningEffort?: ReasoningEffort
+    }) => Promise<ConversationEntity>
+    update: (
+      id: number,
+      data: {
+        title?: string
+        model?: string
+        providerId?: number | null
+        apiKeyId?: number | null
+        /** 思考执行方式（disabled/enabled/adaptive），可选 */
+        thinkingType?: ThinkingType
+        /** 思考强度偏好（minimal…max），可选 */
+        reasoningEffort?: ReasoningEffort
+      }
+    ) => Promise<void>
+    delete: (id: number) => Promise<void>
+    get: (id: number) => Promise<ConversationEntity | null>
+    /** 消息列表（Message 类型未在 shared 定义，返回 unknown[] 由调用方断言） */
+    messages: (conversationId: number) => Promise<unknown[]>
+    /** 添加消息，返回新增消息 ID */
+    addMessage: (data: { conversationId: number; role: 'user' | 'assistant'; content: string; thinking?: string }) => Promise<number>
   }
   proxy: {
     status: () => Promise<{ port: number; running: boolean; url: string | null; debugMode: boolean }>
@@ -90,6 +134,16 @@ export interface ElectronAPI {
     deleteConfig: (id: number) => Promise<void>
     readConfigFile: (agentId: number) => Promise<string>
     switchConfig: (data: SwitchConfigInput) => Promise<void>
+  }
+  /**
+   * 单价管理
+   * 管理各模型在各供应商下的 Token 单价（元/百万tokens），用于费用核算和仪表盘统计
+   */
+  pricing: {
+    list: () => Promise<PricingEntity[]>
+    getByProvider: (providerId: number) => Promise<PricingEntity[]>
+    upsert: (data: PricingEntity) => Promise<PricingEntity>
+    delete: (data: { providerId: number; model: string }) => Promise<void>
   }
   /**
    * 数据管理

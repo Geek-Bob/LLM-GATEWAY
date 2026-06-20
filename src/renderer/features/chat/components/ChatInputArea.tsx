@@ -1,22 +1,19 @@
 /**
- * ChatInputArea — 消息输入区域
+ * ChatInputArea — 消息输入区域（底栏布局）
  *
- * 包含 ChatInput 组件和流式传输时的停止按钮。
- * 输入框和停止按钮共存于同一 Card 行内。
+ * 扁平化底栏：左侧为 ChatInput，停止/发送按钮由 ChatInput 内部按 isStreaming 切换。
+ * 不再包裹 Card，改为顶部带边框的横条。
  *
  * props:
  * - inputKey: 变化时重置输入框（新建/切换会话时使用）
- * - streamLoading: 是否正在流式传输
+ * - isStreamLoading: 是否正在流式传输
  * - selectedModel: 当前选中模型（null 时禁用输入）
  * - selectedApiKeyId: 当前选中 API Key（null 时禁用输入）
  * - onSend: 发送消息回调
  * - onStop: 停止流式传输回调
  */
 
-import { Square } from 'lucide-react'
 import { ChatInput } from '@/features/chat/components/ChatInput'
-import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 
 interface ChatInputAreaProps {
   inputKey: number
@@ -27,7 +24,7 @@ interface ChatInputAreaProps {
   onStop: () => void
 }
 
-/** 消息输入区域，包含 ChatInput 和流式传输时的停止按钮。 @returns 输入区域 JSX。 */
+/** 消息输入区域（底栏），包含 ChatInput（发送/停止按钮由 ChatInput 内部按 isStreaming 切换）。 @returns 输入区域 JSX。 */
 export function ChatInputArea({
   inputKey,
   isStreamLoading,
@@ -37,16 +34,16 @@ export function ChatInputArea({
   onStop,
 }: ChatInputAreaProps) {
   return (
-    <Card className="p-3 flex items-center gap-2 bg-background/50">
+    <div className="flex items-end gap-2 px-3 py-2 border-t border-border/50">
       <div className="flex-1">
-        <ChatInput key={inputKey} onSend={onSend} disabled={isStreamLoading || !selectedModel || !selectedApiKeyId} />
+        <ChatInput
+          key={inputKey}
+          onSend={onSend}
+          disabled={isStreamLoading || !selectedModel || !selectedApiKeyId}
+          isStreaming={isStreamLoading}
+          onStop={onStop}
+        />
       </div>
-      {isStreamLoading && (
-        <Button onClick={onStop} variant="destructive" size="default" className="px-3 py-2.5">
-          <Square className="w-4 h-4" />
-          停止
-        </Button>
-      )}
-    </Card>
+    </div>
   )
 }

@@ -47,12 +47,10 @@ Windows / macOS / Linux 桌面
 - `core/` 中禁止引入业务逻辑（core 只含通用工具）
 - 单文件超过 500 行时必须按职责拆分
 - **禁止 `confirm()` / `alert()` / `window.confirm()` / `window.alert()`** — Electron 无边框窗口下原生确认框会永久夺走焦点，用 Radix AlertDialog 替代
-- 新功能 SDD（spec）→ TDD（Red → Green → Refactor），无例外
 - 技术架构变更后必须更新 `docs/ARCHITECTURE.md`：目录结构、数据流、模块职责描述与实际代码保持一致
 - 业务 CRUD 全部走 IPC（preload → ipcMain.handle）：providers / logs / stats / conversations / apiKeys
 - **数据层禁止内联 SQL / 业务规则**：所有 SQLite 访问通过 `createXxxRepository(db)` 工厂函数；Repository 只做 CRUD，规则判断（not-found / 启用态 / 唯一性）由 service 层负责
 - **生产环境禁止 DEBUG 日志**：`core/logger.ts` 已有 production gate，调试日志仅在 `NODE_ENV !== 'production'` 输出
-- **禁止重新引入对称/非对称加解密**：项目只用 `node:crypto` 的 `randomBytes` / `createHash`（单向），不允许 `createCipheriv` / `createDecipheriv` / `crypto-js` 等可逆操作
 - 核心原则：先统一约定(.claude/rules)、再优化结构(src)、最后微调细节。
 
 ## Build & Test

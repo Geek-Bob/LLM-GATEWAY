@@ -8,10 +8,12 @@
 import type {
   ProviderEntity, ApiKeyEntity, LogDebugInfo, UpdateCheckResult, UpdateConfig, UpdateInfo, UpdateProgress,
   AgentEntity, AgentConfigEntity, CreateAgentInput, UpdateAgentInput, CreateAgentConfigInput, UpdateAgentConfigInput, SwitchConfigInput,
-  ModelMapping, ModelInfo, ClearDataInput, ClearDataResult,
+  ModelMapping, ModelInfo, ClearDataInput, ClearDataResult, PricingEntity, RangeSummary,
+  ThinkingType, ReasoningEffort,
 } from '../../shared/types'
 
 export type { AgentEntity, AgentConfigEntity }
+export type { PricingEntity, RangeSummary }
 
 /** 向后兼容别名 */
 export type AgentResponse = AgentEntity
@@ -35,6 +37,7 @@ export interface LogEntry {
   status_code: number
   tokens_in: number
   tokens_out: number
+  cache_tokens?: number
   duration_ms: number
   error: string | null
   created_at: string
@@ -48,6 +51,10 @@ export interface DashboardStats {
   totalTokensOut: number
   avgDurationMs: number
   totalErrors: number
+  /** 缓存命中输入 Token 数（费用核算扩展字段，向后兼容可选） */
+  cacheTokens?: number
+  /** 总费用（元）（费用核算扩展字段，向后兼容可选） */
+  totalCost?: number
 }
 
 /** 本地对话记录（包含关联的供应商、模型和 API Key） */
@@ -57,6 +64,10 @@ export interface Conversation {
   providerId: number | null
   model: string
   apiKeyId: number | null
+  /** 思考执行方式（disabled/enabled/adaptive），可选（旧对话为 undefined，视为 disabled，向后兼容） */
+  thinkingType?: ThinkingType
+  /** 思考强度偏好（minimal…max），可选（旧对话为 undefined，表示不传 effort） */
+  reasoningEffort?: ReasoningEffort
   createdAt: string
   updatedAt: string
 }
@@ -108,11 +119,34 @@ declare global {
         query: (params: Record<string, unknown>) => Promise<{ logs: LogEntry[]; total: number }>
         stats: (range: string) => Promise<DashboardStats>
         statsDetailed: (range: '24h' | '30d') => Promise<ProviderStatsGroup[]>
+        /** 24h / 30d 全局汇总统计（Token + 费用维度） */
+        rangeSummary: (range: '24h' | '30d') => Promise<RangeSummary>
       }
       conversations: {
         list: () => Promise<Conversation[]>
-        create: (data: { title: string; model: string; providerId?: number | null; apiKeyId?: number | null }) => Promise<Conversation>
-        update: (id: number, data: Record<string, unknown>) => Promise<void>
+        create: (data: {
+          title: string
+          model: string
+          providerId?: number | null
+          apiKeyId?: number | null
+          /** 思考执行方式（disabled/enabled/adaptive），可选，向后兼容 */
+          thinkingType?: ThinkingType
+          /** 思考强度偏好（minimal…max），可选，向后兼容 */
+          reasoningEffort?: ReasoningEffort
+        }) => Promise<Conversation>
+        update: (
+          id: number,
+          data: {
+            title?: string
+            model?: string
+            providerId?: number | null
+            apiKeyId?: number | null
+            /** 思考执行方式（disabled/enabled/adaptive），可选 */
+            thinkingType?: ThinkingType
+            /** 思考强度偏好（minimal…max），可选 */
+            reasoningEffort?: ReasoningEffort
+          }
+        ) => Promise<void>
         delete: (id: number) => Promise<void>
         get: (id: number) => Promise<Conversation | null>
         messages: (conversationId: number) => Promise<ConversationMessage[]>
@@ -170,6 +204,13 @@ declare global {
         readConfigFile: (agentId: number) => Promise<string>
         switchConfig: (data: SwitchConfigInput) => Promise<void>
       }
+      /** 单价管理：各模型在各供应商下的 Token 单价 CRUD（元/百万tokens），用于费用核算 */
+      pricing: {
+        list: () => Promise<PricingEntity[]>
+        getByProvider: (providerId: number) => Promise<PricingEntity[]>
+        upsert: (data: PricingEntity) => Promise<PricingEntity>
+        delete: (data: { providerId: number; model: string }) => Promise<void>
+      }
       /** 数据管理：按模块清空本地数据 */
       dataManagement: {
         clear: (input: ClearDataInput) => Promise<ClearDataResult>
@@ -184,6 +225,16 @@ export interface StatsDataPoint {
   requests: number
   tokensIn: number
   tokensOut: number
+  /** 缓存命中输入 Token 数（费用核算扩展字段，detailedStats 100% 返回） */
+  cacheTokens: number
+  /** 该时段费用（元）（费用核算扩展字段，detailedStats 100% 返回） */
+  cost: number
+  /** 缓存命中部分的费用（元） */
+  cacheCost: number
+  /** 缓存未命中部分的费用（元） */
+  uncachedCost: number
+  /** 输出 Token 费用（元） */
+  outputCost: number
 }
 
 /** 单个模型维度的统计数据（含时序数据点） */
@@ -193,6 +244,10 @@ export interface ProviderStatsModel {
   totalTokensIn: number
   totalTokensOut: number
   totalErrors: number
+  /** 缓存命中输入 Token 数（费用核算扩展字段，detailedStats 100% 返回） */
+  cacheTokens: number
+  /** 该模型总费用（元）（费用核算扩展字段，detailedStats 100% 返回） */
+  cost: number
   dataPoints: StatsDataPoint[]
 }
 

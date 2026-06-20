@@ -3,7 +3,7 @@
  *
  * 功能:
  * 1. 展示所有会话列表，支持按更新时间的相对日期显示（今天/昨天/N天前/月日）
- * 2. 收起模式仅显示展开按钮；展开模式显示"新建"按钮和所有会话
+ * 2. 收起模式仅显示展开/新建按钮；展开模式显示"新建"按钮和所有会话
  * 3. 选中状态高亮，并在 active 时显示删除按钮
  * 4. 动画：framer-motion layout 动画实现增删时的平滑过渡
  *
@@ -44,10 +44,31 @@ export function ConversationSidebar({
   if (isCollapsed) {
     return (
       <motion.div
-        className="flex flex-col items-center py-3 gap-2 cursor-pointer shrink-0 w-10 border-r border-border/50 hover:bg-muted/30"
-        onClick={onToggleCollapse}
+        className="flex flex-col items-center py-3 gap-2 shrink-0 w-14 border-r border-border/50"
+        initial={{ width: 0, opacity: 0 }}
+        animate={{ width: 56, opacity: 1 }}
+        exit={{ width: 0, opacity: 0 }}
+        transition={{ duration: 0.2 }}
       >
-        <PanelLeft className="w-5 h-5 text-muted-foreground" />
+        <Button asChild variant="ghost" size="sm">
+          <motion.button
+            type="button"
+            onClick={onToggleCollapse}
+            whileTap={{ scale: 0.95 }}
+          >
+            <PanelLeft className="w-4 h-4" />
+          </motion.button>
+        </Button>
+        <Button asChild variant="ghost" size="sm">
+          <motion.button
+            type="button"
+            onClick={onNew}
+            className="text-accent bg-accent/10 hover:bg-accent/20"
+            whileTap={{ scale: 0.95 }}
+          >
+            <Plus className="w-4 h-4" />
+          </motion.button>
+        </Button>
       </motion.div>
     )
   }
@@ -98,10 +119,10 @@ export function ConversationSidebar({
             conversations.map((conv) => (
               <motion.div
                 key={conv.id}
-                className={`mx-1.5 my-0.5 px-3 py-2 rounded-lg cursor-pointer transition-all border ${
+                className={`mx-1.5 my-px px-3 py-2 rounded-lg cursor-pointer transition-all border border-l-2 ${
                   activeId === conv.id
-                    ? 'bg-primary/10 border-primary/20'
-                    : 'border-transparent hover:bg-muted/30'
+                    ? 'bg-accent/5 border-l-accent border-transparent'
+                    : 'border-transparent hover:bg-muted/30 hover:border-l-accent'
                 }`}
                 onClick={() => onSelect(conv.id)}
                 layout
@@ -130,10 +151,10 @@ export function ConversationSidebar({
                   )}
                 </div>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] font-mono truncate max-w-[120px] text-muted-foreground">
+                  <span className="text-xs font-mono truncate max-w-[120px] text-muted-foreground">
                     {conv.model}
                   </span>
-                  <span className="text-[10px] shrink-0 text-muted-foreground/70">
+                  <span className="text-xs font-mono shrink-0 text-muted-foreground/70">
                     {formatRelativeDate(conv.updatedAt)}
                   </span>
                 </div>

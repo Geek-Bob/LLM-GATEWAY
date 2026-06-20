@@ -209,13 +209,36 @@ describe('convertRequest O→A', () => {
     expect(result.body.tool_choice).toEqual({ type: 'none' })
   })
 
-  it('should map reasoning_effort to thinking budget_tokens', () => {
-    const body = { ...minimalOpenaiBody, reasoning_effort: 'medium' }
+  it('should map reasoning_effort to output_config.effort (no thinking, no budget_tokens)', () => {
+    const body = { ...minimalOpenaiBody, reasoning_effort: 'high' }
     const result = convertRequest(body, 'openai', 'anthropic')
-    expect(result.body.thinking).toEqual({
-      type: 'enabled',
-      budget_tokens: 2048,
-    })
+    expect(result.body.output_config).toEqual({ effort: 'high' })
+    expect(result.body.thinking).toBeUndefined()
+  })
+
+  it('should passthrough thinking field as-is when only thinking present', () => {
+    const body = { ...minimalOpenaiBody, thinking: { type: 'adaptive' } }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.thinking).toEqual({ type: 'adaptive' })
+    expect(result.body.output_config).toBeUndefined()
+  })
+
+  it('should convert thinking and reasoning_effort independently when both present', () => {
+    const body = {
+      ...minimalOpenaiBody,
+      thinking: { type: 'enabled' },
+      reasoning_effort: 'max',
+    }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.thinking).toEqual({ type: 'enabled' })
+    expect(result.body.output_config).toEqual({ effort: 'max' })
+  })
+
+  it('should not set thinking or output_config when neither is present', () => {
+    const body = { ...minimalOpenaiBody }
+    const result = convertRequest(body, 'openai', 'anthropic')
+    expect(result.body.thinking).toBeUndefined()
+    expect(result.body.output_config).toBeUndefined()
   })
 
   it('should map response_format json_object to system prompt', () => {
@@ -366,13 +389,24 @@ describe('convertRequest A→O', () => {
     expect(result.body.tools[0].function.name).toBe('get_weather')
   })
 
-  it('should convert thinking enabled to reasoning_effort', () => {
+  it('should passthrough thinking field and not reverse-infer reasoning_effort', () => {
     const body = {
       ...minimalClaudeBody,
-      thinking: { type: 'enabled', budget_tokens: 2048 },
+      thinking: { type: 'enabled' },
     }
     const result = convertRequest(body, 'anthropic', 'openai')
-    expect(result.body.reasoning_effort).toBe('medium')
+    expect(result.body.thinking).toEqual({ type: 'enabled' })
+    expect(result.body.reasoning_effort).toBeUndefined()
+  })
+
+  it('should map output_config.effort to reasoning_effort', () => {
+    const body = {
+      ...minimalClaudeBody,
+      output_config: { effort: 'max' },
+    }
+    const result = convertRequest(body, 'anthropic', 'openai')
+    expect(result.body.reasoning_effort).toBe('max')
+    expect(result.body.thinking).toBeUndefined()
   })
 
   it('should convert tool_use in message to tool_calls', () => {

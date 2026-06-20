@@ -14,6 +14,7 @@
  *   返回 removeListener 清理函数，由调用方在组件卸载时取消订阅。
  */
 import { contextBridge, ipcRenderer } from 'electron'
+import type { ThinkingType, ReasoningEffort, ConversationEntity } from '../shared/types'
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // 调试日志通道：渲染进程通过此通道将日志发送到主进程统一处理
@@ -62,6 +63,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     query: (params: Record<string, unknown>) => ipcRenderer.invoke('logs:list', params),
     stats: (range: string) => ipcRenderer.invoke('logs:stats', range),
     statsDetailed: (range: '24h' | '30d') => ipcRenderer.invoke('logs:statsDetailed', range),
+    rangeSummary: (range: '24h' | '30d') => ipcRenderer.invoke('logs:rangeSummary', range),
   },
   /**
    * 对话 CRUD + 消息管理
@@ -71,10 +73,29 @@ contextBridge.exposeInMainWorld('electronAPI', {
    */
   conversations: {
     list: () => ipcRenderer.invoke('conversation:list'),
-    create: (data: { title: string; model: string; providerId?: number | null; apiKeyId?: number | null }) =>
-      ipcRenderer.invoke('conversation:create', data),
-    update: (id: number, data: Record<string, unknown>) =>
-      ipcRenderer.invoke('conversation:update', id, data),
+    create: (data: {
+      title: string
+      model: string
+      providerId?: number | null
+      apiKeyId?: number | null
+      /** 思考执行方式（disabled/enabled/adaptive），可选，向后兼容 */
+      thinkingType?: ThinkingType
+      /** 思考强度偏好（minimal…max），可选，向后兼容 */
+      reasoningEffort?: ReasoningEffort
+    }): Promise<ConversationEntity> => ipcRenderer.invoke('conversation:create', data),
+    update: (
+      id: number,
+      data: {
+        title?: string
+        model?: string
+        providerId?: number | null
+        apiKeyId?: number | null
+        /** 思考执行方式（disabled/enabled/adaptive），可选 */
+        thinkingType?: ThinkingType
+        /** 思考强度偏好（minimal…max），可选 */
+        reasoningEffort?: ReasoningEffort
+      }
+    ): Promise<void> => ipcRenderer.invoke('conversation:update', id, data),
     delete: (id: number) => ipcRenderer.invoke('conversation:delete', id),
     get: (id: number) => ipcRenderer.invoke('conversation:getById', id),
     messages: (conversationId: number) => ipcRenderer.invoke('conversation:listMessages', conversationId),
@@ -173,6 +194,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     deleteConfig: (id: number) => ipcRenderer.invoke('agent:deleteConfig', id),
     readConfigFile: (agentId: number) => ipcRenderer.invoke('agent:readConfigFile', agentId),
     switchConfig: (data: unknown) => ipcRenderer.invoke('agent:switchConfig', data),
+  },
+  /**
+   * 单价管理
+   * 管理各模型在各供应商下的 Token 单价（元/百万tokens），用于费用核算和仪表盘统计
+   */
+  pricing: {
+    list: () => ipcRenderer.invoke('pricing:list'),
+    getByProvider: (providerId: number) => ipcRenderer.invoke('pricing:getByProvider', providerId),
+    upsert: (data: { providerId: number; model: string; priceInCached: number; priceInUncached: number; priceOut: number }) =>
+      ipcRenderer.invoke('pricing:upsert', data),
+    delete: (data: { providerId: number; model: string }) =>
+      ipcRenderer.invoke('pricing:delete', data),
   },
   /**
    * 数据管理

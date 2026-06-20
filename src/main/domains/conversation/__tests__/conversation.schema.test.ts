@@ -54,3 +54,53 @@ describe('addMessageSchema', () => {
     expect(result.thinking).toBe('Let me think...')
   })
 })
+
+describe('createConversationSchema - thinkingType/reasoningEffort 枚举校验', () => {
+  it('should accept all valid thinkingType values', () => {
+    for (const t of ['disabled', 'enabled', 'adaptive'] as const) {
+      const result = createConversationSchema.parse({ title: 'Chat', model: 'gpt-4', thinkingType: t })
+      expect(result.thinkingType).toBe(t)
+    }
+  })
+
+  it('should accept all valid reasoningEffort values', () => {
+    for (const e of ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'] as const) {
+      const result = createConversationSchema.parse({ title: 'Chat', model: 'gpt-4', reasoningEffort: e })
+      expect(result.reasoningEffort).toBe(e)
+    }
+  })
+
+  it('should reject invalid thinkingType', () => {
+    expect(() => createConversationSchema.parse({ title: 'Chat', model: 'gpt-4', thinkingType: 'foo' })).toThrow()
+  })
+
+  it('should reject invalid reasoningEffort', () => {
+    expect(() => createConversationSchema.parse({ title: 'Chat', model: 'gpt-4', reasoningEffort: 'foo' })).toThrow()
+  })
+
+  it('should accept missing thinkingType and reasoningEffort (optional)', () => {
+    const result = createConversationSchema.parse({ title: 'Chat', model: 'gpt-4' })
+    expect(result.thinkingType).toBeUndefined()
+    expect(result.reasoningEffort).toBeUndefined()
+  })
+})
+
+describe('updateConversationSchema - thinkingType/reasoningEffort 枚举校验', () => {
+  it('should accept valid thinkingType', () => {
+    const result = updateConversationSchema.parse({ thinkingType: 'adaptive' })
+    expect(result.thinkingType).toBe('adaptive')
+  })
+
+  it('should accept valid reasoningEffort', () => {
+    const result = updateConversationSchema.parse({ reasoningEffort: 'high' })
+    expect(result.reasoningEffort).toBe('high')
+  })
+
+  it('should reject invalid thinkingType', () => {
+    expect(() => updateConversationSchema.parse({ thinkingType: 'foo' })).toThrow()
+  })
+
+  it('should reject invalid reasoningEffort', () => {
+    expect(() => updateConversationSchema.parse({ reasoningEffort: 'foo' })).toThrow()
+  })
+})

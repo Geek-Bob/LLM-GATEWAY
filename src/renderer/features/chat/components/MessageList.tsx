@@ -12,9 +12,7 @@
  */
 
 import { AnimatePresence, motion } from 'framer-motion'
-import { MessageSquare } from 'lucide-react'
 import { ChatMessage } from '@/features/chat/components/ChatMessage'
-import { Card, CardContent } from '@/components/ui/card'
 
 /** 单条消息的数据结构 */
 export interface Message {
@@ -37,22 +35,16 @@ interface MessageListProps {
 /** 消息列表区域，包含空态引导和消息渲染。 @returns 消息列表 JSX。 */
 export function MessageList({ messages, onRegenerate, messagesEndRef }: MessageListProps) {
   return (
-    <div className="flex-1 overflow-auto mb-4 px-1">
+    <div className="flex-1 overflow-auto px-3 py-4">
       <AnimatePresence mode="popLayout">
         {messages.length === 0 ? (
           <motion.div
             key="empty"
-            className="flex flex-col items-center justify-center h-full"
+            className="flex flex-col items-center justify-center h-full text-center text-sm text-muted-foreground/60"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            <Card className="p-8 text-center max-w-sm">
-              <CardContent className="flex flex-col items-center pt-6">
-                <MessageSquare className="w-10 h-10 mb-3 text-muted-foreground/40" />
-                <p className="text-sm font-medium text-muted-foreground">选择模型和 API Key</p>
-                <p className="text-xs mt-1 text-muted-foreground/60">输入消息开始测试模型可用性</p>
-              </CardContent>
-            </Card>
+            选择模型和 API Key，输入消息开始测试
           </motion.div>
         ) : (
           messages.map((msg) => {

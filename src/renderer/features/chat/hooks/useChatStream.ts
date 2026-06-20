@@ -26,6 +26,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { apiFetch, getApiKey, ApiError } from '@/lib/api-client'
 import { parseSSELine, extractOpenAIDelta } from '../../../../shared/sse-utils'
+import type { ThinkingType, ReasoningEffort } from '../../../../shared/types'
 
 export interface StreamMessage {
   id: string
@@ -37,8 +38,22 @@ export interface StreamMessage {
   hasError: boolean
 }
 
+/**
+ * 思考参数配置，由调用方（useChatPage）从对话状态派生后注入 send。
+ * - thinkingType：思考执行方式（disabled/enabled/adaptive），disabled 时不注入任何思考字段
+ * - reasoningEffort：思考强度偏好，仅在 thinkingType !== disabled 时随 reasoning_effort 注入
+ */
+export interface ThinkingConfig {
+  thinkingType: ThinkingType
+  reasoningEffort: ReasoningEffort
+}
+
 interface UseChatStreamReturn {
-  send: (model: string, messages: { role: string; content: string }[]) => Promise<void>
+  send: (
+    model: string,
+    messages: { role: string; content: string }[],
+    thinkingConfig?: ThinkingConfig
+  ) => Promise<void>
   abort: () => void
   isLoading: boolean
   error: string | null
@@ -64,12 +79,22 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
     setIsLoading(false)
   }, [])
 
-  /** 构建请求体 */
+  /**
+   * 构建请求体。
+   * 注入规则（设计文档 4.2）：
+   * - thinkingType 为 disabled 或未传入时不注入任何思考字段（向后兼容旧调用方）
+   * - enabled/adaptive 时注入 thinking:{type} 与 reasoning_effort
+   */
   function buildRequestBody(
     model: string,
-    messages: { role: string; content: string }[]
+    messages: { role: string; content: string }[],
+    thinkingConfig?: ThinkingConfig
   ): string {
-    const body: Record<string, any> = { model, messages, stream: true }
+    const body: Record<string, unknown> = { model, messages, stream: true }
+    if (thinkingConfig && thinkingConfig.thinkingType !== 'disabled') {
+      body.thinking = { type: thinkingConfig.thinkingType }
+      body.reasoning_effort = thinkingConfig.reasoningEffort
+    }
     return JSON.stringify(body)
   }
 
@@ -86,7 +111,8 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
 
   const send = useCallback(async (
     model: string,
-    messages: { role: string; content: string }[]
+    messages: { role: string; content: string }[],
+    thinkingConfig?: ThinkingConfig
   ) => {
     const apiKey = getApiKey()
     if (!apiKey) {
@@ -118,7 +144,7 @@ export function useChatStream(onUpdate: (msg: StreamMessage) => void): UseChatSt
       // apiFetch 非 2xx 时会抛出 ApiError，错误在 catch 块中统一处理
       const response = await apiFetch(endpoint, {
         method: 'POST',
-        body: buildRequestBody(model, messages),
+        body: buildRequestBody(model, messages, thinkingConfig),
         signal: abortController.signal,
       })
 

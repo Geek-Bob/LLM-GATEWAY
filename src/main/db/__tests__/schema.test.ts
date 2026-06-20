@@ -102,8 +102,60 @@ describe('Schema - createTables', () => {
     expect(columnNames).toContain('total_requests')
     expect(columnNames).toContain('total_tokens_in')
     expect(columnNames).toContain('total_tokens_out')
+    expect(columnNames).toContain('total_cache_tokens')
     expect(columnNames).toContain('total_errors')
     expect(columnNames).toContain('total_duration_ms')
+  })
+
+  it('should have correct request_stats_provider columns', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const columns = getDb()!
+      .prepare("PRAGMA table_info('request_stats_provider')")
+      .all() as Array<{ name: string; type: string; notnull: number; pk: number }>
+
+    const columnNames = columns.map((c) => c.name)
+    expect(columnNames).toContain('stat_date')
+    expect(columnNames).toContain('stat_hour')
+    expect(columnNames).toContain('provider_id')
+    expect(columnNames).toContain('model')
+    expect(columnNames).toContain('total_requests')
+    expect(columnNames).toContain('total_tokens_in')
+    expect(columnNames).toContain('total_tokens_out')
+    expect(columnNames).toContain('total_cache_tokens')
+    expect(columnNames).toContain('total_errors')
+    expect(columnNames).toContain('total_duration_ms')
+  })
+
+  it('should create provider_pricing table', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const row = getDb()!
+      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='provider_pricing'")
+      .get() as { name: string } | undefined
+
+    expect(row).toBeDefined()
+    expect(row!.name).toBe('provider_pricing')
+  })
+
+  it('should have correct provider_pricing columns', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const columns = getDb()!
+      .prepare("PRAGMA table_info('provider_pricing')")
+      .all() as Array<{ name: string; type: string; notnull: number; pk: number }>
+
+    const columnNames = columns.map((c) => c.name)
+    expect(columnNames).toContain('provider_id')
+    expect(columnNames).toContain('model')
+    expect(columnNames).toContain('price_in_cached')
+    expect(columnNames).toContain('price_in_uncached')
+    expect(columnNames).toContain('price_out')
+    expect(columnNames).toContain('created_at')
+    expect(columnNames).toContain('updated_at')
   })
 
   it('should enforce UNIQUE constraint on providers.name', async () => {
@@ -339,5 +391,86 @@ describe('Schema - createTables', () => {
       .prepare('SELECT COUNT(*) as cnt FROM agent_configs WHERE agent_id = ?')
       .get([agentId]) as { cnt: number }
     expect(configsAfter.cnt).toBe(0)
+  })
+
+  // ── conversations 表（思考参数透传新增列）──────────────
+
+  it('should create conversations table with thinking_type and reasoning_effort columns for fresh install', async () => {
+    await initDatabase(':memory:')
+    createTables()
+
+    const columns = getDb()!
+      .prepare("PRAGMA table_info('conversations')")
+      .all() as Array<{ name: string; type: string; notnull: number }>
+
+    const columnNames = columns.map((c) => c.name)
+    expect(columnNames).toContain('thinking_type')
+    expect(columnNames).toContain('reasoning_effort')
+
+    // 两列均 nullable、TEXT 类型、无默认值（向后兼容旧对话，NULL 视为 disabled/不传）
+    const thinkingTypeCol = columns.find((c) => c.name === 'thinking_type')
+    expect(thinkingTypeCol!.type).toBe('TEXT')
+    expect(thinkingTypeCol!.notnull).toBe(0)
+
+    const reasoningEffortCol = columns.find((c) => c.name === 'reasoning_effort')
+    expect(reasoningEffortCol!.type).toBe('TEXT')
+    expect(reasoningEffortCol!.notnull).toBe(0)
+  })
+
+  it('should ALTER conversations table to add new columns for legacy databases without data loss', async () => {
+    await initDatabase(':memory:')
+    // 模拟旧库：手动建一个无新列的 conversations 表并写入数据
+    getDb()!.exec(`
+      CREATE TABLE conversations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL DEFAULT '新对话',
+        provider_id INTEGER,
+        model TEXT NOT NULL,
+        api_key_id INTEGER,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO conversations (title, model) VALUES ('旧对话', 'gpt-4');
+    `)
+
+    // 触发迁移：createTables 内幂等 ALTER 补列
+    expect(() => createTables()).not.toThrow()
+
+    const columns = getDb()!
+      .prepare("PRAGMA table_info('conversations')")
+      .all() as Array<{ name: string }>
+    const columnNames = columns.map((c) => c.name)
+    expect(columnNames).toContain('thinking_type')
+    expect(columnNames).toContain('reasoning_effort')
+
+    // 已有数据不丢失，新列为 NULL
+    const row = getDb()!
+      .prepare(
+        'SELECT title, model, thinking_type, reasoning_effort FROM conversations WHERE id = 1'
+      )
+      .get() as {
+        title: string
+        model: string
+        thinking_type: null
+        reasoning_effort: null
+      }
+    expect(row.title).toBe('旧对话')
+    expect(row.model).toBe('gpt-4')
+    expect(row.thinking_type).toBeNull()
+    expect(row.reasoning_effort).toBeNull()
+  })
+
+  it('should be idempotent when createTables runs repeatedly with new columns already present', async () => {
+    await initDatabase(':memory:')
+    createTables()
+    // 第二次调用：列已存在，ALTER 不应执行，不应报错
+    expect(() => createTables()).not.toThrow()
+
+    const columns = getDb()!
+      .prepare("PRAGMA table_info('conversations')")
+      .all() as Array<{ name: string }>
+    const columnNames = columns.map((c) => c.name)
+    expect(columnNames).toContain('thinking_type')
+    expect(columnNames).toContain('reasoning_effort')
   })
 })
