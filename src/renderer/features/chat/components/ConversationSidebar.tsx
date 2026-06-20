@@ -63,7 +63,7 @@ export function ConversationSidebar({
           <motion.button
             type="button"
             onClick={onNew}
-            className="text-primary bg-primary/10 hover:bg-primary/20"
+            className="text-accent bg-accent/10 hover:bg-accent/20"
             whileTap={{ scale: 0.95 }}
           >
             <Plus className="w-4 h-4" />
