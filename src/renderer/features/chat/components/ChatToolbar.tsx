@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Card } from '@/components/ui/card'
 import type { Provider, ApiKey } from '@/lib/types'
 
 interface ChatToolbarProps {
@@ -39,7 +38,7 @@ export function ChatToolbar({
   onSelectApiKey,
 }: ChatToolbarProps) {
   return (
-    <Card className="p-3 mb-4 flex items-center gap-3 flex-wrap">
+    <div className="h-12 flex items-center gap-2 px-3 border-b border-border/50">
       <Select
         value={selectedProviderId?.toString() ?? ''}
         onValueChange={(val) => {
@@ -47,7 +46,7 @@ export function ChatToolbar({
           onSelectProvider(Number(val))
         }}
       >
-        <SelectTrigger className="flex-1 min-w-[140px]">
+        <SelectTrigger className="h-8 text-xs min-w-[120px]">
           <SelectValue placeholder="选择供应商" />
         </SelectTrigger>
         <SelectContent>
@@ -62,7 +61,7 @@ export function ChatToolbar({
         onValueChange={(val) => onSelectModel(val || null)}
         disabled={availableModels.length === 0}
       >
-        <SelectTrigger className="flex-1 min-w-[140px]">
+        <SelectTrigger className="h-8 text-xs min-w-[120px]">
           <SelectValue placeholder="选择模型" />
         </SelectTrigger>
         <SelectContent>
@@ -79,7 +78,7 @@ export function ChatToolbar({
           onSelectApiKey(Number(val))
         }}
       >
-        <SelectTrigger className="flex-1 min-w-[140px]">
+        <SelectTrigger className="h-8 text-xs min-w-[120px]">
           <SelectValue placeholder="选择 API Key" />
         </SelectTrigger>
         <SelectContent>
@@ -88,6 +87,6 @@ export function ChatToolbar({
           ))}
         </SelectContent>
       </Select>
-    </Card>
+    </div>
   )
 }
