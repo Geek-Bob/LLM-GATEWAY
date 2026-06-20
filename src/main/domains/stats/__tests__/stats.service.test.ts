@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { initDatabase, closeDatabase } from '../../../db/connection'
 import { createTables } from '../../../db/schema'
 import { createLogStatsRepository } from '../../../db/logs-stats'
@@ -131,6 +131,56 @@ describe('Stats Service', () => {
       expect(s.cacheCost).toBe(0)
       expect(s.uncachedCost).toBe(0)
       expect(s.outputCost).toBe(0)
+    })
+
+    /**
+     * 回归测试：BUG 1 — 跨午夜后"近 24 小时"RangeSummary 应能查到昨晚 23:00 的请求。
+     * 旧实现用 `stat_date = date('now','localtime')` 精确匹配"今天"日期，跨午夜后
+     * 昨晚 23:00 写入的记录（stat_date = 昨天）会被漏掉，导致卡片变空。
+     * 修复后改用滚动窗口（winStart = now - 24h），应能查到。
+     * 通过 vi.setSystemTime 把"现在"固定到今天 00:30，模拟"刚跨过午夜"的场景。
+     */
+    it("summaryDetailed('24h') 跨午夜后能查到昨晚 23:00 的请求", async () => {
+      vi.useFakeTimers()
+      try {
+        // 固定"现在"为今天 00:30，跨过午夜但仍在昨天 23:30 的 24h 窗口内
+        const now = new Date()
+        now.setHours(0, 30, 0, 0)
+        vi.setSystemTime(now)
+
+        // 拼出"今天"和"昨天"的日期串
+        const yyyy = now.getFullYear()
+        const mm = String(now.getMonth() + 1).padStart(2, '0')
+        const dd = String(now.getDate()).padStart(2, '0')
+        const today = `${yyyy}-${mm}-${dd}`
+        const yesterday = new Date(now)
+        yesterday.setDate(yesterday.getDate() - 1)
+        const yY = yesterday.getFullYear()
+        const yM = String(yesterday.getMonth() + 1).padStart(2, '0')
+        const yD = String(yesterday.getDate()).padStart(2, '0')
+        const yesterdayStr = `${yY}-${yM}-${yD}`
+
+        // 验证测试假设：今天 00:30 跨过午夜时，昨晚 23:00 的记录必须落在"今天"以外
+        expect(yesterdayStr).not.toBe(today)
+
+        insertPricing(1, 'gpt-4', 100, 300, 600)
+        // 直接 SQL 插入"昨天 23:00"的一条请求记录（绕过 updateProviderStats 的 NOW() 行为）
+        db.prepare(
+          `INSERT INTO request_stats_provider
+            (stat_date, stat_hour, provider_id, model, total_requests, total_tokens_in, total_tokens_out, total_cache_tokens, total_errors, total_duration_ms)
+           VALUES (@date, 23, 1, 'gpt-4', 1, 10, 20, 0, 0, 0)`
+        ).run({ date: yesterdayStr })
+
+        const s = await service.summaryDetailed('24h')
+        // 关键断言：滚动窗口应能查到昨晚 23:00 的请求
+        expect(s.totalRequests).toBeGreaterThanOrEqual(1)
+        expect(s.inputTokens).toBe(10)
+        expect(s.outputTokens).toBe(20)
+        // 费用：0*100/1e6 + 10*300/1e6 + 20*600/1e6 = 0.003 + 0.012 = 0.015
+        expect(s.totalCost).toBeCloseTo(0.015, 10)
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 })

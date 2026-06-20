@@ -196,10 +196,25 @@ export function createLogStatsRepository(db: Database) {
      * 基于 request_stats_provider LEFT JOIN provider_pricing，返回 snake_case 字段。
      * 字段：total_tokens/input_tokens/cache_tokens/uncached_tokens/output_tokens/
      *      total_cost/cache_cost/uncached_cost/output_cost/total_requests
+     *
+     * 24h 改用滚动窗口（winStart = now - 24h），跨午夜后仍能查到昨晚 23:00 的请求；
+     * 旧实现 `stat_date = date('now','localtime')` 只匹配"今天"日期，跨午夜后漏掉昨晚数据。
+     * 30d 保持 `stat_date >= date('now','localtime','-30 days')` 不变（按整天粒度走足够）。
      * @param range - '24h' | '30d'
      */
     async getRangeSummary(range: '24h' | '30d'): Promise<Record<string, unknown>> {
-      const dateCondition = resolveDateCondition(range)
+      // 24h 走滚动窗口：start = now - 24h，end = now；30d 走按天粒度
+      let dateCondition: string
+      let windowStartParam: { windowStart: string } | undefined
+      if (range === '24h') {
+        const winStart = new Date()
+        winStart.setHours(winStart.getHours() - 24, 0, 0, 0)
+        const windowStart = `${localDateStr(winStart)} ${String(winStart.getHours()).padStart(2, '0')}:00:00`
+        dateCondition = "rsp.stat_date || ' ' || printf('%02d', rsp.stat_hour) || ':00:00' >= @windowStart"
+        windowStartParam = { windowStart }
+      } else {
+        dateCondition = resolveDateCondition(range)
+      }
 
       const row = db.prepare(
         `SELECT
@@ -234,7 +249,7 @@ export function createLogStatsRepository(db: Database) {
           WHERE ${dateCondition}
           GROUP BY rsp.provider_id, rsp.model
         ) pm`
-      ).get() as Record<string, unknown> | undefined
+      ).get(windowStartParam ?? {}) as Record<string, unknown> | undefined
 
       if (!row) {
         return {
