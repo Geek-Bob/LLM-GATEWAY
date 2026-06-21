@@ -612,6 +612,18 @@ function anthropicToOpenAIRequest(
     }
   }
 
+  // Cache reverse mapping（Task 2）：
+  // - system 数组中任一块含 cache_control → 固定 prompt_cache_retention = "24h"
+  //   （用户决策 A：尊重 Anthropic 端 cache_control: ephemeral 显式要 cache 的意图）
+  // - metadata.user_id 存在 → prompt_cache_key = user_id
+  // - 两条件均缺省 → 透明不改动
+  if (Array.isArray(anthropicBody.system) && anthropicBody.system.some((b: any) => b?.cache_control)) {
+    result.prompt_cache_retention = '24h'
+  }
+  if (anthropicBody.metadata?.user_id) {
+    result.prompt_cache_key = anthropicBody.metadata.user_id
+  }
+
   return { body: result, path: '/v1/chat/completions' }
 }
 

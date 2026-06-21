@@ -169,3 +169,101 @@ describe('openaiToAnthropicRequest — cache 字段映射 (Task 1)', () => {
     expect(lastSys.cache_control).toBeUndefined()
   })
 })
+
+/**
+ * Task 2：Anthropic → OpenAI 协议转换的 cache 字段反向映射
+ *
+ * 验收要点：
+ * 1. system 数组任一块含 cache_control → result.prompt_cache_retention = "24h"（固定 24h）
+ * 2. metadata.user_id 存在 → result.prompt_cache_key = user_id
+ * 3. 两个条件都缺省 → 透明不改动（result 无 prompt_cache_* 字段）
+ * 4. system 多块且只有其中一块带 cache_control → 仍触发 prompt_cache_retention
+ * 5. 现有 thinking / tool_choice 转换不受影响
+ */
+describe('anthropicToOpenAIRequest — cache 字段反向映射 (Task 2)', () => {
+  const baseAnthropicBody = {
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 1024,
+    messages: [{ role: 'user', content: 'Hello' }],
+  }
+
+  it('AC1: system 块含 cache_control ephemeral → prompt_cache_retention="24h"', () => {
+    const result = convertRequest(
+      {
+        ...baseAnthropicBody,
+        system: [
+          { type: 'text', text: 'You are helpful.', cache_control: { type: 'ephemeral' } },
+        ],
+      },
+      'anthropic',
+      'openai'
+    )
+    expect(result.body.prompt_cache_retention).toBe('24h')
+  })
+
+  it('AC2: metadata.user_id 存在 → prompt_cache_key=user_id', () => {
+    const result = convertRequest(
+      {
+        ...baseAnthropicBody,
+        metadata: { user_id: 'user_123' },
+      },
+      'anthropic',
+      'openai'
+    )
+    expect(result.body.prompt_cache_key).toBe('user_123')
+  })
+
+  it('AC3: 无 cache_control + 无 metadata.user_id → 无 prompt_cache_* 字段（透明）', () => {
+    const result = convertRequest(baseAnthropicBody, 'anthropic', 'openai')
+    expect(result.body.prompt_cache_retention).toBeUndefined()
+    expect(result.body.prompt_cache_key).toBeUndefined()
+  })
+
+  it('AC4: system 多块只有其中一块带 cache_control → 仍生成 prompt_cache_retention', () => {
+    const result = convertRequest(
+      {
+        ...baseAnthropicBody,
+        system: [
+          { type: 'text', text: 'First block.' },
+          { type: 'text', text: 'Second block.' },
+          { type: 'text', text: 'Third block with cache.', cache_control: { type: 'ephemeral' } },
+        ],
+      },
+      'anthropic',
+      'openai'
+    )
+    expect(result.body.prompt_cache_retention).toBe('24h')
+  })
+
+  it('AC5: 现有 thinking 转换不受影响（同时传 cache + thinking）', () => {
+    const result = convertRequest(
+      {
+        ...baseAnthropicBody,
+        thinking: { type: 'enabled', budget_tokens: 2048 },
+        metadata: { user_id: 'user_thinking' },
+        system: [{ type: 'text', text: 'sys', cache_control: { type: 'ephemeral' } }],
+      },
+      'anthropic',
+      'openai'
+    )
+    expect(result.body.thinking).toEqual({ type: 'enabled', budget_tokens: 2048 })
+    expect(result.body.prompt_cache_retention).toBe('24h')
+    expect(result.body.prompt_cache_key).toBe('user_thinking')
+  })
+
+  it('AC6: 现有 tool_choice 转换不受影响（同时传 cache + tool_choice）', () => {
+    const result = convertRequest(
+      {
+        ...baseAnthropicBody,
+        tool_choice: { type: 'auto' },
+        metadata: { user_id: 'user_tool' },
+        system: [{ type: 'text', text: 'sys', cache_control: { type: 'ephemeral' } }],
+      },
+      'anthropic',
+      'openai'
+    )
+    expect(result.body.tool_choice).toBe('auto')
+    expect(result.body.prompt_cache_retention).toBe('24h')
+    expect(result.body.prompt_cache_key).toBe('user_tool')
+  })
+})
