@@ -57,6 +57,19 @@ function anthropicToOpenAIResponse(
     },
   }
 
+  // Cache 字段映射：Anthropic 的 prompt cache 信息透传到 OpenAI 形态
+  // - cache_read_input_tokens → OpenAI 标准 prompt_tokens_details.cached_tokens
+  //   （使用 'in' 而非 '?? 0' 是为了避免在缺省时写入 { cached_tokens: 0 } 噪音字段）
+  // - cache_creation_input_tokens 保留在顶层以便诊断，OpenAI 端不识别但无副作用
+  if (typeof anthropicBody.usage?.cache_read_input_tokens === 'number') {
+    response.usage.prompt_tokens_details = {
+      cached_tokens: anthropicBody.usage.cache_read_input_tokens,
+    }
+  }
+  if (typeof anthropicBody.usage?.cache_creation_input_tokens === 'number') {
+    response.usage.cache_creation_input_tokens = anthropicBody.usage.cache_creation_input_tokens
+  }
+
   const choice = response.choices[0]
   const toolCalls: Array<Record<string, any>> = []
 
