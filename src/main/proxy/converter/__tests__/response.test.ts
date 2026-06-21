@@ -149,3 +149,59 @@ describe('anthropicToOpenAIResponse — usage cache 字段映射', () => {
     expect(result.choices[0].finish_reason).toBe('tool_calls')
   })
 })
+
+/**
+ * Task 4 — openAIToAnthropicResponse 的 usage cache 字段反向映射
+ *
+ * 验收标准（来自 docs/superpowers/specs/2026-06-21-protocol-conversion-cache-mapping-design.md）：
+ * - prompt_tokens_details.cached_tokens → cache_read_input_tokens
+ * - prompt_tokens_details 缺省时透明不改动（不写入 cache_read_input_tokens 字段）
+ * - OpenAI 不输出 cache_creation_input_tokens，所以反向不需要保留 raw 字段
+ * - 现有 tool_calls / reasoning_content 转换不受影响
+ */
+describe('openAIToAnthropicResponse — usage cache 字段反向映射', () => {
+  it('should map prompt_tokens_details.cached_tokens to cache_read_input_tokens', () => {
+    const openaiBody = {
+      id: 'chatcmpl-cache-1',
+      object: 'chat.completion',
+      model: 'gpt-4o',
+      choices: [{
+        index: 0,
+        message: { role: 'assistant', content: 'Hi' },
+        finish_reason: 'stop',
+      }],
+      usage: {
+        prompt_tokens: 2000,
+        completion_tokens: 50,
+        total_tokens: 2050,
+        prompt_tokens_details: { cached_tokens: 800 },
+      },
+    }
+
+    const result = convertResponse(openaiBody, 'openai', 'anthropic')
+
+    expect(result.usage.cache_read_input_tokens).toBe(800)
+  })
+
+  it('should not add cache_read_input_tokens when prompt_tokens_details is absent', () => {
+    const openaiBody = {
+      id: 'chatcmpl-no-cache',
+      object: 'chat.completion',
+      model: 'gpt-4o',
+      choices: [{
+        index: 0,
+        message: { role: 'assistant', content: 'Hi' },
+        finish_reason: 'stop',
+      }],
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 20,
+        total_tokens: 120,
+      },
+    }
+
+    const result = convertResponse(openaiBody, 'openai', 'anthropic')
+
+    expect(result.usage.cache_read_input_tokens).toBeUndefined()
+  })
+})

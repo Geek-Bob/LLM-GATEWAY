@@ -167,6 +167,12 @@ function openAIToAnthropicResponse(
     usage: {
       input_tokens: openaiBody.usage?.prompt_tokens ?? 0,
       output_tokens: openaiBody.usage?.completion_tokens ?? 0,
+      // 反向映射：OpenAI 的 cached_tokens 命中报告 → Anthropic 的 cache_read_input_tokens
+      // 仅在 prompt_tokens_details 存在时写入，缺省时透明不出现该字段
+      // （使用 'in' 判断而非 '?? 0' 是为了避免在缺省时写入 { cache_read_input_tokens: 0 } 噪音字段）
+      ...(openaiBody.usage?.prompt_tokens_details?.cached_tokens != null
+        ? { cache_read_input_tokens: openaiBody.usage.prompt_tokens_details.cached_tokens }
+        : {}),
     },
   }
 }
