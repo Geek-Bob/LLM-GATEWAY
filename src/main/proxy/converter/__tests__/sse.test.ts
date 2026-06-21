@@ -200,3 +200,110 @@ describe('SSE Anthropic → OpenAI — cache 字段透传 (Task 5)', () => {
     })
   })
 })
+
+// @vitest-environment node
+/**
+ * Task 6：SSE OpenAI → Anthropic 方向的 cache 字段反向映射
+ *
+ * 验收要点：
+ * 1. OpenAI 终止 chunk `usage.prompt_tokens_details.cached_tokens` 存在 →
+ *    Anthropic `message_delta.usage.cache_read_input_tokens` 同值映射
+ * 2. OpenAI 首 chunk `usage.prompt_tokens_details.cached_tokens` 存在（罕见但可能）→
+ *    Anthropic `message.usage.cache_read_input_tokens` 同值映射
+ * 3. `prompt_tokens_details` 缺省 → Anthropic usage 块无 cache_read_input_tokens（透明）
+ * 4. OpenAI 协议不输出 cache_creation_input_tokens → 反向不保留该字段
+ */
+// 复用文件顶部已 import 的 vitest 符号与 convertSSEEvent；额外需要 createStreamContext
+import { createStreamContext } from '../sse'
+
+describe('SSE OpenAI → Anthropic — cached_tokens 反向映射 (Task 6)', () => {
+  describe('终止 chunk 走 formatOpenAIUsageOnlyClose', () => {
+    it('AC1: prompt_tokens_details.cached_tokens=8 → message_delta.usage.cache_read_input_tokens=8', () => {
+      const ctx = createStreamContext()
+      // 先送 finishReason 帧（s.finishReason 由 handleFinishReason 写入），再送 usage-only 帧
+      const finishChunk = {
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      }
+      convertSSEEvent('', finishChunk, 'openai', 'anthropic', ctx)
+
+      // 终止 chunk：无 choices、有 usage
+      const usageChunk = {
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 50,
+          prompt_tokens_details: { cached_tokens: 8 },
+        },
+      }
+      const result = convertSSEEvent('', usageChunk, 'openai', 'anthropic', ctx)
+
+      expect(result).not.toBeNull()
+      // 终止路径返回数组 [stopBlocks..., message_delta, message_stop]
+      const arr = result as Array<{ event: string; data: any }>
+      const messageDelta = arr.find((e) => e.event === 'message_delta')
+      expect(messageDelta).toBeDefined()
+      expect(messageDelta!.data.usage).toBeDefined()
+      expect(messageDelta!.data.usage.input_tokens).toBe(100)
+      expect(messageDelta!.data.usage.output_tokens).toBe(50)
+      expect(messageDelta!.data.usage.cache_read_input_tokens).toBe(8)
+    })
+
+    it('AC3a: prompt_tokens_details 缺省 → message_delta.usage 无 cache_read_input_tokens（透明）', () => {
+      const ctx = createStreamContext()
+      const finishChunk = {
+        choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      }
+      convertSSEEvent('', finishChunk, 'openai', 'anthropic', ctx)
+
+      const usageChunk = {
+        usage: { prompt_tokens: 50, completion_tokens: 30 },
+      }
+      const result = convertSSEEvent('', usageChunk, 'openai', 'anthropic', ctx)
+
+      expect(result).not.toBeNull()
+      const arr = result as Array<{ event: string; data: any }>
+      const messageDelta = arr.find((e) => e.event === 'message_delta')
+      expect(messageDelta).toBeDefined()
+      expect(messageDelta!.data.usage.cache_read_input_tokens).toBeUndefined()
+    })
+  })
+
+  describe('首 chunk 走 formatOpenAIMessageStart', () => {
+    it('AC2: prompt_tokens_details.cached_tokens=1365 → message.usage.cache_read_input_tokens=1365（罕见但覆盖）', () => {
+      const ctx = createStreamContext()
+      // 首 chunk：含 id/model/usage 顶层 + choices[0].delta 触发 message_start 分支
+      const firstChunk = {
+        id: 'chatcmpl-abc',
+        model: 'gpt-4o',
+        usage: {
+          prompt_tokens: 1500,
+          completion_tokens: 1,
+          prompt_tokens_details: { cached_tokens: 1365 },
+        },
+        choices: [{ index: 0, delta: { role: 'assistant', content: '' }, finish_reason: null }],
+      }
+      const result = convertSSEEvent('', firstChunk, 'openai', 'anthropic', ctx)
+
+      expect(result).not.toBeNull()
+      const ev = result as { event: string; data: any }
+      expect(ev.event).toBe('message_start')
+      expect(ev.data.message.usage).toBeDefined()
+      expect(ev.data.message.usage.cache_read_input_tokens).toBe(1365)
+    })
+
+    it('AC3b: 首 chunk prompt_tokens_details 缺省 → message.usage 无 cache_read_input_tokens（透明）', () => {
+      const ctx = createStreamContext()
+      const firstChunk = {
+        id: 'chatcmpl-xyz',
+        model: 'gpt-4o',
+        usage: { prompt_tokens: 100, completion_tokens: 1 },
+        choices: [{ index: 0, delta: { role: 'assistant', content: '' }, finish_reason: null }],
+      }
+      const result = convertSSEEvent('', firstChunk, 'openai', 'anthropic', ctx)
+
+      expect(result).not.toBeNull()
+      const ev = result as { event: string; data: any }
+      expect(ev.event).toBe('message_start')
+      expect(ev.data.message.usage.cache_read_input_tokens).toBeUndefined()
+    })
+  })
+})

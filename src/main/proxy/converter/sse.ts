@@ -303,6 +303,15 @@ function formatOpenAIUsageOnlyClose(
   usage: Record<string, any>
 ): Array<{ event: string; data: any }> {
   s.isDone = true
+  // 反向映射 OpenAI usage.prompt_tokens_details.cached_tokens → Anthropic cache_read_input_tokens
+  // OpenAI 协议不输出 cache_creation_input_tokens，故反向不保留该字段
+  const anthropicUsage: Record<string, number> = {
+    input_tokens: usage.prompt_tokens ?? 0,
+    output_tokens: usage.completion_tokens ?? 0,
+  }
+  if (typeof usage.prompt_tokens_details?.cached_tokens === 'number') {
+    anthropicUsage.cache_read_input_tokens = usage.prompt_tokens_details.cached_tokens
+  }
   return [
     ...stopOpenBlocks(s),
     {
@@ -310,10 +319,7 @@ function formatOpenAIUsageOnlyClose(
       data: {
         type: 'message_delta',
         delta: { stop_reason: mapFinishReason(s.finishReason, 'toAnthropic') },
-        usage: {
-          input_tokens: usage.prompt_tokens ?? 0,
-          output_tokens: usage.completion_tokens ?? 0,
-        },
+        usage: anthropicUsage,
       },
     },
     { event: 'message_stop', data: { type: 'message_stop' } },
@@ -335,6 +341,12 @@ function formatOpenAIMessageStart(
   ctx.sentMessageStart.current = true
   if (data.id) s.id = data.id
   if (data.model) s.model = data.model
+  // 反向映射 OpenAI usage.prompt_tokens_details.cached_tokens → Anthropic cache_read_input_tokens
+  // OpenAI 协议不输出 cache_creation_input_tokens，故反向不保留该字段
+  const messageUsage: Record<string, number> = { input_tokens: 0, output_tokens: 0 }
+  if (typeof data.usage?.prompt_tokens_details?.cached_tokens === 'number') {
+    messageUsage.cache_read_input_tokens = data.usage.prompt_tokens_details.cached_tokens
+  }
   return {
     event: 'message_start',
     data: {
@@ -344,7 +356,7 @@ function formatOpenAIMessageStart(
         model: s.model,
         type: 'message',
         role: 'assistant',
-        usage: { input_tokens: 0, output_tokens: 0 },
+        usage: messageUsage,
         content: [],
       },
     },
