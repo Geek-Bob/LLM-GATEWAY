@@ -20,6 +20,11 @@ import { mapFinishReason } from './types'
  */
 function formatAnthropicMessageStartToOpenAI(data: Record<string, any>) {
   const msg = data.message ?? {}
+  const msgUsage = msg.usage ?? {}
+  // 首帧若上游回报 cache 命中，生成新 usage 块（此前无 usage 字段，需新建）
+  const usage = msgUsage.cache_read_input_tokens !== undefined
+    ? { prompt_tokens_details: { cached_tokens: msgUsage.cache_read_input_tokens } }
+    : undefined
   return {
     event: '',
     data: {
@@ -27,6 +32,7 @@ function formatAnthropicMessageStartToOpenAI(data: Record<string, any>) {
       object: 'chat.completion.chunk',
       model: msg.model,
       choices: [{ index: 0, delta: { role: 'assistant', content: '' } }],
+      ...(usage ? { usage } : {}),
     },
   }
 }
@@ -155,6 +161,10 @@ function formatAnthropicMessageDeltaToOpenAI(data: Record<string, any>) {
           prompt_tokens: data.usage.input_tokens ?? 0,
           completion_tokens: data.usage.output_tokens ?? 0,
           total_tokens: (data.usage.input_tokens ?? 0) + (data.usage.output_tokens ?? 0),
+          // 终止帧若上游回报 cache 命中，在已有 usage 块中加 prompt_tokens_details
+          ...(data.usage.cache_read_input_tokens !== undefined ? {
+            prompt_tokens_details: { cached_tokens: data.usage.cache_read_input_tokens },
+          } : {}),
         },
       } : {}),
     },
