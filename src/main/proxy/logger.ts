@@ -132,10 +132,6 @@ export function createProxyLogService(deps: {
    *   3. 调用 tryLogEntry 写入 NDJSON + SQLite 统计
    *
    * 注意：此函数在 tee() 分支出的流上运行，不影响客户端接收的流
-   *
-   * 调试字段 `debug.upstream.responseBodyRaw` 保存完整 SSE 原始文本（不截断），
-   * 是临时侦察字段，用于排查 moonshot 上游 SSE event 中是否存在
-   * `cache_read_input_tokens` 字段（BUG 2），定位后评估是否保留。
    */
   async function extractAndLogSSE(
     stream: ReadableStream<Uint8Array>,
@@ -159,8 +155,6 @@ export function createProxyLogService(deps: {
       if (debug) {
         const content = extractContentFromSSE(text, apiFormat)
         debug.upstream.responseBody = content || text.slice(0, MAX_DEBUG_BODY_LENGTH) // 如果提取不到内容，保留原始文本
-        // 临时侦察字段：保存完整 SSE 原始文本（不截断），用于 BUG 2 定位 moonshot 是否含 cache_read_input_tokens
-        debug.upstream.responseBodyRaw = text
         logger.debug('SSE_RESPONSE_EXTRACTED', { contentLength: content.length, textLength: text.length })
       }
       tryLogEntry({ ...logBase, ...usage, debug })

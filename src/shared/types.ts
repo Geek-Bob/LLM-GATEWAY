@@ -27,8 +27,6 @@ export interface LogDebugInfo {
     body: string
     statusCode: number
     responseBody: string
-    /** 完整 SSE 原始文本（不截断）。临时侦察字段，用于排查 moonshot 是否含 cache_read_input_tokens（BUG 2 定位后评估是否保留）。 */
-    responseBodyRaw?: string
   }
   error?: string
 }
