@@ -359,6 +359,23 @@ function openaiToAnthropicRequest(
   // Remove incompatible fields
   for (const field of OPENAI_INCOMPATIBLE_FIELDS) delete result[field]
 
+  // Cache 字段映射（透明原则：客户端不传则完全不改动现有行为）
+  // 触发条件：prompt_cache_retention === "24h" | "1h" → 在 system 末尾块加 cache_control: { type: "ephemeral" }
+  // 若 system 为空或不存在则静默跳过（透明）
+  if (
+    openaiBody.prompt_cache_retention === '24h' ||
+    openaiBody.prompt_cache_retention === '1h'
+  ) {
+    if (result.system && result.system.length > 0) {
+      result.system[result.system.length - 1].cache_control = { type: 'ephemeral' }
+    }
+  }
+  // 触发条件：prompt_cache_key 存在 → metadata.user_id = prompt_cache_key
+  // 与已有 metadata 合并而非覆盖（透传链上其他字段保留）
+  if (openaiBody.prompt_cache_key) {
+    result.metadata = { ...result.metadata, user_id: openaiBody.prompt_cache_key }
+  }
+
   return { body: result, path: '/v1/messages' }
 }
 
