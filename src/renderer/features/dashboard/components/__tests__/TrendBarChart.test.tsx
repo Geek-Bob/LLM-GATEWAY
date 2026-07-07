@@ -18,7 +18,9 @@ import type { ReactNode } from 'react'
 function stub(testid: string) {
   return ({ children, ...rest }: Record<string, unknown> & { children?: ReactNode }) => (
     <div data-testid={testid} {...Object.fromEntries(
-      Object.entries(rest).map(([k, v]) => [`data-${k.toLowerCase()}`, typeof v === 'object' ? JSON.stringify(v) : String(v)]),
+      Object.entries(rest)
+        .filter(([, v]) => v !== undefined)
+        .map(([k, v]) => [`data-${k.toLowerCase()}`, typeof v === 'object' ? JSON.stringify(v) : String(v)]),
     )}>
       {children}
     </div>
@@ -92,5 +94,18 @@ describe('TrendBarChart', () => {
 
     const container = screen.getByTestId('responsive-container')
     expect(container.getAttribute('data-height')).toBe('150')
+  })
+
+  it('传入 xTickFormatter 时应用到 XAxis.tickFormatter', () => {
+    const xTickFormatter = (v: string | number) => `${v}:00`
+    render(<TrendBarChart data={[{ period: 0, requests: 1 }]} xTickFormatter={xTickFormatter} />)
+    const xaxis = screen.getByTestId('xaxis')
+    expect(xaxis.getAttribute('data-tickformatter')).toBeTruthy()
+  })
+
+  it('未传 xTickFormatter 时 XAxis 不带 tickFormatter', () => {
+    render(<TrendBarChart data={[{ period: 0, requests: 1 }]} />)
+    const xaxis = screen.getByTestId('xaxis')
+    expect(xaxis.getAttribute('data-tickformatter')).toBeNull()
   })
 })

@@ -279,7 +279,7 @@ describe('TimeTrendAccordion', () => {
     expect(point100?.uncachedTokens).toBe(80)
   })
 
-  it('24h Tab 下次数柱状图使用 hourlyStats 数据，period 为 HH:00', async () => {
+  it('24h Tab 下次数柱状图使用 hourlyStats 数据，period 为完整 YYYY-MM-DD HH 格式（唯一）', async () => {
     const user = userEvent.setup()
     render(
       <TimeTrendAccordion dailyStats={dailyStats} hourlyStats={hourlyStats} isLoading={false} />,
@@ -292,12 +292,14 @@ describe('TimeTrendAccordion', () => {
       period: number | string
       requests: number
     }>
-    // 补全缺失时段：24h 始终 25 个点（昨天同一小时 ~ 当前小时），period 标签为 'HH:00'
-    // 注意：首尾都是同一小时标签（如 12:00），因窗口跨整天
+    // 补全缺失时段：24h 始终 25 个点（昨天同一小时 ~ 当前小时）
     expect(barData).toHaveLength(25)
     expect(typeof barData[0].period).toBe('string')
-    expect(barData[0].period).toMatch(/^\d{2}:00$/)
-    // 有数据的小时点保留原值（按 requests 值查找，避免首尾同标签歧义）
+    // period 为完整 'YYYY-MM-DD HH' 格式（唯一），避免 recharts tooltip 按 period 匹配时首尾错位
+    expect(barData[0].period).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}$/)
+    const periods = barData.map((p) => String(p.period))
+    expect(new Set(periods).size).toBe(periods.length)
+    // 有数据的小时点保留原值
     const point10 = barData.find((p) => p.requests === 10)
     expect(point10).toBeDefined()
     const point5 = barData.find((p) => p.requests === 5)
@@ -307,7 +309,7 @@ describe('TimeTrendAccordion', () => {
     expect(zeroPoints.length).toBeGreaterThan(0)
   })
 
-  it('点击 30d Tab 切换数据源：次数柱状图使用 dailyStats 数据，period 为 MM-DD', async () => {
+  it('点击 30d Tab 切换数据源：次数柱状图使用 dailyStats 数据，period 为完整 YYYY-MM-DD 格式', async () => {
     const user = userEvent.setup()
     render(
       <TimeTrendAccordion dailyStats={dailyStats} hourlyStats={hourlyStats} isLoading={false} />,
@@ -324,8 +326,10 @@ describe('TimeTrendAccordion', () => {
     }>
     // 补全缺失日期：30d 始终 31 个点（近 31 天），无数据的日期 requests=0
     expect(barData).toHaveLength(31)
+    // period 为完整 'YYYY-MM-DD' 格式（X 轴刻度由 tickFormatter 显示 'MM-DD'）
+    expect(barData[0].period).toMatch(/^\d{4}-\d{2}-\d{2}$/)
     // 有数据的日期仍保留原值
-    const dataPoint = barData.find((p) => p.period === '06-18')
+    const dataPoint = barData.find((p) => p.period === '2026-06-18')
     expect(dataPoint?.requests).toBe(50)
   })
 

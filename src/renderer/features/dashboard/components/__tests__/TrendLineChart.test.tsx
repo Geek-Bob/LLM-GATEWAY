@@ -137,4 +137,21 @@ describe('TrendLineChart', () => {
 
     expect(container.querySelector('[data-testid="recharts-Legend"]')).not.toBeNull()
   })
+
+  it('传入 xTickFormatter 时应用到 XAxis.tickFormatter', () => {
+    const xTickFormatter = (v: string | number) => `${v}:00`
+    const { container } = render(
+      <TrendLineChart data={sampleData} xKey="period" lines={lines} xTickFormatter={xTickFormatter} />,
+    )
+    const xAxis = container.querySelector('[data-testid="recharts-XAxis"]')
+    expect(xAxis?.getAttribute('data-tickformatter')).toBe('[fn]')
+  })
+
+  it('未传 xTickFormatter 时 XAxis 不带 tickFormatter', () => {
+    const { container } = render(
+      <TrendLineChart data={sampleData} xKey="period" lines={lines} />,
+    )
+    const xAxis = container.querySelector('[data-testid="recharts-XAxis"]')
+    expect(xAxis?.hasAttribute('data-tickformatter')).toBe(false)
+  })
 })

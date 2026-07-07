@@ -53,18 +53,15 @@ const COST_LINES = [
   { key: 'outputCost', name: '输出', color: COLOR_GREEN },
 ]
 
-/** 把 StatsDataPoint.period 格式化为图表 X 轴标签：
- * 24h period 为 'YYYY-MM-DD HH'，显示 'HH:00'（近24个整点小时）；
- * 30d period 为 'YYYY-MM-DD'，显示 'MM-DD'。 */
-function formatPeriod(period: number | string, tab: TrendTab): number | string {
+/** X 轴刻度格式化：24h period 'YYYY-MM-DD HH' → 'HH:00'；30d period 'YYYY-MM-DD' → 'MM-DD'。
+ * 仅影响 X 轴刻度显示；period 原值（完整格式，唯一）用于 recharts tooltip 匹配，
+ * 避免 24h 窗口首尾小时相同（如 '20:00' 出现两次）导致 findEntryInArray 匹配到昨天的 0 值点。 */
+function formatXTick(value: string | number, tab: TrendTab): string {
+  const s = String(value)
   if (tab === '24h') {
-    // 'YYYY-MM-DD HH' → 'HH:00'
-    const s = String(period)
-    const hh = s.slice(11, 13)
-    return `${hh}:00`
+    return `${s.slice(11, 13)}:00`
   }
-  // 30d：period 为 'YYYY-MM-DD'，截取后 5 位得 'MM-DD'
-  return typeof period === 'string' ? period.slice(5) : String(period)
+  return s.slice(5)
 }
 
 /** 空数据点（缺数据的时段填 0，保证 X 轴完整）。 */
@@ -138,20 +135,20 @@ function fillMissingPeriods(dataPoints: StatsDataPoint[], tab: TrendTab): StatsD
 function buildChartData(dataPoints: StatsDataPoint[], tab: TrendTab) {
   const filled = fillMissingPeriods(dataPoints, tab)
   const tokenData = filled.map((p) => ({
-    period: formatPeriod(p.period, tab),
+    period: String(p.period),
     tokensIn: p.tokensIn,
     cacheTokens: p.cacheTokens,
     // 非缓存 token = 总输入 - 缓存，clamp≥0（防御 cacheTokens > tokensIn 的脏数据）
     uncachedTokens: Math.max(0, p.tokensIn - p.cacheTokens),
   }))
   const costData = filled.map((p) => ({
-    period: formatPeriod(p.period, tab),
+    period: String(p.period),
     cacheCost: p.cacheCost,
     uncachedCost: p.uncachedCost,
     outputCost: p.outputCost,
   }))
   const barData = filled.map((p) => ({
-    period: formatPeriod(p.period, tab),
+    period: String(p.period),
     requests: p.requests,
   }))
   return { tokenData, costData, barData }
@@ -160,19 +157,20 @@ function buildChartData(dataPoints: StatsDataPoint[], tab: TrendTab) {
 /** 单模型的 3 张趋势图：Token / 花费 / 次数。 @returns 3 张图网格 JSX。 */
 function ModelTrendCharts({ dataPoints, tab }: { dataPoints: StatsDataPoint[]; tab: TrendTab }) {
   const { tokenData, costData, barData } = buildChartData(dataPoints, tab)
+  const xTickFormatter = (v: string | number) => formatXTick(v, tab)
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       <Card className="border-border/50 p-3">
         <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">Token 趋势</div>
-        <TrendLineChart data={tokenData} xKey="period" lines={TOKEN_LINES} height={100} />
+        <TrendLineChart data={tokenData} xKey="period" lines={TOKEN_LINES} height={100} xTickFormatter={xTickFormatter} />
       </Card>
       <Card className="border-border/50 p-3">
         <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">花费趋势</div>
-        <TrendLineChart data={costData} xKey="period" lines={COST_LINES} height={100} />
+        <TrendLineChart data={costData} xKey="period" lines={COST_LINES} height={100} xTickFormatter={xTickFormatter} />
       </Card>
       <Card className="border-border/50 p-3">
         <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">次数趋势</div>
-        <TrendBarChart data={barData} height={100} />
+        <TrendBarChart data={barData} height={100} xTickFormatter={xTickFormatter} />
       </Card>
     </div>
   )

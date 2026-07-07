@@ -21,10 +21,12 @@ interface TrendBarChartProps {
   data: TrendBarChartDatum[]
   /** 图表高度（像素），默认 100 */
   height?: number
+  /** X 轴刻度格式化函数（可选，仅影响刻度显示；tooltip 按 period 原值匹配，不受此影响） */
+  xTickFormatter?: (value: string | number) => string
 }
 
 /** 次数趋势柱状图：以 requests 为纵轴、period 为横轴渲染 recharts BarChart；空数据显示空态。 @returns 柱状图或空态 JSX。 */
-export function TrendBarChart({ data, height = 100 }: TrendBarChartProps) {
+export function TrendBarChart({ data, height = 100, xTickFormatter }: TrendBarChartProps) {
   if (data.length === 0) {
     return <EmptyState title="暂无数据" />
   }
@@ -38,6 +40,7 @@ export function TrendBarChart({ data, height = 100 }: TrendBarChartProps) {
           axisLine={false}
           tickLine={false}
           interval="preserveStartEnd"
+          tickFormatter={xTickFormatter}
         />
         <YAxis
           tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}

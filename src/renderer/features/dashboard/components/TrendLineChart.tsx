@@ -34,6 +34,8 @@ export interface TrendLineChartProps {
   height?: number
   /** Y 轴数值格式化函数（可选，同时应用于 YAxis 刻度与 Tooltip） */
   yFormatter?: (value: number) => string
+  /** X 轴刻度格式化函数（可选，仅影响刻度显示；tooltip 按 period 原值匹配，不受此影响） */
+  xTickFormatter?: (value: string | number) => string
 }
 
 /** 默认图表高度（px） */
@@ -73,7 +75,7 @@ const legendWrapperStyle = { fontSize: 11 }
  *   yFormatter={(v) => v.toLocaleString()}
  * />
  */
-export function TrendLineChart({ data, xKey, lines, height = DEFAULT_HEIGHT, yFormatter }: TrendLineChartProps) {
+export function TrendLineChart({ data, xKey, lines, height = DEFAULT_HEIGHT, yFormatter, xTickFormatter }: TrendLineChartProps) {
   // 空数据：显示提示而非空轴（设计文档第 5 节边界处理）
   if (data.length === 0) {
     return <EmptyState title="暂无趋势数据" />
@@ -84,7 +86,7 @@ export function TrendLineChart({ data, xKey, lines, height = DEFAULT_HEIGHT, yFo
   return (
     <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: -16 }}>
-        <XAxis dataKey={xKey} tick={axisTickStyle} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+        <XAxis dataKey={xKey} tick={axisTickStyle} axisLine={false} tickLine={false} interval="preserveStartEnd" tickFormatter={xTickFormatter} />
         <YAxis tick={axisTickStyle} axisLine={false} tickLine={false} width={24} tickFormatter={yFormatter ? (v: number) => yFormatter(Number(v)) : undefined} />
         <Tooltip contentStyle={tooltipContentStyle} formatter={yFormatter ? (value) => yFormatter(Number(value)) : undefined} />
         <Legend wrapperStyle={legendWrapperStyle} />
