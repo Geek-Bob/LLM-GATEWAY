@@ -6,7 +6,7 @@
  * 2. logAuthFailure() — 认证失败专用日志（无 apiKeyId 上下文）
  * 3. extractAndLogSSE() — 从 SSE 流中提取 token 用量并写入日志
  * 4. extractUsageFromSSE() — 从 SSE 事件文本中解析 token 用量
- * 5. extractContentFromSSE() — 从 SSE 事件文本中提取完整响应内容（调试模式）
+ * 5. buildSSEEventJsonArray() — 将 SSE 事件流解析为 JSON 数组（调试模式，零信息损失）
  *
  * 数据库操作通过工厂参数注入，禁止直接导入 db/ 模块。
  */
@@ -16,9 +16,6 @@ import type { LogDebugInfo } from '../../shared/types'
 
 /** 调试日志实例（代理日志模块内部使用） */
 const logger = createLogger('proxy:logger')
-
-/** 调试日志中 body 截断的最大字符数 */
-const MAX_DEBUG_BODY_LENGTH = 4000
 
 /**
  * 请求日志条目属性
@@ -54,7 +51,6 @@ export interface ProxyLogService {
     debug?: LogDebugInfo
   ) => Promise<void>
   extractUsageFromSSE: (text: string, apiFormat: 'anthropic' | 'openai') => { tokensIn: number; tokensOut: number; cacheTokens: number }
-  extractContentFromSSE: (text: string, apiFormat: 'anthropic' | 'openai') => string
 }
 
 /**
@@ -151,11 +147,10 @@ export function createProxyLogService(deps: {
       }
       // 从 SSE 事件流中提取 token 用量
       const usage = extractUsageFromSSE(text, apiFormat)
-      // 调试模式下，提取完整响应内容用于日志
+      // 调试模式下，保留上游完整 SSE 事件流（解析为 JSON 数组，零信息损失）
       if (debug) {
-        const content = extractContentFromSSE(text, apiFormat)
-        debug.upstream.responseBody = content || text.slice(0, MAX_DEBUG_BODY_LENGTH) // 如果提取不到内容，保留原始文本
-        logger.debug('SSE_RESPONSE_EXTRACTED', { contentLength: content.length, textLength: text.length })
+        debug.upstream.responseBody = buildSSEEventJsonArray(text)
+        logger.debug('SSE_RESPONSE_EXTRACTED', { textLength: text.length })
       }
       tryLogEntry({ ...logBase, ...usage, debug })
     } catch (err) {
@@ -239,67 +234,34 @@ export function createProxyLogService(deps: {
   }
 
   /**
-   * 从 SSE 事件流文本中提取完整响应内容（调试模式专用）
+   * 将上游 SSE 事件流文本解析为 JSON 数组，完整保留每个 chunk 的结构化字段。
    *
-   * 将所有 content delta 拼接为完整文本，用于 debug 日志记录。
-   * 不影响主流程，仅在 debugEnabled 时调用。
-   *
-   * OpenAI：从 choices[0].delta.content 提取
-   * Anthropic：从 content_block_delta 事件的 delta.text 或 delta.thinking 提取
-   *   - text_delta: 正常文本输出
-   *   - thinking_delta: 思考过程（extended thinking）
+   * 每个 `data:` 行解析为一个对象；Anthropic 的 `event:` 行类型注入到对应
+   * 对象的 `_event` 字段（OpenAI SSE 无 event 行，不注入）。格式错误的 JSON
+   * 行与 `[DONE]` 标记跳过。
    *
    * 注意：上游 SSE 格式可能不标准（event/data 后无空格），兼容处理
+   *
+   * @param text - 上游 SSE 原始文本（多行 event:/data: 序列）
+   * @returns JSON 字符串，形如 `[{...chunk1}, {...chunk2}, ...]`
    */
-  function extractContentFromSSE(
-    text: string,
-    apiFormat: 'anthropic' | 'openai'
-  ): string {
-    const parts: string[] = []
-
-    if (apiFormat === 'openai') {
-      for (const line of text.split('\n')) {
-        // 兼容 "data: " 和 "data:"（无空格）
-        if (!line.startsWith('data:')) continue
+  function buildSSEEventJsonArray(text: string): string {
+    const chunks: Record<string, unknown>[] = []
+    let eventType = ''
+    for (const line of text.split('\n')) {
+      if (line.startsWith('event:')) {
+        eventType = line.startsWith('event: ') ? line.slice(7) : line.slice(6)
+      } else if (line.startsWith('data:')) {
         const jsonStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
         if (!jsonStr || jsonStr === '[DONE]') continue
         try {
-          const data = JSON.parse(jsonStr)
-          const delta = data.choices?.[0]?.delta
-          if (delta) {
-            // 优先提取 content，其次 reasoning_content
-            if (delta.content) {
-              parts.push(delta.content)
-            } else if (delta.reasoning_content) {
-              parts.push(`[thinking] ${delta.reasoning_content}`)
-            }
-          }
-        } catch { /* 跳过格式错误的 JSON */ }
-      }
-    } else {
-      let eventType = ''
-      for (const line of text.split('\n')) {
-        // 兼容 "event: " 和 "event:"（无空格）
-        if (line.startsWith('event:')) {
-          eventType = line.startsWith('event: ') ? line.slice(7) : line.slice(6)
-        } else if (line.startsWith('data:')) {
-          const jsonStr = line.startsWith('data: ') ? line.slice(6) : line.slice(5)
-          try {
-            const data = JSON.parse(jsonStr)
-            // content_block_delta 事件包含文本增量（text_delta 或 thinking_delta）
-            if (eventType === 'content_block_delta' && data.delta) {
-              if (data.delta.type === 'text_delta' && data.delta.text) {
-                parts.push(data.delta.text)
-              } else if (data.delta.type === 'thinking_delta' && data.delta.thinking) {
-                parts.push(`[thinking] ${data.delta.thinking}`)
-              }
-            }
-          } catch { /* 跳过格式错误的 JSON */ }
-        }
+          const obj = JSON.parse(jsonStr) as Record<string, unknown>
+          if (eventType) obj._event = eventType // Anthropic 保留事件类型
+          chunks.push(obj)
+        } catch { /* 跳过格式错误的 JSON 行 */ }
       }
     }
-
-    return parts.join('')
+    return JSON.stringify(chunks)
   }
 
   return {
@@ -307,6 +269,5 @@ export function createProxyLogService(deps: {
     logAuthFailure,
     extractAndLogSSE,
     extractUsageFromSSE,
-    extractContentFromSSE,
   }
 }

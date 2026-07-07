@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from 'vitest'
 import { createProxyLogService } from '../logger'
+import type { LogDebugInfo } from '../../../shared/types'
 
 /** 构造一个注入空依赖的日志服务，仅用于调用纯解析函数 */
 function createService() {
@@ -192,5 +193,151 @@ describe('extractAndLogSSE - cacheTokens propagation', () => {
     expect(updateRequestStats.mock.calls[0][0].cacheTokens).toBe(40)
     expect(updateProviderStats).toHaveBeenCalledTimes(1)
     expect(updateProviderStats.mock.calls[0][0].cacheTokens).toBe(40)
+  })
+})
+
+describe('extractAndLogSSE - debug.upstream.responseBody (SSE 事件 JSON 数组)', () => {
+  /** 构造最小可用的 LogDebugInfo，仅 upstream.responseBody 待 extractAndLogSSE 填充 */
+  function createDebug(): LogDebugInfo {
+    return {
+      client: { body: '', apiFormat: 'openai' },
+      route: { providerName: '', providerType: '', baseUrl: '', modelName: '' },
+      upstream: { url: '', body: '', statusCode: 0, responseBody: '' },
+    }
+  }
+
+  /** 构造注入空依赖的日志服务，仅用于触发 extractAndLogSSE 写入 createLogEntry */
+  function createServiceWithMock(createLogEntry: ReturnType<typeof vi.fn>) {
+    return createProxyLogService({
+      createLogEntry,
+      updateRequestStats: vi.fn().mockResolvedValue(undefined),
+      updateProviderStats: vi.fn().mockResolvedValue(undefined),
+    })
+  }
+
+  /** 将字符串编码为单次推送的 ReadableStream */
+  function toStream(text: string): ReadableStream<Uint8Array> {
+    return new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(text))
+        controller.close()
+      },
+    })
+  }
+
+  it('OpenAI: 解析所有 data 行为 JSON 数组，保留 chunk 完整结构，无 _event', async () => {
+    const createLogEntry = vi.fn()
+    const service = createServiceWithMock(createLogEntry)
+
+    const sse = [
+      'data: {"id":"chatcmpl-1","choices":[{"index":0,"delta":{"content":"你好"},"finish_reason":null}]}',
+      '',
+      'data: {"id":"chatcmpl-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":2}}',
+      '',
+      'data: [DONE]',
+      '',
+    ].join('\n')
+
+    const debug = createDebug()
+    await service.extractAndLogSSE(toStream(sse), { model: 'gpt-4', apiFormat: 'openai' }, 'openai', debug)
+
+    const entry = createLogEntry.mock.calls[0][0]
+    const parsed = JSON.parse(entry.debug.upstream.responseBody)
+    expect(Array.isArray(parsed)).toBe(true)
+    expect(parsed).toHaveLength(2) // [DONE] 跳过
+    expect(parsed[0]).toEqual({
+      id: 'chatcmpl-1',
+      choices: [{ index: 0, delta: { content: '你好' }, finish_reason: null }],
+    })
+    expect(parsed[0]._event).toBeUndefined() // OpenAI SSE 无 event 行
+    expect(parsed[1].usage.prompt_tokens).toBe(10)
+    expect(parsed[1].choices[0].finish_reason).toBe('stop')
+  })
+
+  it('Anthropic: 解析 event+data 行，每项注入 _event 保留事件类型', async () => {
+    const createLogEntry = vi.fn()
+    const service = createServiceWithMock(createLogEntry)
+
+    const sse = [
+      'event: message_start',
+      'data: {"type":"message_start","message":{"id":"msg-1","usage":{"input_tokens":10,"output_tokens":0}}}',
+      '',
+      'event: content_block_delta',
+      'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"你好"}}',
+      '',
+      'event: message_stop',
+      'data: {"type":"message_stop"}',
+      '',
+    ].join('\n')
+
+    const debug = createDebug()
+    await service.extractAndLogSSE(toStream(sse), { model: 'claude-3', apiFormat: 'anthropic' }, 'anthropic', debug)
+
+    const entry = createLogEntry.mock.calls[0][0]
+    const parsed = JSON.parse(entry.debug.upstream.responseBody)
+    expect(parsed).toHaveLength(3)
+    expect(parsed[0]._event).toBe('message_start')
+    expect(parsed[0].type).toBe('message_start')
+    expect(parsed[0].message.id).toBe('msg-1')
+    expect(parsed[1]._event).toBe('content_block_delta')
+    expect(parsed[1].delta.text).toBe('你好')
+    expect(parsed[2]._event).toBe('message_stop')
+  })
+
+  it('格式错误的 JSON 行跳过，不影响其他 chunk', async () => {
+    const createLogEntry = vi.fn()
+    const service = createServiceWithMock(createLogEntry)
+
+    const sse = [
+      'data: {"id":"ok","choices":[]}',
+      '',
+      'data: {not valid json}',
+      '',
+      'data: {"id":"ok2","choices":[]}',
+      '',
+    ].join('\n')
+
+    const debug = createDebug()
+    await service.extractAndLogSSE(toStream(sse), { model: 'gpt-4', apiFormat: 'openai' }, 'openai', debug)
+
+    const entry = createLogEntry.mock.calls[0][0]
+    const parsed = JSON.parse(entry.debug.upstream.responseBody)
+    expect(parsed).toHaveLength(2) // 中间格式错误行跳过
+    expect(parsed[0].id).toBe('ok')
+    expect(parsed[1].id).toBe('ok2')
+  })
+
+  it('data: 无空格前缀兼容', async () => {
+    const createLogEntry = vi.fn()
+    const service = createServiceWithMock(createLogEntry)
+
+    const sse = 'data:{"id":"nospace","choices":[]}\n'
+
+    const debug = createDebug()
+    await service.extractAndLogSSE(toStream(sse), { model: 'gpt-4', apiFormat: 'openai' }, 'openai', debug)
+
+    const entry = createLogEntry.mock.calls[0][0]
+    const parsed = JSON.parse(entry.debug.upstream.responseBody)
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0].id).toBe('nospace')
+  })
+
+  it('event: 无空格前缀兼容（Anthropic）', async () => {
+    const createLogEntry = vi.fn()
+    const service = createServiceWithMock(createLogEntry)
+
+    const sse = [
+      'event:message_start',
+      'data: {"type":"message_start"}',
+      '',
+    ].join('\n')
+
+    const debug = createDebug()
+    await service.extractAndLogSSE(toStream(sse), { model: 'claude-3', apiFormat: 'anthropic' }, 'anthropic', debug)
+
+    const entry = createLogEntry.mock.calls[0][0]
+    const parsed = JSON.parse(entry.debug.upstream.responseBody)
+    expect(parsed).toHaveLength(1)
+    expect(parsed[0]._event).toBe('message_start')
   })
 })
