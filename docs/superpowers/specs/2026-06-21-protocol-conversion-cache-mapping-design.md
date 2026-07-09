@@ -44,6 +44,7 @@
   OpenAI:    prompt_cache_retention: "24h" | "1h"   ← 1h 是默认值
   Anthropic: system[].cache_control: { type: "ephemeral" }
   含义: 「我想要 cache，请上游启用」
+  备注: 1h 是 OpenAI 协议规范定义，但代理严格按客户端是否显式传值为准——未传 = 透明不触发，传 1h = 触发
 
 维度2: cache 命中报告
   OpenAI:    usage.prompt_tokens_details.cached_tokens: N
@@ -70,11 +71,11 @@
 
 | 决策 | 备选 | 选定 | 理由 |
 |---|---|---|---|
-| cache 启用信号映射 | A. 只在 system 块加 cache_control / B. system + 最近 N 条消息 / C. 缺省也加 | **A + 缺省不加**（用户决策 D） | 客户端传才生成 → 尊重意图；缺省透明 → 不替客户端决定 |
+| cache 启用信号映射 | A. 只在 system 块加 cache_control / B. system + 最近 N 条消息 / C. 缺省也加 | **D (A + 缺省不加)** | D = A（只 system 块加 cache_control）+ 缺省不加 cache_control（透明原则）；客户端传才生成 → 尊重意图；缺省透明 → 不替客户端决定 |
 | 反向（Anthropic→OpenAI） cache 启用 | 固定 `"24h"` / 不生成 / 看 key 存在 | **固定 `"24h"`**（用户决策 A） | Anthropic `cache_control: ephemeral` = 显式要 cache，代理尊重意图 |
 | 保留 raw 字段 | 全部丢弃 / 全部保留 | **保留** cache_creation_input_tokens | 诊断价值高；OpenAI 端不识别但无副作用 |
 | `safety_identifier` 字段 | 一并处理 / 暂不处理 | **暂不处理** | 本 PR 聚焦 cache，其他字段后续 PR |
-| cache 启用触发生成的位置 | 只 system / system + 最后 N 条消息 | **只 system 块** | 简单，符合 Anthropic 官方推荐 |
+| cache 启用触发生成的位置 | 只 system / system + 最后 N 条消息 | **只 system 块** | 简单，符合 Anthropic 官方推荐；无 system 块时静默忽略（透明） |
 
 ### 3.2 触发生成规则（D 决策）
 
@@ -156,6 +157,18 @@ src/main/proxy/converter/
          ▼
 ┌─────────────────────────────────────────────┐
 │  proxy/converter/sse.ts                     │
+│  formatAnthropicMessageStartToOpenAI()      │  ← 新增路径
+│                                             │
+│  if (message.usage?.cache_read_input_tokens) { │ ← 新增
+│    chunk.usage.prompt_tokens_details = {    │ ← 新增
+│      cached_tokens: cache_read              │ ← 新增
+│    }                                        │
+│  }                                          │
+└────────┬────────────────────────────────────┘
+         │ SSE first chunk（含 cache 命中数）
+         ▼
+┌─────────────────────────────────────────────┐
+│  proxy/converter/sse.ts                     │
 │  formatAnthropicMessageDeltaToOpenAI()      │
 │                                             │
 │  if (data.usage?.cache_read_input_tokens) { │  ← 新增
@@ -232,7 +245,7 @@ classDiagram
     AnthropicRequest *-- SystemBlock
     SystemBlock *-- CacheControl
     AnthropicRequest *-- Metadata
-    OpenAIUsage ..> AnthropicUsage : 协议转换（响应）
+    AnthropicUsage ..> OpenAIUsage : 协议转换（响应）
     OpenAIUsage *-- PromptTokensDetails
 ```
 
@@ -259,15 +272,18 @@ classDiagram
 ### 5.3 SSE 层（sse.ts）
 
 - [ ] Anthropic `message_start` 事件 `message.usage.cache_read_input_tokens: 1365` → OpenAI 首 chunk `usage.prompt_tokens_details.cached_tokens: 1365`
+- [ ] Anthropic `message_start` 事件 `message.usage.cache_read_input_tokens: 1365` → OpenAI 首 chunk `usage.prompt_tokens_details.cached_tokens: 1365`（formatAnthropicMessageStartToOpenAI 处理）
 - [ ] Anthropic `message_delta` 事件 `data.usage.cache_read_input_tokens: 114` → OpenAI 终止 chunk 同样映射
 - [ ] OpenAI `stream_options.include_usage` 终止 chunk `usage.prompt_tokens_details.cached_tokens: 8` → Anthropic `message_delta.usage.cache_read_input_tokens: 8`
 
 ### 5.4 不破坏现有行为
 
-- [ ] 现有 905+ 测试全部通过
+- [ ] 现有 905+ 测试无回归（即改前通过的改后仍通过）
 - [ ] 现有 OpenAI→Anthropic thinking 转换不受影响
 - [ ] 现有 tool_choice / tool_calls 转换不受影响
 - [ ] 现有直接转发（OpenAI→OpenAI / Anthropic→Anthropic）不受影响
+  - 直接转发 OpenAI 客户端 → OpenAI 端点：`prompt_cache_key` / `prompt_cache_retention` 完整透传到上游 body（不转换）
+  - 直接转发 Anthropic 客户端 → Anthropic 端点：`system[].cache_control` 完整透传到上游 body（不转换）
 - [ ] `npx tsc -b --noEmit` exit 0
 - [ ] `npm run lint` 0 errors
 

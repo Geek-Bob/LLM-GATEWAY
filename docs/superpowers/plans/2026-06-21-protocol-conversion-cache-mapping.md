@@ -60,11 +60,13 @@
 1. Read `src/main/proxy/converter/request.ts` 全文确认 `openaiToAnthropicRequest` 当前结构
 2. 写测试：8 个用例覆盖上述验收点（Red）
 3. 跑测试，验证失败
-4. 在 `openaiToAnthropicRequest` 中加 `if (openaiBody.prompt_cache_retention === "24h" || openaiBody.prompt_cache_retention === "1h")` 块 + `if (openaiBody.prompt_cache_key)` 块（Green）
-5. 跑测试，验证通过
-6. 跑全量后端测试 `npm run test:backend -- src/main/proxy/converter` 确认无回归
-7. 跑 `npx tsc -b --noEmit` + `npm run lint`
-8. commit：中文 `feat(converter): openaiToAnthropicRequest 加 prompt_cache_key/retention 映射`
+4a. 在 `openaiToAnthropicRequest` 中加 `if (openaiBody.prompt_cache_retention === "24h" || openaiBody.prompt_cache_retention === "1h")` 块（Green sub-step 1）
+4a.1. 跑测试，验证 8 个用例中 retention 相关 4 条通过（Green 验证 sub-step 1）
+4b. 在 `openaiToAnthropicRequest` 中加 `if (openaiBody.prompt_cache_key)` 块（Green sub-step 2）
+4b.1. 跑测试，验证 8 个用例全部通过（Green 验证 sub-step 2）
+5. 跑全量后端测试 `npm run test:backend -- src/main/proxy/converter` 确认无回归
+6. 跑 `npx tsc -b --noEmit` + `npm run lint`
+7. commit：中文 `feat(converter): openaiToAnthropicRequest 加 prompt_cache_key/retention 映射`
 
 ---
 
@@ -287,6 +289,8 @@
 
 **设计文档索引：** `docs/superpowers/specs/2026-06-21-protocol-conversion-cache-mapping-design.md#54-不破坏现有行为`
 
+> **附：commit `29d07a6` 引入的 `responseBodyRaw` 调试字段使命已完成（dump 完整 SSE 文本用于 BUG 2 根因定位），本任务一并还原。** 还原工作与本 PR 主题"cache 字段映射"无直接因果关系，但同属 BUG 2 收尾事务，且 Task 8 计划在 cache 映射落地后整体集成验证，因此合并在 Task 7 一并处理。
+
 **需求描述：**
 1. 跑全量测试 `npm test` 确认前后端所有 905+ 测试无回归
 2. 跑 `npx tsc -b --noEmit` 确认类型零错误
@@ -314,6 +318,8 @@
 - [ ] `responseBodyRaw` 字段完全从代码移除
 - [ ] master 成功 push 到 origin
 - [ ] `git log origin/master..HEAD` 显示所有 6 个 converter commit + spec commit + 还原 commit
+- [ ] OpenAI→OpenAI 直接转发（同一协议）`prompt_cache_key` / `prompt_cache_retention` 完整保留在 body（不丢字段）
+- [ ] Anthropic→Anthropic 直接转发（同一协议）`system[].cache_control` / `metadata.user_id` 完整保留在 body（不丢字段）
 
 **步骤：**
 1. 拉取 Task 6 的 commit
