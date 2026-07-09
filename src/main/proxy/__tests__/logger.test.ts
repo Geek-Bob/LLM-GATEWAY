@@ -196,7 +196,7 @@ describe('extractAndLogSSE - cacheTokens propagation', () => {
   })
 })
 
-describe('extractAndLogSSE - debug.upstream.responseBody (SSE 事件 JSON 数组)', () => {
+describe('extractAndLogSSE - debug.upstream.responseBody (SSE 重组为非流式 JSON)', () => {
   /** 构造最小可用的 LogDebugInfo，仅 upstream.responseBody 待 extractAndLogSSE 填充 */
   function createDebug(): LogDebugInfo {
     return {
@@ -225,14 +225,16 @@ describe('extractAndLogSSE - debug.upstream.responseBody (SSE 事件 JSON 数组
     })
   }
 
-  it('OpenAI: 解析所有 data 行为 JSON 数组，保留 chunk 完整结构，无 _event', async () => {
+  it('OpenAI: 重组为 chat.completion 对象，拼接 content/finish_reason/usage', async () => {
     const createLogEntry = vi.fn()
     const service = createServiceWithMock(createLogEntry)
 
     const sse = [
-      'data: {"id":"chatcmpl-1","choices":[{"index":0,"delta":{"content":"你好"},"finish_reason":null}]}',
+      'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"你好"},"finish_reason":null}]}',
       '',
-      'data: {"id":"chatcmpl-1","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":2}}',
+      'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4","choices":[{"index":0,"delta":{"content":"，我是 Claude"},"finish_reason":null}]}',
+      '',
+      'data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1700000000,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":10,"completion_tokens":8,"total_tokens":18,"prompt_tokens_details":{"cached_tokens":3}}}',
       '',
       'data: [DONE]',
       '',
@@ -243,27 +245,36 @@ describe('extractAndLogSSE - debug.upstream.responseBody (SSE 事件 JSON 数组
 
     const entry = createLogEntry.mock.calls[0][0]
     const parsed = JSON.parse(entry.debug.upstream.responseBody)
-    expect(Array.isArray(parsed)).toBe(true)
-    expect(parsed).toHaveLength(2) // [DONE] 跳过
-    expect(parsed[0]).toEqual({
+    expect(parsed).toEqual({
       id: 'chatcmpl-1',
-      choices: [{ index: 0, delta: { content: '你好' }, finish_reason: null }],
+      object: 'chat.completion',
+      created: 1700000000,
+      model: 'gpt-4',
+      choices: [{
+        index: 0,
+        message: { role: 'assistant', content: '你好，我是 Claude' },
+        finish_reason: 'stop',
+      }],
+      usage: { prompt_tokens: 10, completion_tokens: 8, total_tokens: 18, prompt_tokens_details: { cached_tokens: 3 } },
     })
-    expect(parsed[0]._event).toBeUndefined() // OpenAI SSE 无 event 行
-    expect(parsed[1].usage.prompt_tokens).toBe(10)
-    expect(parsed[1].choices[0].finish_reason).toBe('stop')
   })
 
-  it('Anthropic: 解析 event+data 行，每项注入 _event 保留事件类型', async () => {
+  it('Anthropic: 重组为 message 对象，拼接 content/stop_reason/usage', async () => {
     const createLogEntry = vi.fn()
     const service = createServiceWithMock(createLogEntry)
 
     const sse = [
       'event: message_start',
-      'data: {"type":"message_start","message":{"id":"msg-1","usage":{"input_tokens":10,"output_tokens":0}}}',
+      'data: {"type":"message_start","message":{"id":"msg-1","type":"message","role":"assistant","model":"claude-3","usage":{"input_tokens":10,"output_tokens":0,"cache_read_input_tokens":4}}}',
       '',
       'event: content_block_delta',
-      'data: {"type":"content_block_delta","delta":{"type":"text_delta","text":"你好"}}',
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"你好"}}',
+      '',
+      'event: content_block_delta',
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"，我是 Claude"}}',
+      '',
+      'event: message_delta',
+      'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":8}}',
       '',
       'event: message_stop',
       'data: {"type":"message_stop"}',
@@ -275,25 +286,27 @@ describe('extractAndLogSSE - debug.upstream.responseBody (SSE 事件 JSON 数组
 
     const entry = createLogEntry.mock.calls[0][0]
     const parsed = JSON.parse(entry.debug.upstream.responseBody)
-    expect(parsed).toHaveLength(3)
-    expect(parsed[0]._event).toBe('message_start')
-    expect(parsed[0].type).toBe('message_start')
-    expect(parsed[0].message.id).toBe('msg-1')
-    expect(parsed[1]._event).toBe('content_block_delta')
-    expect(parsed[1].delta.text).toBe('你好')
-    expect(parsed[2]._event).toBe('message_stop')
+    expect(parsed).toEqual({
+      id: 'msg-1',
+      type: 'message',
+      role: 'assistant',
+      model: 'claude-3',
+      content: [{ type: 'text', text: '你好，我是 Claude' }],
+      stop_reason: 'end_turn',
+      usage: { input_tokens: 10, output_tokens: 8, cache_read_input_tokens: 4 },
+    })
   })
 
-  it('格式错误的 JSON 行跳过，不影响其他 chunk', async () => {
+  it('格式错误的 JSON 行跳过，重组后 content 仍正确', async () => {
     const createLogEntry = vi.fn()
     const service = createServiceWithMock(createLogEntry)
 
     const sse = [
-      'data: {"id":"ok","choices":[]}',
+      'data: {"id":"ok","model":"gpt-4","choices":[{"index":0,"delta":{"content":"你好"},"finish_reason":null}]}',
       '',
       'data: {not valid json}',
       '',
-      'data: {"id":"ok2","choices":[]}',
+      'data: {"id":"ok","model":"gpt-4","choices":[{"index":0,"delta":{"content":"世界"},"finish_reason":"stop"}]}',
       '',
     ].join('\n')
 
@@ -302,24 +315,24 @@ describe('extractAndLogSSE - debug.upstream.responseBody (SSE 事件 JSON 数组
 
     const entry = createLogEntry.mock.calls[0][0]
     const parsed = JSON.parse(entry.debug.upstream.responseBody)
-    expect(parsed).toHaveLength(2) // 中间格式错误行跳过
-    expect(parsed[0].id).toBe('ok')
-    expect(parsed[1].id).toBe('ok2')
+    expect(parsed.choices[0].message.content).toBe('你好世界')
+    expect(parsed.choices[0].finish_reason).toBe('stop')
+    expect(parsed.id).toBe('ok')
   })
 
   it('data: 无空格前缀兼容', async () => {
     const createLogEntry = vi.fn()
     const service = createServiceWithMock(createLogEntry)
 
-    const sse = 'data:{"id":"nospace","choices":[]}\n'
+    const sse = 'data:{"id":"nospace","model":"gpt-4","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}\n'
 
     const debug = createDebug()
     await service.extractAndLogSSE(toStream(sse), { model: 'gpt-4', apiFormat: 'openai' }, 'openai', debug)
 
     const entry = createLogEntry.mock.calls[0][0]
     const parsed = JSON.parse(entry.debug.upstream.responseBody)
-    expect(parsed).toHaveLength(1)
-    expect(parsed[0].id).toBe('nospace')
+    expect(parsed.choices[0].message.content).toBe('hi')
+    expect(parsed.id).toBe('nospace')
   })
 
   it('event: 无空格前缀兼容（Anthropic）', async () => {
@@ -328,7 +341,13 @@ describe('extractAndLogSSE - debug.upstream.responseBody (SSE 事件 JSON 数组
 
     const sse = [
       'event:message_start',
-      'data: {"type":"message_start"}',
+      'data: {"type":"message_start","message":{"id":"msg-x","type":"message","role":"assistant","model":"claude-3","usage":{"input_tokens":5,"output_tokens":0}}}',
+      '',
+      'event:content_block_delta',
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}',
+      '',
+      'event:message_delta',
+      'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":1}}',
       '',
     ].join('\n')
 
@@ -337,7 +356,8 @@ describe('extractAndLogSSE - debug.upstream.responseBody (SSE 事件 JSON 数组
 
     const entry = createLogEntry.mock.calls[0][0]
     const parsed = JSON.parse(entry.debug.upstream.responseBody)
-    expect(parsed).toHaveLength(1)
-    expect(parsed[0]._event).toBe('message_start')
+    expect(parsed.id).toBe('msg-x')
+    expect(parsed.content[0].text).toBe('hi')
+    expect(parsed.stop_reason).toBe('end_turn')
   })
 })

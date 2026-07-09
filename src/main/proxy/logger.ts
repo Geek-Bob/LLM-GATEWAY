@@ -6,7 +6,7 @@
  * 2. logAuthFailure() — 认证失败专用日志（无 apiKeyId 上下文）
  * 3. extractAndLogSSE() — 从 SSE 流中提取 token 用量并写入日志
  * 4. extractUsageFromSSE() — 从 SSE 事件文本中解析 token 用量
- * 5. buildSSEEventJsonArray() — 将 SSE 事件流解析为 JSON 数组（调试模式，零信息损失）
+ * 5. buildSSEMergedResponse() - 将 SSE 事件流重组为非流式等价 JSON（调试模式）
  *
  * 数据库操作通过工厂参数注入，禁止直接导入 db/ 模块。
  */
@@ -147,9 +147,9 @@ export function createProxyLogService(deps: {
       }
       // 从 SSE 事件流中提取 token 用量
       const usage = extractUsageFromSSE(text, apiFormat)
-      // 调试模式下，保留上游完整 SSE 事件流（解析为 JSON 数组，零信息损失）
+      // 调试模式下，将 SSE 流重组为非流式等价 JSON（与非流式响应形态统一）
       if (debug) {
-        debug.upstream.responseBody = buildSSEEventJsonArray(text)
+        debug.upstream.responseBody = buildSSEMergedResponse(text, apiFormat)
         logger.debug('SSE_RESPONSE_EXTRACTED', { textLength: text.length })
       }
       tryLogEntry({ ...logBase, ...usage, debug })
@@ -234,18 +234,26 @@ export function createProxyLogService(deps: {
   }
 
   /**
-   * 将上游 SSE 事件流文本解析为 JSON 数组，完整保留每个 chunk 的结构化字段。
+   * 将上游 SSE 事件流文本重组为非流式等价 JSON 对象，与非流式响应形态统一。
    *
-   * 每个 `data:` 行解析为一个对象；Anthropic 的 `event:` 行类型注入到对应
-   * 对象的 `_event` 字段（OpenAI SSE 无 event 行，不注入）。格式错误的 JSON
-   * 行与 `[DONE]` 标记跳过。
+   * 解析每个 `data:` 行为对象（Anthropic 的 `event:` 类型用于事件识别），
+   * 按协议合并为单个响应对象：OpenAI -> chat.completion，Anthropic -> message。
+   * 格式错误的 JSON 行与 `[DONE]` 标记跳过。
    *
    * 注意：上游 SSE 格式可能不标准（event/data 后无空格），兼容处理
    *
    * @param text - 上游 SSE 原始文本（多行 event:/data: 序列）
-   * @returns JSON 字符串，形如 `[{...chunk1}, {...chunk2}, ...]`
+   * @param apiFormat - 上游协议格式
+   * @returns JSON 字符串，形态等价于该请求非流式时的上游响应
    */
-  function buildSSEEventJsonArray(text: string): string {
+  function buildSSEMergedResponse(text: string, apiFormat: 'anthropic' | 'openai'): string {
+    const chunks = parseSSEChunks(text)
+    const merged = apiFormat === 'openai' ? mergeOpenAIChunks(chunks) : mergeAnthropicChunks(chunks)
+    return JSON.stringify(merged)
+  }
+
+  /** 解析 SSE 文本为 chunk 对象数组，Anthropic 的 event: 类型注入 `_event` 字段。 */
+  function parseSSEChunks(text: string): Record<string, unknown>[] {
     const chunks: Record<string, unknown>[] = []
     let eventType = ''
     for (const line of text.split('\n')) {
@@ -256,12 +264,118 @@ export function createProxyLogService(deps: {
         if (!jsonStr || jsonStr === '[DONE]') continue
         try {
           const obj = JSON.parse(jsonStr) as Record<string, unknown>
-          if (eventType) obj._event = eventType // Anthropic 保留事件类型
+          if (eventType) obj._event = eventType
           chunks.push(obj)
         } catch { /* 跳过格式错误的 JSON 行 */ }
       }
     }
-    return JSON.stringify(chunks)
+    return chunks
+  }
+
+  /**
+   * 将 OpenAI 流式 chunk 数组合并为非流式 chat.completion 对象。
+   *
+   * 取首个 chunk 的 id/model/created，拼接所有 delta.content 为 message.content，
+   * 取首个 delta.role（默认 assistant），取末个非空 finish_reason，取末个 usage。
+   */
+  function mergeOpenAIChunks(chunks: Record<string, unknown>[]): Record<string, unknown> {
+    let content = ''
+    let id = '', model = '', role = 'assistant'
+    let created = 0
+    let finishReason: string | null = null
+    let usage: Record<string, unknown> | undefined
+
+    for (const chunk of chunks) {
+      if (typeof chunk.id === 'string' && !id) id = chunk.id
+      if (typeof chunk.model === 'string' && !model) model = chunk.model
+      if (typeof chunk.created === 'number' && !created) created = chunk.created
+      const choices = chunk.choices as Array<Record<string, unknown>> | undefined
+      const choice0 = choices?.[0]
+      const delta = choice0?.delta as Record<string, unknown> | undefined
+      if (typeof delta?.role === 'string') role = delta.role
+      if (typeof delta?.content === 'string') content += delta.content
+      const fr = choice0?.finish_reason
+      if (typeof fr === 'string' && fr) finishReason = fr
+      if (chunk.usage && typeof chunk.usage === 'object') usage = chunk.usage as Record<string, unknown>
+    }
+
+    const result: Record<string, unknown> = {
+      id,
+      object: 'chat.completion',
+      created,
+      model,
+      choices: [{
+        index: 0,
+        message: { role, content },
+        finish_reason: finishReason,
+      }],
+    }
+    if (usage) result.usage = usage
+    return result
+  }
+
+  /**
+   * 将 Anthropic 流式事件数组合并为非流式 message 对象。
+   *
+   * 从 message_start 取 id/model/role/input usage（含 cache 字段），拼接
+   * content_block_delta 的 text/thinking 为 content blocks（thinking 在前 text 在后），
+   * 从 message_delta 取 stop_reason 和 output_tokens。
+   */
+  function mergeAnthropicChunks(chunks: Record<string, unknown>[]): Record<string, unknown> {
+    let id = '', model = '', role = 'assistant'
+    let stopReason: string | null = null
+    let inputUsage: Record<string, unknown> = {}
+    let outputTokens = 0
+    const textParts: string[] = []
+    const thinkingParts: string[] = []
+
+    for (const chunk of chunks) {
+      const event = chunk._event as string | undefined
+      if (event === 'message_start') {
+        const msg = chunk.message as Record<string, unknown> | undefined
+        if (typeof msg?.id === 'string') id = msg.id
+        if (typeof msg?.model === 'string') model = msg.model
+        if (typeof msg?.role === 'string') role = msg.role
+        if (msg?.usage && typeof msg.usage === 'object') inputUsage = msg.usage as Record<string, unknown>
+      } else if (event === 'content_block_delta') {
+        const delta = chunk.delta as Record<string, unknown> | undefined
+        if (delta?.type === 'text_delta' && typeof delta.text === 'string') {
+          textParts.push(delta.text)
+        } else if (delta?.type === 'thinking_delta' && typeof delta.thinking === 'string') {
+          thinkingParts.push(delta.thinking)
+        }
+      } else if (event === 'message_delta') {
+        const delta = chunk.delta as Record<string, unknown> | undefined
+        if (typeof delta?.stop_reason === 'string' && delta.stop_reason) stopReason = delta.stop_reason
+        const u = chunk.usage as Record<string, unknown> | undefined
+        if (typeof u?.output_tokens === 'number') outputTokens = u.output_tokens
+      }
+    }
+
+    const content: Record<string, unknown>[] = []
+    if (thinkingParts.length) content.push({ type: 'thinking', thinking: thinkingParts.join('') })
+    if (textParts.length) content.push({ type: 'text', text: textParts.join('') })
+
+    const usage: Record<string, unknown> = {
+      input_tokens: inputUsage.input_tokens ?? 0,
+      output_tokens: outputTokens,
+    }
+    if (typeof inputUsage.cache_read_input_tokens === 'number') {
+      usage.cache_read_input_tokens = inputUsage.cache_read_input_tokens
+    }
+    if (typeof inputUsage.cache_creation_input_tokens === 'number') {
+      usage.cache_creation_input_tokens = inputUsage.cache_creation_input_tokens
+    }
+
+    return {
+      id,
+      type: 'message',
+      role,
+      model,
+      content,
+      stop_reason: stopReason,
+      usage,
+    }
   }
 
   return {
