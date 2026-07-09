@@ -360,4 +360,102 @@ describe('extractAndLogSSE - debug.upstream.responseBody (SSE 重组为非流式
     expect(parsed.content[0].text).toBe('hi')
     expect(parsed.stop_reason).toBe('end_turn')
   })
+
+  it('OpenAI: kimi 非标准 usage 位置（choices[0].usage）+ system_fingerprint + 嵌套 details 完整保留', async () => {
+    const createLogEntry = vi.fn()
+    const service = createServiceWithMock(createLogEntry)
+
+    const sse = [
+      'data: {"id":"chatcmpl-x","object":"chat.completion.chunk","created":1783597165,"model":"kimi-k2.7-code","system_fingerprint":"fpv0_4303a3bb","choices":[{"index":0,"delta":{"role":"assistant","content":"你好"},"finish_reason":null}]}',
+      '',
+      'data: {"id":"chatcmpl-x","object":"chat.completion.chunk","created":1783597165,"model":"kimi-k2.7-code","system_fingerprint":"fpv0_4303a3bb","choices":[{"index":0,"delta":{},"finish_reason":"stop","usage":{"prompt_tokens":21,"completion_tokens":60,"total_tokens":81,"cached_tokens":21,"completion_tokens_details":{"reasoning_tokens":26},"prompt_tokens_details":{"cached_tokens":21}}}]}',
+      '',
+      'data: [DONE]',
+      '',
+    ].join('\n')
+
+    const debug = createDebug()
+    await service.extractAndLogSSE(toStream(sse), { model: 'kimi-k2.7-code', apiFormat: 'openai' }, 'openai', debug)
+
+    const entry = createLogEntry.mock.calls[0][0]
+    const parsed = JSON.parse(entry.debug.upstream.responseBody)
+    expect(parsed).toEqual({
+      id: 'chatcmpl-x',
+      object: 'chat.completion',
+      created: 1783597165,
+      model: 'kimi-k2.7-code',
+      system_fingerprint: 'fpv0_4303a3bb',
+      choices: [{
+        index: 0,
+        message: { role: 'assistant', content: '你好' },
+        finish_reason: 'stop',
+      }],
+      usage: {
+        prompt_tokens: 21,
+        completion_tokens: 60,
+        total_tokens: 81,
+        cached_tokens: 21,
+        completion_tokens_details: { reasoning_tokens: 26 },
+        prompt_tokens_details: { cached_tokens: 21 },
+      },
+    })
+  })
+
+  it('OpenAI: delta.reasoning_content 拼接到 message.reasoning_content，与 content 分离', async () => {
+    const createLogEntry = vi.fn()
+    const service = createServiceWithMock(createLogEntry)
+
+    const sse = [
+      'data: {"id":"r","model":"m","choices":[{"index":0,"delta":{"reasoning_content":"思考"},"finish_reason":null}]}',
+      '',
+      'data: {"id":"r","model":"m","choices":[{"index":0,"delta":{"reasoning_content":"过程"},"finish_reason":null}]}',
+      '',
+      'data: {"id":"r","model":"m","choices":[{"index":0,"delta":{"content":"答案"},"finish_reason":"stop"}]}',
+      '',
+    ].join('\n')
+
+    const debug = createDebug()
+    await service.extractAndLogSSE(toStream(sse), { model: 'm', apiFormat: 'openai' }, 'openai', debug)
+
+    const entry = createLogEntry.mock.calls[0][0]
+    const parsed = JSON.parse(entry.debug.upstream.responseBody)
+    expect(parsed.choices[0].message.content).toBe('答案')
+    expect(parsed.choices[0].message.reasoning_content).toBe('思考过程')
+  })
+
+  it('Anthropic: message_delta.usage 所有字段完整保留，input_tokens 取 message_start 非零值', async () => {
+    const createLogEntry = vi.fn()
+    const service = createServiceWithMock(createLogEntry)
+
+    const sse = [
+      'event: message_start',
+      'data: {"type":"message_start","message":{"id":"msg-1","type":"message","role":"assistant","model":"claude-3","usage":{"input_tokens":22,"cache_creation_input_tokens":0,"cache_read_input_tokens":22,"output_tokens":0}}}',
+      '',
+      'event: content_block_delta',
+      'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"你好"}}',
+      '',
+      'event: message_delta',
+      'data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":0,"cache_creation_input_tokens":0,"cache_read_input_tokens":22,"output_tokens":44,"prompt_tokens":22,"completion_tokens":44,"total_tokens":66,"cached_tokens":22}}',
+      '',
+      'event: message_stop',
+      'data: {"type":"message_stop"}',
+      '',
+    ].join('\n')
+
+    const debug = createDebug()
+    await service.extractAndLogSSE(toStream(sse), { model: 'claude-3', apiFormat: 'anthropic' }, 'anthropic', debug)
+
+    const entry = createLogEntry.mock.calls[0][0]
+    const parsed = JSON.parse(entry.debug.upstream.responseBody)
+    expect(parsed.usage).toEqual({
+      input_tokens: 22, // message_start 的（delta=0 不覆盖）
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 22,
+      output_tokens: 44, // message_delta 的（最终值）
+      prompt_tokens: 22, // message_delta 补充
+      completion_tokens: 44,
+      total_tokens: 66,
+      cached_tokens: 22,
+    })
+  })
 })

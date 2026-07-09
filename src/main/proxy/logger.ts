@@ -280,7 +280,8 @@ export function createProxyLogService(deps: {
    */
   function mergeOpenAIChunks(chunks: Record<string, unknown>[]): Record<string, unknown> {
     let content = ''
-    let id = '', model = '', role = 'assistant'
+    let reasoningContent = ''
+    let id = '', model = '', role = 'assistant', systemFingerprint = ''
     let created = 0
     let finishReason: string | null = null
     let usage: Record<string, unknown> | undefined
@@ -289,15 +290,22 @@ export function createProxyLogService(deps: {
       if (typeof chunk.id === 'string' && !id) id = chunk.id
       if (typeof chunk.model === 'string' && !model) model = chunk.model
       if (typeof chunk.created === 'number' && !created) created = chunk.created
+      if (typeof chunk.system_fingerprint === 'string' && !systemFingerprint) systemFingerprint = chunk.system_fingerprint
       const choices = chunk.choices as Array<Record<string, unknown>> | undefined
       const choice0 = choices?.[0]
       const delta = choice0?.delta as Record<string, unknown> | undefined
       if (typeof delta?.role === 'string') role = delta.role
       if (typeof delta?.content === 'string') content += delta.content
+      if (typeof delta?.reasoning_content === 'string') reasoningContent += delta.reasoning_content
       const fr = choice0?.finish_reason
       if (typeof fr === 'string' && fr) finishReason = fr
-      if (chunk.usage && typeof chunk.usage === 'object') usage = chunk.usage as Record<string, unknown>
+      // usage 兼容顶层和 choices[0].usage（kimi/moonshot 非标准位置）
+      const u = chunk.usage ?? choice0?.usage
+      if (u && typeof u === 'object') usage = u as Record<string, unknown>
     }
+
+    const message: Record<string, unknown> = { role, content }
+    if (reasoningContent) message.reasoning_content = reasoningContent
 
     const result: Record<string, unknown> = {
       id,
@@ -306,10 +314,11 @@ export function createProxyLogService(deps: {
       model,
       choices: [{
         index: 0,
-        message: { role, content },
+        message,
         finish_reason: finishReason,
       }],
     }
+    if (systemFingerprint) result.system_fingerprint = systemFingerprint
     if (usage) result.usage = usage
     return result
   }
@@ -317,15 +326,15 @@ export function createProxyLogService(deps: {
   /**
    * 将 Anthropic 流式事件数组合并为非流式 message 对象。
    *
-   * 从 message_start 取 id/model/role/input usage（含 cache 字段），拼接
-   * content_block_delta 的 text/thinking 为 content blocks（thinking 在前 text 在后），
-   * 从 message_delta 取 stop_reason 和 output_tokens。
+   * 从 message_start 取 id/model/role/input usage，拼接 content_block_delta 的
+   * text/thinking 为 content blocks（thinking 在前 text 在后），从 message_delta 取
+   * stop_reason 和 usage（非零字段覆盖 message_start，完整保留所有 token 字段）。
    */
   function mergeAnthropicChunks(chunks: Record<string, unknown>[]): Record<string, unknown> {
     let id = '', model = '', role = 'assistant'
     let stopReason: string | null = null
     let inputUsage: Record<string, unknown> = {}
-    let outputTokens = 0
+    let deltaUsage: Record<string, unknown> | undefined
     const textParts: string[] = []
     const thinkingParts: string[] = []
 
@@ -347,8 +356,7 @@ export function createProxyLogService(deps: {
       } else if (event === 'message_delta') {
         const delta = chunk.delta as Record<string, unknown> | undefined
         if (typeof delta?.stop_reason === 'string' && delta.stop_reason) stopReason = delta.stop_reason
-        const u = chunk.usage as Record<string, unknown> | undefined
-        if (typeof u?.output_tokens === 'number') outputTokens = u.output_tokens
+        if (chunk.usage && typeof chunk.usage === 'object') deltaUsage = chunk.usage as Record<string, unknown>
       }
     }
 
@@ -356,15 +364,14 @@ export function createProxyLogService(deps: {
     if (thinkingParts.length) content.push({ type: 'thinking', thinking: thinkingParts.join('') })
     if (textParts.length) content.push({ type: 'text', text: textParts.join('') })
 
-    const usage: Record<string, unknown> = {
-      input_tokens: inputUsage.input_tokens ?? 0,
-      output_tokens: outputTokens,
-    }
-    if (typeof inputUsage.cache_read_input_tokens === 'number') {
-      usage.cache_read_input_tokens = inputUsage.cache_read_input_tokens
-    }
-    if (typeof inputUsage.cache_creation_input_tokens === 'number') {
-      usage.cache_creation_input_tokens = inputUsage.cache_creation_input_tokens
+    // usage 合并：message_start 为基础，message_delta 非零字段覆盖
+    // （output_tokens 取最终值；input_tokens 保留 message_start 的非零值，不被
+    // delta 的 0 覆盖；prompt_tokens 等 OpenAI 风格字段由 delta 补充）
+    const usage: Record<string, unknown> = { ...inputUsage }
+    if (deltaUsage) {
+      for (const [k, v] of Object.entries(deltaUsage)) {
+        if (v !== 0 && v !== null && v !== undefined) usage[k] = v
+      }
     }
 
     return {
